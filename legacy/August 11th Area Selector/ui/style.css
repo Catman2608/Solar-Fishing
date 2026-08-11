@@ -4,45 +4,27 @@
     padding: 0;
     box-sizing: border-box;
     scrollbar-width: thin; /* Firefox */
-    scrollbar-color: #8a5a28 transparent; /* Firefox: thumb track — orange theme */
+    scrollbar-color: #5a4a7a transparent; /* Firefox: thumb track */
 }
 
 :root {
-    --accent-color: #ff9900;
-    --accent-glow: rgba(255, 177, 59, 0.4);
-    --left-gradient: #f53b3b;
-    --right-gradient: #e69112;
+    --accent-color: #7000ff;
+    --accent-glow: rgba(59, 92, 255, 0.4);
+    --left-gradient: #553bf5;
+    --right-gradient: #9a13e5;
     --button-text: white;
 
-    /* Dark orange theme text colors - solid colors for reliable contrast on Windows/macOS */
-    --text-primary: #fff7ed;
-    --text-secondary: #ffe5cc;
-    --text-muted: #e8c9a7;
-    --text-subtle: #d1af88;
-    --text-label: #ffefde;
+    /* Dark purple theme text colors - solid colors for reliable contrast on Windows/macOS */
+    --text-primary: #f4edff;
+    --text-secondary: #d9ccff;
+    --text-muted: #b9a8e8;
+    --text-subtle: #9a88d0;
+    --text-label: #e6ddff;
     --text-label2: #aaaaaa;
-
-    /* Dark orange theme surfaces & borders */
-    --bg-body: #0f0804;
-    --bg-sidebar: #140c06;
-    --bg-topbar: rgba(28, 12, 2, 0.7);
-    --bg-card: #1c1208;
-    --bg-input: #1a1008;
-    --bg-box: #221508;
-    --bg-modal: rgba(28, 14, 4, 0.94);
-    --bg-soft: rgba(255, 160, 50, 0.07);
-    --border-soft: rgba(255, 160, 50, 0.16);
-    --border-medium: rgba(255, 160, 50, 0.28);
-    --border-card: #5a3a1c;
-    --border-strong: #6b4522;
-    --focus-ring: rgba(255, 153, 0, 0.75);
-    --focus-glow: rgba(255, 153, 0, 0.28);
-    --scrollbar-thumb: #8a5a28;
-    --scrollbar-thumb-hover: #a86e32;
 }
 
 body {
-    background: var(--bg-body);
+    background: #0d0022;
     color: var(--text-primary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     overflow: hidden;
@@ -69,7 +51,7 @@ hr {
 .topbar {
     height: 64px;
     min-height: 64px;
-    background: var(--bg-topbar);
+    background: rgba(10, 0, 64, 0.6);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -102,8 +84,8 @@ hr {
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    background: var(--bg-soft);
-    border: 1px solid var(--border-soft);
+    background: rgba(180, 140, 255, 0.06);
+    border: 1px solid rgba(180, 140, 255, 0.15);
     padding: 6px 12px;
     border-radius: 8px;
 }
@@ -184,8 +166,8 @@ hr {
 
 /* Card */
 .card {
-    background: var(--bg-card);
-    border: 2px solid var(--border-card);
+    background: #16002f;
+    border: 2px solid #4a3a60;
     border-radius: 10px;
     padding: 15px;
     margin-top: 15px;
@@ -237,8 +219,8 @@ hr {
     width: 240px;
     min-width: 220px;
     max-width: 260px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-soft);
+    background: #11002e;
+    border-right: 1px solid rgba(180, 140, 255, 0.12);
     box-shadow: 2px 0 12px rgba(0,0,0,.35);
     padding: 22px 16px;
     display: flex;
@@ -354,8 +336,8 @@ hr {
 }
 
 .config-section button {
-    background: var(--bg-soft);
-    border: 1px solid var(--border-soft);
+    background: rgba(180, 140, 255, 0.08);
+    border: 1px solid rgba(180, 140, 255, 0.18);
     color: var(--text-primary);
     padding: 8px 14px;
     border-radius: 12px;
@@ -379,8 +361,8 @@ hr {
     flex: 1;
     min-width: 0;
     padding: 7px 10px;
-    background: var(--bg-soft);
-    border: 1px solid var(--border-soft);
+    background: rgba(180, 140, 255, 0.06);
+    border: 1px solid rgba(180, 140, 255, 0.15);
     border-radius: 10px;
 }
 
@@ -447,12 +429,12 @@ hr {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb); /* Orange-tinted for dark orange theme */
+  background: #5a4a7a; /* Purple-tinted for dark purple theme */
   border-radius: 10px; /* Round the ends */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
+  background: #7a6aa0; /* Lighten slightly on hover */
 }
 
 /* Buttons */
@@ -483,8 +465,8 @@ button {
 }
 
 .text input {
-    background: var(--bg-input);
-    border: 1px solid var(--border-medium);
+    background: #1a0a35;
+    border: 1px solid rgba(180, 140, 255, 0.25);
     color: var(--text-primary);
     padding: 8px 12px;
     border-radius: 6px;
@@ -499,8 +481,8 @@ button {
 }
 
 .text input:focus {
-    border-color: var(--focus-ring);
-    box-shadow: 0 0 12px var(--focus-glow);
+    border-color: rgba(150, 70, 255, 0.8);
+    box-shadow: 0 0 12px rgba(150, 70, 255, 0.25);
 }
 
 /* Dropdowns */
@@ -515,8 +497,8 @@ button {
 /* Unified dropdown and select styles with proper padding */
 .dropdown select,
 .config-section select {
-    background-color: var(--bg-input);
-    border: 1px solid var(--border-medium);
+    background-color: #1a0a35;
+    border: 1px solid rgba(180, 140, 255, 0.25);
     color: var(--text-primary);
     border-radius: 10px;
     outline: none;
@@ -548,13 +530,13 @@ button {
 }
 
 .dropdown select:focus {
-    border-color: var(--focus-ring);
-    box-shadow: 0 0 12px var(--focus-glow);
+    border-color: rgba(150, 70, 255, 0.8);
+    box-shadow: 0 0 12px rgba(150, 70, 255, 0.25);
 }
 
 .dropdown option,
 .config-section select option {
-    background: var(--bg-input);
+    background: #1a0a35;
     color: var(--text-primary);
 }
 
@@ -648,8 +630,8 @@ button {
 }
 
 .simple-box {
-    background: var(--bg-box);
-    border: 1px solid var(--border-card);
+    background: #1f1528;
+    border: 1px solid #4a3a60;
     border-radius: 12px;
     padding: 14px;
     display: flex;
@@ -679,19 +661,14 @@ button {
     width: 100%;
     padding: 8px;
     border-radius: 6px;
-    border: 2px solid var(--border-medium);
-    background: var(--bg-input);
+    border: 2px solid rgba(180, 140, 255, 0.25);
+    background: #1a0a35;
     color: var(--text-primary);
     box-sizing: border-box;
     outline: none;
     appearance: none;
     -webkit-appearance: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.simple-box input:focus {
-    border-color: var(--focus-ring);
-    box-shadow: 0 0 10px var(--focus-glow);
 }
 
 /* Config Modal ── */
@@ -722,7 +699,7 @@ button {
 
 .modal-window {
     width: 450px;
-    background: var(--bg-modal);
+    background: rgba(25, 7, 45, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 24px;
     padding: 24px;
@@ -776,8 +753,8 @@ button {
 
 .modal-content button {
     width: 100%;
-    background: var(--bg-soft);
-    border: 1px solid var(--border-soft);
+    background: rgba(180, 140, 255, 0.08);
+    border: 1px solid rgba(180, 140, 255, 0.18);
     color: var(--text-primary);
     padding: 8px;
     border-radius: 8px;
