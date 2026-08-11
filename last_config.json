@@ -1,5 +1,5 @@
 {
-    "last_config": "Default",
+    "last_config": "Lemonade Serenade (Berrynade)",
     "last_rod": "Basic Rod",
     "bar_areas": {
         "shake": {
@@ -49,6 +49,18 @@
             "y": 0.8581,
             "width": 0.0426,
             "height": 0.0712
+        },
+        "treasure_appraisal": {
+            "x": 0.3343,
+            "y": 0.4156,
+            "width": 0.3385,
+            "height": 0.1629
+        },
+        "treasure_ocr": {
+            "x": 0.3343,
+            "y": 0.4156,
+            "width": 0.3385,
+            "height": 0.1629
         },
         "appraisal_dialogue": {
             "x": 0.3343,

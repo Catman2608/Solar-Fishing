@@ -56,6 +56,7 @@
                         <select name="automation_mode" id="automation_mode">
                             <option value="fishing">Fishing</option>
                             <option value="appraisal">Appraisal</option>
+                            <option value="treasure_appraisal">Treasure Appraisal</option>
                             <option value="enchant">Enchant</option>
                             <option value="angler">Angler</option>
                             <option value="disabled">Disabled</option>
@@ -475,6 +476,10 @@
                         <input id=logging_url type="text" placeholder="[___]">
                     </div>
                     <div class="text">
+                        <label>User ID</label>
+                        <input id=user_id type="text" placeholder="67">
+                    </div>
+                    <div class="text">
                         <label>Webhook Name</label>
                         <input id=logging_name type="text" placeholder="Solar Fishing V4">
                     </div>
@@ -656,7 +661,6 @@
                         <select name="appraisal_mode" id="appraisal_mode">
                         <option value="normal">Normal</option>
                         <option value="gamepass">Gamepass</option>
-                        <option value="disabled">Disabled</option>
                         </select>
                     </div>
                     <div class="text">
@@ -673,16 +677,9 @@
                     </div>
                 </div>
                 <div class="card">
-                    <h3>Auto Treasure Appraisal</h3>
+                    <h3>Auto Treasure Appraisal (toggle in Overview tab)</h3>
                     <div class="description"> 
                         <p>Automatically appraise caught fish in the Treasure Island.</p>
-                    </div>
-                    <div class="switch2">
-                        <p>Treasure Appraisal</p>
-                        <label class="switch">
-                            <input id=treasure_appraisal type="checkbox">
-                            <span class="slider"></span>
-                        </label>
                     </div>
                     <div class="text">
                         <label>Minimum Multiplier</label>

@@ -23,6 +23,7 @@ import webbrowser
 import os
 import shutil
 import math
+import random
 from pathlib import Path
 # Keyboard and Mouse clicks (platform-specific)
 from pynput.keyboard import Listener as KeyListener, Key
@@ -460,6 +461,16 @@ AREA_CONFIG = {
         "color": "#ffe195",
         "label": "Backpack Box",
         "default": {"x": 0.3983, "y": 0.8581, "width": 0.0426, "height": 0.0712},
+    },
+    "treasure_appraisal": {
+        "color": "#4f35f6",
+        "label": "Treasure Appraisal Box (Grid)",
+        "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
+    },
+    "treasure_ocr": {
+        "color": "#ff4512",
+        "label": "Treasure Appraisal Box (OCR)",
+        "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
     },
     "appraisal_dialogue": {
         "color": "#000fff",
@@ -1639,6 +1650,14 @@ class Api:
         except Exception:
             pass # Keep it safe just like set_status
 
+    def get_error_line(self, lines):
+        matches = re.findall(r'\bline\s+(\d+)\b', lines)
+
+        if not matches:
+            return None
+
+        return int(matches[-1])
+
     def _get_scale_factor(self):
         return get_scale_factor()
 
@@ -1764,6 +1783,8 @@ class Api:
                         self.macro_thread = threading.Thread(target=self.start_enchantment, daemon=True)
                     elif automation_mode == "angler":
                         self.macro_thread = threading.Thread(target=self.start_angler, daemon=True)
+                    elif automation_mode == "treasure_appraisal":
+                        self.macro_thread = threading.Thread(target=self.start_treasure_appraisal, daemon=True)
                     self.macro_thread.start()
                     if sys.platform == "darwin":
                         self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
@@ -2065,13 +2086,35 @@ class Api:
             self.capture_id += 1
             time.sleep(self.scan_delay)
     def process_image_for_ocr(self, img):
+        # Convert to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Upscale image
-        gray = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-        # Sharpen contrast
-        gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
-        cv2.imwrite("fish.png", gray)
-        return gray
+        # Upscale
+        gray = cv2.resize(gray,None,fx=3,fy=3,interpolation=cv2.INTER_CUBIC)
+        # Adaptive threshold works better with different text colors
+        binary = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,31,8)
+        return binary
+    
+    def extract_number_from_text(self, text):
+        """
+        Extracts numeric value from OCR text, handling common issues.
+        Returns None if no valid number is found.
+        """
+        # Clean up common OCR artifacts
+        cleaned = text.strip()
+        # Replace common OCR mistakes (O -> 0, l -> 1, etc.)
+        cleaned = cleaned.replace('O', '0').replace('o', '0')
+        cleaned = cleaned.replace('l', '1').replace('I', '1')
+        
+        # Find number with optional decimal
+        # This pattern handles: 0.5, .5, 100, 100.0, etc.
+        match = re.search(r'(\d+\.?\d*|\.\d+)', cleaned)
+        
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                return None
+        return None
 
     def pixel_search(self, frame, hex, tolerance, mode=0):
         """
@@ -2581,8 +2624,8 @@ class Api:
             self._click_at(appraisal_x, appraisal_y)
             # Detection
             fish = self.capture_frame[hotbar_top:hotbar_bottom, hotbar_left:hotbar_right]
-            gray = self.process_image_for_ocr(fish)
-            text = pytesseract.image_to_string(gray, config="--psm 7")
+            processed_img = self.process_image_for_ocr(fish)
+            text = pytesseract.image_to_string(processed_img, config="--psm 7")
             for match in range(len(appraisal_mutations_list)):
                 # print("Requirements:", appraisal_mutations_list[match].lower().rstrip(",").replace(" ", ""))
                 # print("Text:", text.lower().rstrip(",").replace(" ", ""))
@@ -2595,6 +2638,75 @@ class Api:
                     self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
                 logging_cycle = logging_cycle + attempts
         self.set_status("Macro Stopped")
+    def start_treasure_appraisal(self):
+        # Validate Tesseract
+        try:
+            tesseract_path = self.vars["tesseract_path"]
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            self.macro_running = True
+        except Exception as e:
+            time.sleep(0.2)
+            full_error = traceback.format_exc()
+            self.message_box_javascript(f"""An error occured during appraisal.
+            Please copy the error and report the bug:\\n{e}\\n
+            Would you like to copy the full crash log to your clipboard?""", full_error)
+            self.macro_running = False
+            self.stop_macro(f"Appraisal error: {e}")
+        # Areas
+        treasure_left, treasure_top, treasure_right, treasure_bottom, treasure_width, treasure_height = self.get_areas("treasure_appraisal")
+        ocr_left, ocr_top, ocr_right, ocr_bottom, ocr_width, ocr_height = self.get_areas("treasure_ocr")
+        # Area calculations
+        treasure_click_center = treasure_left + int(treasure_width / 2)
+        treasure_click_left = treasure_left + int(treasure_width / 5)
+        treasure_click_right = treasure_right - int(treasure_width / 5)
+        treasure_click_y_multiplier = int(treasure_height / 7.25)
+        # Settings
+        minimum_multiplier = float(self.vars["minimum_multiplier"])
+        logging_mode = self.vars["logging_mode"].lower()
+        # Cache values (failsafe)
+        attempts = 0
+        # Main Loop
+        try:
+            while self.macro_running:
+                attempts = attempts + 1
+                for i in range(7):
+                    slot = random.randint(1, 3)
+                    if slot == 1:
+                        current_click_x = treasure_click_left
+                    elif slot == 2:
+                        current_click_x = treasure_click_center
+                    else:
+                        current_click_x = treasure_click_right
+                    current_click_y = treasure_top + (treasure_click_y_multiplier * (i + 1))
+                    self._click_at(current_click_x, current_click_y)
+                time.sleep(2)
+                ocr_image = self.capture_frame[ocr_top:ocr_bottom, ocr_left:ocr_right]
+                processed_img = self.process_image_for_ocr(ocr_image)
+                text = pytesseract.image_to_string(processed_img, config="--psm 7")
+                extracted_value = float(self.extract_number_from_text(text))
+                if extracted_value is not None:
+                    if extracted_value > minimum_multiplier:
+                        self.stop_macro("Treasure Appraisal finished")
+                    else:
+                        self.set_status("Treasure Appraisal: extracted_value < minimum_multiplier")
+                else:
+                    self.set_status("Treasure Appraisal: extracted_value == None")
+                if self.macro_running == False:
+                    self.stop_macro("")
+                if round(attempts) == attempts and logging_mode != "disabled":
+                    if attempts == logging_cycle:
+                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
+                    logging_cycle = logging_cycle + attempts
+        except Exception as e:
+            time.sleep(0.2)
+            full_error = traceback.format_exc()
+            error_lines = full_error.splitlines()
+            error_line = self.get_error_line(error_lines[1])
+            self.message_box_javascript(f"An error at line {error_line} occured. Please copy the error and report the bug:\\n{e}\\nWould you like to copy the full crash log to your clipboard?", full_error)
+            if IS_COMPILED == False:
+                print(full_error)
+            self.macro_running = False
+            self.stop_macro(f"Error at line {error_line}: {e}")
     def start_enchantment(self):
         # Validate Tesseract
         try:
@@ -2628,29 +2740,40 @@ class Api:
         logging_mode = self.vars["logging_mode"].lower()
         attempts = 0.0
         # Main Loop
-        while self.macro_running == True:
-            time.sleep(0.1)
-            self._send_key("e")
-            time.sleep(e_delay)
-            self._click_at(enchantment_x, enchantment_y)
-            time.sleep(click_delay)
-            # Detection
-            text = self.capture_frame[enchantment_top:enchantment_bottom, enchantment_left:enchantment_right]
-            gray = self.process_image_for_ocr(text)
-            text = pytesseract.image_to_string(gray, config="--psm 7")
-            for match in range(len(enchant_enchants_list)):
-                # print("Requirements:", appraisal_mutations_list[match].lower().rstrip(",").replace(" ", ""))
-                # print("Text:", text.lower().rstrip(",").replace(" ", ""))
-                if enchant_enchants_list[match].lower().rstrip(",").replace(" ", "") in text.lower().rstrip(",").replace(" ", ""):
-                    self.stop_macro("Enchantment finished")
-            time.sleep(click_delay2)
-            if self.macro_running == False:
-                self.stop_macro("")
-            if round(attempts) == attempts and logging_mode != "disabled":
-                if attempts == logging_cycle:
-                    self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
-                logging_cycle = logging_cycle + attempts
-        self.set_status("Macro Stopped")
+        try:
+            while self.macro_running:
+                time.sleep(0.1)
+                self._send_key("e")
+                time.sleep(e_delay)
+                self._click_at(enchantment_x, enchantment_y)
+                time.sleep(click_delay)
+                # Detection
+                text = self.capture_frame[enchantment_top:enchantment_bottom, enchantment_left:enchantment_right]
+                gray = self.process_image_for_ocr(text)
+                text = pytesseract.image_to_string(gray, config="--psm 7")
+                for match in range(len(enchant_enchants_list)):
+                    # print("Requirements:", appraisal_mutations_list[match].lower().rstrip(",").replace(" ", ""))
+                    # print("Text:", text.lower().rstrip(",").replace(" ", ""))
+                    if enchant_enchants_list[match].lower().rstrip(",").replace(" ", "") in text.lower().rstrip(",").replace(" ", ""):
+                        self.stop_macro("Enchantment finished")
+                time.sleep(click_delay2)
+                if self.macro_running == False:
+                    self.stop_macro("")
+                if round(attempts) == attempts and logging_mode != "disabled":
+                    if attempts == logging_cycle:
+                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
+                    logging_cycle = logging_cycle + attempts
+            self.set_status("Macro Stopped")
+        except Exception as e:
+            time.sleep(0.2)
+            full_error = traceback.format_exc()
+            error_lines = full_error.splitlines()
+            error_line = self.get_error_line(error_lines[1])
+            self.message_box_javascript(f"An error at line {error_line} occured. Please copy the error and report the bug:\\n{e}\\nWould you like to copy the full crash log to your clipboard?", full_error)
+            if IS_COMPILED == False:
+                print(full_error)
+            self.macro_running = False
+            self.stop_macro(f"Error at line {error_line}: {e}")
     def start_angler(self):
         # Validate Tesseract
         try:
@@ -2784,7 +2907,9 @@ class Api:
         click_after_minigame = self.vars["click_after_minigame"].lower()
         target_time = self.vars["target_time"].lower()
         logging_cycle = int(self.vars["logging_cycle"])
+        hunt_cycles = int(self.vars["hunt_cycles"])
         auto_reconnect = self.vars["auto_reconnect"]
+        hunt_detect = self.vars["hunt_detect"]
         # 2. Hotkey & Inventory Slots
         bag_slot = str(self.vars["bag_slot"])
         rod_slot = str(self.vars["rod_slot"])
@@ -2822,11 +2947,13 @@ class Api:
         self.scan_delay = 0.1
         self.current_cycle = 0
         current_time = None
+        current_hunt = ""
         # Catch Metrics (0 = success, 1 = failed, 2 = N/A initial state)
         self.catch_success = 2
         self.catch_rate = 0.0
         successful_catches = 0
         logging_cycle2 = logging_cycle
+        hunt_cycles2 = hunt_cycles
         if fish_overlay == "on":
             # Position the overlay just above or below the fish bar so it does
             # not cover the actual minigame.  show() expects (left, top, width,
@@ -2885,6 +3012,10 @@ class Api:
                     time.sleep(delay_after_casting / 4)
                 if auto_reconnect == "on":
                     self._auto_reconnect(shake_x, shake_y)
+                if hunt_detect == "on":
+                    if self.current_cycle == hunt_cycles:
+                        self.hunt_detect(current_hunt)
+                        hunt_cycles = hunt_cycles2 + self.current_cycle
                 # Update current cycle
                 self.current_cycle = self.current_cycle + 1
                 # Cast
@@ -2955,9 +3086,7 @@ class Api:
             time.sleep(0.2)
             full_error = traceback.format_exc()
             error_lines = full_error.splitlines()
-            error_line = error_lines[1].split("line ")
-            error_line = error_line[1].split(",")
-            error_line = error_line[0]
+            error_line = self.get_error_line(error_lines[1])
             self.message_box_javascript(f"An error at line {error_line} occured. Please copy the error and report the bug:\\n{e}\\nWould you like to copy the full crash log to your clipboard?", full_error)
             if IS_COMPILED == False:
                 print(full_error)
@@ -2994,6 +3123,56 @@ class Api:
                 self.interruptible_sleep(0.2)
                 self._click_at(mirror_click_x, mirror_click_y)
             return
+    def hunt_detect(self, current_hunt):
+        "current_hunt: Does nothing"
+        try:
+            tesseract_path = self.vars["tesseract_path"]
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        except:
+            return
+
+        chat_left, chat_top, chat_right, chat_bottom = self.get_areas("chat")
+        hunt_fishes = self.vars["hunt_fishes"].lower()
+        user_id = int(self.vars["user_id"])
+        hunt_fishes_list = hunt_fishes.split(",")
+
+        text = self.capture_frame[
+            chat_top:chat_bottom,
+            chat_left:chat_right
+        ]
+
+        gray = self.process_image_for_ocr(text)
+
+        text = pytesseract.image_to_string(
+            gray,
+            config="--psm 6"
+        )
+
+        # Get the bottom-most non-empty OCR line
+        lines = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip()
+        ]
+
+        if not lines:
+            return
+
+        latest_line = lines[-1]
+
+        # Check only the latest chat message
+        latest_line_normalized = latest_line.lower().replace(" ", "")
+
+        for hunt in hunt_fishes_list:
+            hunt = hunt.strip()
+            current_hunt = hunt
+            if hunt.lower().replace(" ", "") in latest_line_normalized:
+                self.send_logging(
+                    f"<@{user_id}> Found {hunt}",
+                    self.current_cycle
+                )
+                return current_hunt
+        return current_hunt
     def _execute_cast_perfect(self):
         # Areas
         shake_left, shake_top, shake_right, shake_bottom, _, shake_height = self.get_areas("shake")
