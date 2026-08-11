@@ -118,5 +118,9 @@
     "angler_click_x": "0.5",
     "angler_click_y": "0.5",
     "backpack_x": "0.5",
-    "backpack_y": "0.5"
+    "backpack_y": "0.5",
+    "sovereign_recharge_color": "#d994ff",
+    "sovereign_recharge_tolerance": "5",
+    "backpack_confirm_x": "0.5",
+    "backpack_confirm_y": "0.5"
 }

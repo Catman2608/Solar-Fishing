@@ -573,6 +573,9 @@ class AreaSelector:
             def on_mouse_move(self, mouse_x, mouse_y, current_boxes):
                 return outer.on_mouse_move(mouse_x, mouse_y, current_boxes)
 
+            def on_point_select(self, name, xr, yr):
+                return outer.on_point_select(name, xr, yr)
+
             def save_areas(self, areas):
                 return outer.save_areas(areas)
 
@@ -690,6 +693,39 @@ class AreaSelector:
                         pass
 
                     break
+
+    def on_point_select(self, name, xr, yr):
+        """Called by JS when Select Point mode is on and user clicks an area.
+        Shows ratios in the status bar and closes the selector without the
+        generic 'Area selector closed' message so the ratios remain visible."""
+        if not self._open:
+            return
+        try:
+            xr = float(xr)
+            yr = float(yr)
+        except (TypeError, ValueError):
+            return
+        xr = max(0.0, min(1.0, xr))
+        yr = max(0.0, min(1.0, yr))
+        label = (AREA_CONFIG.get(name) or {}).get("label", name)
+        status_msg = f"{label.upper()}  →  X RATIO: {xr:.4f}  Y RATIO: {yr:.4f}"
+
+        # Persist current areas, then close without overwriting the ratio status.
+        try:
+            self.parent_app.bar_areas.update(self._areas)
+            self.parent_app.save_misc_settings()
+        except Exception:
+            pass
+        self._open = False
+        try:
+            self.parent_app.set_status(status_msg)
+        except Exception:
+            pass
+        if self.area_window:
+            try:
+                self.area_window.destroy()
+            except Exception:
+                pass
 
     def _pixels_to_ratios(self, box, menu_offset=0):
         return {
@@ -2116,6 +2152,25 @@ class Api:
                 return None
         return None
 
+    def click_backpack(self, x, y):
+        # Areas
+        backpack_left, backpack_top, backpack_right, backpack_bottom, backpack_width, backpack_height = self.get_areas("backpack")
+        # User Settings
+        backpack_key = str(self.vars["backpack_key"])
+        # Click Positions
+        backpack_confirm_x = (float(self.vars["backpack_confirm_x"]) * backpack_width) + backpack_left
+        backpack_confirm_y = (float(self.vars["backpack_confirm_y"]) * backpack_height) + backpack_top
+        click_x = (float(self.vars[x]) * backpack_width) + backpack_left
+        click_y = (float(self.vars[y]) * backpack_height) + backpack_top
+        # Action
+        self._send_key(backpack_key)
+        time.sleep(0.3)
+        self._click_at(click_x, click_y)
+        time.sleep(0.3)
+        self._click_at(backpack_confirm_x, backpack_confirm_y)
+        time.sleep(0.3)
+        return
+
     def pixel_search(self, frame, hex, tolerance, mode=0):
         """
         Searches for the first or last pixel based on mode.
@@ -2602,6 +2657,7 @@ class Api:
         dialogue_left, dialogue_top, _, _, dialogue_width, dialogue_height = self.get_areas("appraisal_dialogue")
         hotbar_left, hotbar_top, hotbar_right, hotbar_bottom, _, _ = self.get_areas("appraisal_hotbar")
         # Split mutations (Sometimes it contains , at the end)
+        appraisal_mode = self.vars["appraisal_mode"].lower()
         appraisal_mutations = self.vars["appraisal_mutations"]
         appraisal_mutations_list = appraisal_mutations.split(",")
         # Positions
@@ -2620,8 +2676,11 @@ class Api:
         while self.macro_running:
             attempts = attempts + 1
             # Click
-            time.sleep(click_delay)
-            self._click_at(appraisal_x, appraisal_y)
+            if appraisal_mode == "normal":
+                time.sleep(click_delay)
+                self._click_at(appraisal_x, appraisal_y)
+            else:
+                self.click_backpack(appraisal_x, appraisal_y)
             # Detection
             fish = self.capture_frame[hotbar_top:hotbar_bottom, hotbar_left:hotbar_right]
             processed_img = self.process_image_for_ocr(fish)
@@ -2724,6 +2783,7 @@ class Api:
         # Get Areas
         enchantment_left, enchantment_top, enchantment_right, enchantment_bottom, enchantment_width, enchantment_height = self.get_areas("enchantment")
         # Split Enchantments
+        enchantment_mode = self.vars["enchantment_mode"].lower()
         enchant_enchants = self.vars["enchant_enchants"]
         enchant_enchants_list = enchant_enchants.split(",")
         # Positions
@@ -2743,10 +2803,14 @@ class Api:
         try:
             while self.macro_running:
                 time.sleep(0.1)
-                self._send_key("e")
-                time.sleep(e_delay)
-                self._click_at(enchantment_x, enchantment_y)
-                time.sleep(click_delay)
+                if enchantment_mode == "gamepass":
+                    self._send_key("e")
+                    time.sleep(e_delay)
+                    self._click_at(enchantment_x, enchantment_y)
+                    time.sleep(click_delay)
+                else:
+                    self.click_backpack(enchantment_x_ratio, enchantment_y_ratio)
+                time.sleep(3)
                 # Detection
                 text = self.capture_frame[enchantment_top:enchantment_bottom, enchantment_left:enchantment_right]
                 gray = self.process_image_for_ocr(text)
@@ -2904,12 +2968,15 @@ class Api:
         shake_mode = self.vars["shake_mode"].lower()
         logging_mode = self.vars["logging_mode"].lower()
         fishing_profile = self.vars["fishing_profile"].lower()
+        sovereign_recharge = self.vars["sovereign_recharge"]
         click_after_minigame = self.vars["click_after_minigame"].lower()
         target_time = self.vars["target_time"].lower()
         logging_cycle = int(self.vars["logging_cycle"])
         hunt_cycles = int(self.vars["hunt_cycles"])
         auto_reconnect = self.vars["auto_reconnect"]
         hunt_detect = self.vars["hunt_detect"]
+        minimum_percentage = float(self.vars["minimum_percentage"].strip("%"))
+        maximum_percentage = float(self.vars["maximum_percentage"].strip("%"))
         # 2. Hotkey & Inventory Slots
         bag_slot = str(self.vars["bag_slot"])
         rod_slot = str(self.vars["rod_slot"])
@@ -2926,6 +2993,7 @@ class Api:
         fish_left, fish_top, fish_right, fish_bottom, _, fish_height = self.get_areas("fish")
         friend_left_s, friend_top_s, friend_right_s, friend_bottom_s, _, _ = self.get_areas("friend")
         totem_left, totem_top, totem_right, totem_bottom, _, _ = self.get_areas("totem")
+        sovereign_left, sovereign_top, sovereign_right, sovereign_bottom, sovereign_width, _ = self.get_areas("sovereign")
         shake_x = shake_left + (shake_w // 2)
         shake_y = shake_top + (shake_h // 2)
         detection_method = self.vars["detection_method"]
@@ -2935,9 +3003,13 @@ class Api:
         fish_tolerance = int(self.vars["fish_tolerance"])
         friend_color = self.vars["friends_color"]
         friend_tolerance = int(self.vars["friends_tolerance"])
+        sovereign_recharge_color = self.vars["sovereign_recharge_color"]
+        sovereign_recharge_tolerance = int(self.vars["sovereign_recharge_tolerance"])
         auto_refresh = self.vars["auto_refresh"]
         auto_totem = self.vars["auto_totem"]
         fish_overlay = self.vars["fish_overlay"]
+        enchant_click_x = self.vars["enchant_click_x"]
+        enchant_click_y = self.vars["enchant_click_y"]
         # 6. Optimized OpenCV Template Matching Setup
         sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
         moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
@@ -3016,6 +3088,16 @@ class Api:
                     if self.current_cycle == hunt_cycles:
                         self.hunt_detect(current_hunt)
                         hunt_cycles = hunt_cycles2 + self.current_cycle
+                if sovereign_recharge == "on":
+                    sovereign_img = self.capture_frame[sovereign_top:sovereign_bottom, sovereign_left:sovereign_right]
+                    sovereign_right2 = self.pixel_search(sovereign_img, sovereign_recharge_color, sovereign_recharge_tolerance)
+                    distance = round(abs(sovereign_right2 - sovereign_left) / sovereign_width, 2)
+                    while distance < maximum_percentage:
+                        if distance < minimum_percentage:
+                            self.click_backpack(enchant_click_x, enchant_click_y)
+                        elif distance > maximum_percentage:
+                            break
+                        time.sleep(0.01)
                 # Update current cycle
                 self.current_cycle = self.current_cycle + 1
                 # Cast
