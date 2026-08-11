@@ -470,6 +470,9 @@ async function takeScreenshot() {
     setStatus("Error saving debug screenshots");
     await pywebview.api.take_debug_screenshot();
 }
+async function selectPoint() {
+    return;
+}
 async function openLink(link) {
     if (!link) {
         setStatus(

@@ -573,9 +573,6 @@ class AreaSelector:
             def on_mouse_move(self, mouse_x, mouse_y, current_boxes):
                 return outer.on_mouse_move(mouse_x, mouse_y, current_boxes)
 
-            def on_point_select(self, name, xr, yr):
-                return outer.on_point_select(name, xr, yr)
-
             def save_areas(self, areas):
                 return outer.save_areas(areas)
 
@@ -693,39 +690,6 @@ class AreaSelector:
                         pass
 
                     break
-
-    def on_point_select(self, name, xr, yr):
-        """Called by JS when Select Point mode is on and user clicks an area.
-        Shows ratios in the status bar and closes the selector without the
-        generic 'Area selector closed' message so the ratios remain visible."""
-        if not self._open:
-            return
-        try:
-            xr = float(xr)
-            yr = float(yr)
-        except (TypeError, ValueError):
-            return
-        xr = max(0.0, min(1.0, xr))
-        yr = max(0.0, min(1.0, yr))
-        label = (AREA_CONFIG.get(name) or {}).get("label", name)
-        status_msg = f"{label.upper()}  →  X RATIO: {xr:.4f}  Y RATIO: {yr:.4f}"
-
-        # Persist current areas, then close without overwriting the ratio status.
-        try:
-            self.parent_app.bar_areas.update(self._areas)
-            self.parent_app.save_misc_settings()
-        except Exception:
-            pass
-        self._open = False
-        try:
-            self.parent_app.set_status(status_msg)
-        except Exception:
-            pass
-        if self.area_window:
-            try:
-                self.area_window.destroy()
-            except Exception:
-                pass
 
     def _pixels_to_ratios(self, box, menu_offset=0):
         return {
