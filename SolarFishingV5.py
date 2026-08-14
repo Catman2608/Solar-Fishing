@@ -1090,7 +1090,7 @@ class FishOverlay:
         self.overlay_window = webview.create_window(
             "Fish Overlay",
             url=self.HTML_FILE,
-            transparent=True,
+            transparent=False,
             frameless=True,
             easy_drag=False,
             on_top=True,
@@ -1100,6 +1100,7 @@ class FishOverlay:
             x=self.left,
             y=self.top,
             background_color="#000000",
+            min_size=(1, 1),
         )
         self._open = True
         self._visible = True
@@ -2179,39 +2180,54 @@ class Api:
         if frame is None or frame.size == 0:
             return None, None
 
+        if mode not in (0, 1):
+            raise RuntimeError("Invalid detection mode")
+
         try:
             tolerance = int(tolerance)
-        except:
+        except (TypeError, ValueError):
             tolerance = 5
-        tolerance = int(np.clip(tolerance, 0, 255))
+
+        tolerance = max(0, min(255, tolerance))
+
         try:
             b, g, r = self._hex_to_bgr(hex)
-        except:
+        except Exception:
             return None, None
 
-        lower_bound = np.array([
-            max(0, b - tolerance),
+        lower = np.array(
+            [max(0, b - tolerance),
             max(0, g - tolerance),
-            max(0, r - tolerance)
-        ], dtype=np.uint8)
-        upper_bound = np.array([
-            min(255, b + tolerance),
+            max(0, r - tolerance)],
+            dtype=np.uint8
+        )
+
+        upper = np.array(
+            [min(255, b + tolerance),
             min(255, g + tolerance),
-            min(255, r + tolerance)
-        ], dtype=np.uint8)
-        mask = cv2.inRange(frame, lower_bound, upper_bound)
-        coords = np.argwhere(mask > 0)
-        if coords.size > 0:
-            if mode == 0:
-                y, x = coords[0]
-            elif mode == 1:
-                y, x = coords[-1]  # Get last pixel
-            else:
-                raise RuntimeError("Invalid detection mode")
+            min(255, r + tolerance)],
+            dtype=np.uint8
+        )
 
-            return int(x), int(y)
+        mask = cv2.inRange(frame, lower, upper)
 
-        return None, None
+        if mode == 0:
+            rows = np.flatnonzero(mask.any(axis=1))
+            if rows.size == 0:
+                return None, None
+
+            y = rows[0]
+            x = np.flatnonzero(mask[y])[0]
+
+        else:
+            rows = np.flatnonzero(mask.any(axis=1))
+            if rows.size == 0:
+                return None, None
+
+            y = rows[-1]
+            x = np.flatnonzero(mask[y])[-1]
+
+        return int(x), int(y)
 
     def find_color_cluster(self, frame, target_color_hex, tolerance=8, min_area=10):
         """
@@ -2988,6 +3004,7 @@ class Api:
         delay_after_casting = float(self._get_var_number("cast_delay", 1.0, float))
         sundial_delay = float(self.vars["sundial_delay"])
         totem_delay = float(self.vars["totem_delay"])
+        restart_delay = float(self.vars["restart_delay"])
         # 4. Screen Regions & Coordinates
         shake_left, shake_top, shake_right, shake_bottom, shake_w, shake_h = self.get_areas("shake")
         fish_left, fish_top, fish_right, fish_bottom, _, fish_height = self.get_areas("fish")
@@ -3153,6 +3170,7 @@ class Api:
                 if click_after_minigame == "on":
                     time.sleep(select_rod_duration)
                     self._click_at(shake_x, shake_y)
+                    time.sleep(2.5)
                 # Update catch rate after the minigame finishes
                 if self.catch_success == 0:
                     successful_catches += 1

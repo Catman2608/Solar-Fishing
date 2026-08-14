@@ -1,4 +1,4 @@
-name: Build macOS DMG
+name: Build macOS DMG (Intel)
 
 on:
   workflow_dispatch:
