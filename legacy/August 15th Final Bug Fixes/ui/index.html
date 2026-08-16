@@ -51,13 +51,6 @@
                     <div class="description"> 
                         <p>Configure the essential settings required before using the macro.</p>
                     </div>
-                    <div class="switch2">
-                        <p>Global Settings</p>
-                        <label class="switch">
-                            <input id=global_settings type="checkbox">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
                     <div class="dropdown">
                         <label for="automation_mode">Automation Mode:</label>
                         <select name="automation_mode" id="automation_mode">
@@ -87,7 +80,7 @@
                 <div class="card">
                     <h3>Hotkeys</h3>
                     <div class="description"> 
-                        <p>Set Automation Mode to Disabled before changing hotkeys, then enable it later.</p>
+                        <p>Configure keyboard shortcuts to control the macro.</p>
                     </div>
                     <div class="box-grid">
                         <div class="simple-box">
@@ -153,7 +146,7 @@
                 <div class="card">
                     <h3>Color Options</h3>
                     <div class="description"> 
-                        <p>Picked Color stays at the status bar, and you have to copy each color.</p>
+                        <p>Adjust colors used for the interface and detection.</p>
                     </div>
                     <button onclick="startEyedropper()"> Pick Colors </button>
                     <button onclick="takeScreenshot()"> Take Screenshot </button>
@@ -401,6 +394,10 @@
                         <input id=restart_delay type="text" placeholder="2.5">
                     </div>
                     <div class="text">
+                        <label>Minimum Line Density</label>
+                        <input id=fish_line_min_density type="text" placeholder="0.8">
+                    </div>
+                    <div class="text">
                         <label>Bar Ratio From Side</label>
                         <input id=bar_ratio_from_side type="text" placeholder="0.5">
                     </div>
@@ -428,13 +425,6 @@
                     <div class="text">
                         <label>Velocity Smoothing</label>
                         <input id=velocity_smoothing type="text" placeholder="0.2">
-                    </div>
-                </div>
-                <div class="card">
-                    <h3>Detection</h3>
-                    <div class="text">
-                        <label>Minimum Line Density</label>
-                        <input id=fish_line_min_density type="text" placeholder="0.8">
                     </div>
                 </div>
                 <div class="card">

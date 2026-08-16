@@ -199,7 +199,7 @@ async function saveConfig(configName = null) {
     }
     const settings = getSettings();
     const result =
-        await pywebview.api.save_settings(
+        await pywebview.api.save_config(
             configName,
             settings
         );
@@ -221,7 +221,7 @@ async function loadConfig(configName = null) {
         return;
     }
     const result =
-        await pywebview.api.load_settings(
+        await pywebview.api.load_config(
             configName
         );
     if (result.success) {
@@ -282,7 +282,7 @@ async function newConfig() {
     const name =
         prompt("Config name:");
     if (!name) return;
-    await pywebview.api.save_settings(
+    await pywebview.api.save_config(
         name,
         getSettings()
     );
@@ -747,7 +747,7 @@ async function startMacro() {
             "disabled"
         ).value;
     const settings = getSettings();
-    await pywebview.api.save_settings(
+    await pywebview.api.save_config(
         configName,
         settings
     );
