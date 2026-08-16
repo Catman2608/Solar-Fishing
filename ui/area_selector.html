@@ -146,7 +146,12 @@ let selectPointMode = false;
 
 window.addEventListener("pywebviewready", () => {
     try {
-        pywebview.api.window_ready(window.screenX, window.screenY);
+        // Report CSS client size so Python can convert boxes in the same
+        // coordinate space the canvas uses (critical when display scale ≠ 100%).
+        pywebview.api.window_ready(
+            window.screenX, window.screenY,
+            window.innerWidth, window.innerHeight
+        );
     } catch (e) {}
     // Load frozen screenshot once the API is ready
     loadScreenshot();
@@ -466,12 +471,26 @@ function loadScreenshot() {
     });
 }
 
+async function reportViewSize() {
+    if (!(window.pywebview && pywebview.api && pywebview.api.window_ready)) return;
+    try {
+        // Await so Python records _view_w/_view_h before any get_areas call.
+        await pywebview.api.window_ready(
+            window.screenX, window.screenY,
+            window.innerWidth, window.innerHeight
+        );
+    } catch (e) {}
+}
+
 function ready() {
     if (!(window.pywebview && pywebview.api)) return;
-    if (pywebview.api.window_ready) pywebview.api.window_ready(window.screenX, window.screenY);
 
     const load = async () => {
         try {
+            // Report CSS client size first (and await) so get_areas converts
+            // with the same coordinate space the canvas uses. Re-report in
+            // case maximize / DPI changed innerWidth after first paint.
+            await reportViewSize();
             if (pywebview.api.get_area_config) {
                 const cfg = await pywebview.api.get_area_config();
                 applyConfig(cfg);
@@ -502,7 +521,11 @@ window.__applyScreenshot = function () {
     loadScreenshot();
 };
 
-window.addEventListener("resize", resizeCanvas);
+window.addEventListener("resize", () => {
+    resizeCanvas();
+    // Keep Python's view size in sync if the window is resized / maximized.
+    reportViewSize();
+});
 window.addEventListener("pywebviewready", ready);
 resizeCanvas();
 </script>
