@@ -158,6 +158,8 @@ function bindSettingsSync() {
         if (!element.id) return;
         // Skip config dropdown
         if (element.id === "disabled") return;
+        // Global Settings is handled separately so toggling can persist + propagate
+        if (element.id === "global_settings") return;
         element.addEventListener("change", syncSettings);
         element.addEventListener("input", syncSettings);
         // Add theme update listeners for color inputs
@@ -166,7 +168,28 @@ function bindSettingsSync() {
             element.addEventListener("input", updateAccentColor);
         }
     });
+    bindGlobalSettingsToggle();
     bindColorPreviewInputs();
+}
+async function bindGlobalSettingsToggle() {
+    const globalEl = document.getElementById("global_settings");
+    if (!globalEl || globalEl.dataset.globalBound === "1") return;
+    globalEl.dataset.globalBound = "1";
+    globalEl.addEventListener("change", async () => {
+        try {
+            await syncSettings();
+            // Persist immediately so non-color settings are shared (or the flag is cleared)
+            await saveConfig();
+            if (globalEl.checked) {
+                setStatus("Global Settings on — non-color settings shared across configs");
+            } else {
+                setStatus("Global Settings off — configs keep independent settings");
+            }
+        } catch (err) {
+            console.error(err);
+            setStatus("Failed to update Global Settings");
+        }
+    });
 }
 async function switchConfig(newConfigName) {
     try {

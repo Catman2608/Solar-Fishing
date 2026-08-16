@@ -1,5 +1,6 @@
 def remove_blank_lines(input_file, output_file):
-    with open(input_file, 'r') as infile:
+    # Read with error handling - replaces problematic characters with '?'
+    with open(input_file, 'r', encoding='utf-8', errors='replace') as infile:
         lines = infile.readlines()
     
     non_blank_lines = []
@@ -16,7 +17,7 @@ def remove_blank_lines(input_file, output_file):
         last_stripped = stripped
         non_blank_lines.append(line)
     
-    with open(output_file, 'w') as outfile:
+    with open(output_file, 'w', encoding='utf-8') as outfile:
         outfile.writelines(non_blank_lines)
 
 # Usage
