@@ -36,7 +36,7 @@
     "friends_tolerance": "10",
     "auto_zoom": "off",
     "auto_refresh": "on",
-    "fish_overlay": "off",
+    "fish_overlay": "on",
     "bag_spam": "on",
     "lock_cursor": "on",
     "casting_mode": "normal",
@@ -122,5 +122,6 @@
     "angler_click_x": "0.5",
     "angler_click_y": "0.5",
     "backpack_x": "0.5",
-    "backpack_y": "0.5"
+    "backpack_y": "0.5",
+    "global_settings": "off"
 }

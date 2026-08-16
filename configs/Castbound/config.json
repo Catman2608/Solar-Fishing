@@ -122,5 +122,6 @@
     "angler_click_x": "0.5",
     "angler_click_y": "0.5",
     "backpack_x": "0.5",
-    "backpack_y": "0.5"
+    "backpack_y": "0.5",
+    "global_settings": "off"
 }

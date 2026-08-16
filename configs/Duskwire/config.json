@@ -40,7 +40,7 @@
     "bag_spam": "on",
     "lock_cursor": "on",
     "casting_mode": "normal",
-    "shake_mode": "navigation",
+    "shake_mode": "pixel",
     "fishing_mode": "color",
     "perfect_cast_method": "velocity",
     "fall_scan_timeout": "5",
@@ -122,5 +122,6 @@
     "angler_click_x": "0.5",
     "angler_click_y": "0.5",
     "backpack_x": "0.5",
-    "backpack_y": "0.5"
+    "backpack_y": "0.5",
+    "global_settings": "off"
 }
