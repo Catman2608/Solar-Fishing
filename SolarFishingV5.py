@@ -3174,7 +3174,7 @@ class Api:
         logging_cycle = int(self.vars["logging_cycle"])
         hunt_cycles = int(self.vars["hunt_cycles"])
         auto_reconnect = self.vars["auto_reconnect"]
-        hunt_detect = self.vars["hunt_detect"]
+        hunt_detect = int(self._get_var_number("hunt_detect", 20, float))
         minimum_percentage = float(self.vars["minimum_percentage"].strip("%"))
         maximum_percentage = float(self.vars["maximum_percentage"].strip("%"))
         # 2. Hotkey & Inventory Slots
@@ -3197,7 +3197,7 @@ class Api:
         sovereign_left, sovereign_top, sovereign_right, sovereign_bottom, sovereign_width, _ = self.get_areas("sovereign")
         shake_x = shake_left + (shake_w // 2)
         shake_y = shake_top + (shake_h // 2)
-        detection_method = self.vars["detection_method"]
+        detection_method = self.vars["detection_method"].lower()
         # 5. Features & Overlay Settings
         shake_failsafe = int(self.vars["shake_failsafe"])
         fish_color = self.vars["fish_color"]
@@ -3209,13 +3209,18 @@ class Api:
         auto_refresh = self.vars["auto_refresh"]
         auto_totem = self.vars["auto_totem"]
         fish_overlay = self.vars["fish_overlay"]
-        enchant_click_x = self.vars["enchant_click_x"]
-        enchant_click_y = self.vars["enchant_click_y"]
+        enchant_click_x = float(self.vars["enchant_click_x"])
+        enchant_click_y = float(self.vars["enchant_click_y"])
         # 6. Optimized OpenCV Template Matching Setup
-        sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
-        moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
-        sun_resized = self.auto_crop_template(sun)
-        moon_resized = self.auto_crop_template(moon)
+        try:
+            sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
+            moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
+            sun_resized = self.auto_crop_template(sun)
+            moon_resized = self.auto_crop_template(moon)
+        except:
+            self.set_status("Error: Can't find sun.png and moon.png. Auto Totem is disabled.")
+            self.send_logging("Error: Can't find sun.png and moon.png. Auto Totem is disabled.", 0, -1)
+            auto_totem = "off"
         # 7. Internal Tracking State
         self.scan_delay = 0.1
         self.current_cycle = 0
@@ -3376,6 +3381,8 @@ class Api:
             self.message_box_javascript(f"An error at line {error_line} occured. Please copy the error and report the bug:\\n{e}\\nWould you like to copy the full crash log to your clipboard?", full_error)
             if IS_COMPILED == False:
                 print(full_error)
+            else:
+                self.send_logging(f"Error at line {error_line}: {e}", 0, -1)
             self.macro_running = False
             self.stop_macro(f"Error at line {error_line}: {e}")
     def _auto_reconnect(self, center_x, center_y):
