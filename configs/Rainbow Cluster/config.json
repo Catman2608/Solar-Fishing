@@ -1,4 +1,5 @@
 {
+    "global_settings": "off",
     "automation_mode": "fishing",
     "fishing_profile": "normal",
     "start_stop": "F5",
@@ -117,7 +118,6 @@
     "click_after_minigame": "off",
     "detection_method": "friend_area",
     "restart_method": "friend_area",
-    "global_settings": "off",
     "release_delay_simple": "0",
     "perfect_threshold": "95.5",
     "lullaby_metronome_padding": "20",

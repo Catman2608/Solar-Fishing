@@ -1,4 +1,5 @@
 {
+    "global_settings": "off",
     "automation_mode": "fishing",
     "fishing_profile": "normal",
     "start_stop": "F5",
@@ -119,7 +120,6 @@
     "angler_click_y": "0.5",
     "backpack_x": "0.5",
     "backpack_y": "0.5",
-    "global_settings": "off",
     "user_id": "67",
     "backpack_confirm_x": "0.5",
     "backpack_confirm_y": "0.5"
