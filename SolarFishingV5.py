@@ -352,11 +352,13 @@ elif sys.platform.startswith("linux"):
             btn
         )
         d.sync()
-    def send_key(key, delay=0.05):
+    def send_key(key, delay=0.05, click_type=0):
         d = _get_xdisplay()
+
         keysym = XK.string_to_keysym(str(key))
         if keysym == 0:
             keysym = XK.string_to_keysym(str(key).lower())
+
         if keysym == 0:
             return
 
@@ -364,11 +366,31 @@ elif sys.platform.startswith("linux"):
         if keycode == 0:
             return
 
-        xtest.fake_input(d, X.KeyPress, keycode)
-        d.sync()
-        time.sleep(delay)
-        xtest.fake_input(d, X.KeyRelease, keycode)
-        d.sync()
+        if click_type == 0:
+            xtest.fake_input(d, X.KeyPress, keycode)
+            d.sync()
+
+            time.sleep(delay)
+
+            xtest.fake_input(d, X.KeyRelease, keycode)
+            d.sync()
+
+        elif click_type == 1:
+            xtest.fake_input(d, X.KeyPress, keycode)
+            d.sync()
+
+        elif click_type == 2:
+            xtest.fake_input(d, X.KeyRelease, keycode)
+            d.sync()
+
+        else:
+            xtest.fake_input(d, X.KeyPress, keycode)
+            d.sync()
+
+            time.sleep(delay)
+
+            xtest.fake_input(d, X.KeyRelease, keycode)
+            d.sync()
 # Config management
 def get_base_path():
     # 1. Check if the application is bundled/frozen
@@ -3376,8 +3398,7 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            error_lines = full_error.splitlines()
-            error_line = self.get_error_line(error_lines[1])
+            error_line = self.get_error_line(full_error)
             self.message_box_javascript(f"An error at line {error_line} occured. Please copy the error and report the bug:\\n{e}\\nWould you like to copy the full crash log to your clipboard?", full_error)
             if IS_COMPILED == False:
                 print(full_error)
@@ -5339,6 +5360,7 @@ if setup_state == False:
 # Main Window
 def on_closed():
     api.fish_overlay.hide()
+    api.eyedropper.hide()
 api = Api()
 window = webview.create_window(
     f"Solar Fishing V{APP_VERSION}",
