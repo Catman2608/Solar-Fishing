@@ -2,9 +2,9 @@
     "global_settings": "off",
     "automation_mode": "fishing",
     "fishing_profile": "normal",
-    "start_stop": "F5",
-    "change_areas": "F6",
-    "force_stop": "F7",
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7",
     "rod_slot": "1",
     "bag_slot": "2",
     "sundial_slot": "6",
@@ -140,5 +140,6 @@
     "enchantment_mode": "normal",
     "enchant_enchants": "Steady, Momentum",
     "enchant_click_x": "0.5",
-    "enchant_click_y": "0.5"
+    "enchant_click_y": "0.5",
+    "appdata_settings": "off"
 }

@@ -8,37 +8,47 @@
 }
 
 :root {
-    --accent-color: #ff9900;
-    --accent-glow: rgba(255, 177, 59, 0.4);
-    --left-gradient: #f53b3b;
-    --right-gradient: #e69112;
+    /* Accent */
+    --accent-color: #fa6b35;
+    --accent-glow: rgba(250, 107, 53, 0.35);
+
+    --left-gradient: #fa6b35;
+    --right-gradient: #ff8a5c;
     --button-text: white;
 
-    /* Dark orange theme text colors - solid colors for reliable contrast on Windows/macOS */
-    --text-primary: #fff7ed;
-    --text-secondary: #ffe5cc;
-    --text-muted: #e8c9a7;
-    --text-subtle: #d1af88;
-    --text-label: #ffefde;
+    /* Text */
+    --text-primary: #f1f1f1;
+    --text-secondary: #a0a0b0;
+    --text-muted: #8f909d;
+    --text-subtle: #777984;
+    --text-label: #dcdce2;
     --text-label2: #aaaaaa;
 
-    /* Dark orange theme surfaces & borders */
-    --bg-body: #0f0804;
-    --bg-sidebar: #140c06;
-    --bg-topbar: rgba(28, 12, 2, 0.7);
-    --bg-card: #1c1208;
-    --bg-input: #1a1008;
-    --bg-box: #221508;
-    --bg-modal: rgba(28, 14, 4, 0.94);
-    --bg-soft: rgba(255, 160, 50, 0.07);
-    --border-soft: rgba(255, 160, 50, 0.16);
-    --border-medium: rgba(255, 160, 50, 0.28);
-    --border-card: #5a3a1c;
-    --border-strong: #6b4522;
-    --focus-ring: rgba(255, 153, 0, 0.75);
-    --focus-glow: rgba(255, 153, 0, 0.28);
-    --scrollbar-thumb: #8a5a28;
-    --scrollbar-thumb-hover: #a86e32;
+    /* Main surfaces */
+    --bg-body: #070f12;
+    --bg-sidebar: #10181c;
+    --bg-topbar: rgba(16, 24, 28, 0.85);
+    --bg-card: #10181c;
+    --bg-input: #10181c;
+    --bg-box: #172126;
+    --bg-modal: rgba(16, 24, 28, 0.96);
+
+    /* Soft accent surfaces */
+    --bg-soft: rgba(255, 255, 255, 0.03);
+
+    /* Borders */
+    --border-soft: rgba(250, 107, 53, 0.3);
+    --border-medium: rgba(250, 107, 53, 0.25);
+    --border-card: rgba(255, 255, 255, 0.10);
+    --border-strong: rgba(250, 107, 53, 0.35);
+
+    /* Focus */
+    --focus-ring: rgba(250, 107, 53, 0.75);
+    --focus-glow: rgba(250, 107, 53, 0.28);
+
+    /* Scrollbar */
+    --scrollbar-thumb: #5f4133;
+    --scrollbar-thumb-hover: #79503d;
 }
 
 body {
