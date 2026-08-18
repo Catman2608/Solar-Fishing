@@ -55,9 +55,13 @@ except:
 # All platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
-APP_VERSION = 5.0
-BETA_VERSION = 4
+APP_VERSION = 5.01
+BETA_VERSION = 1
 DEVELOPER = "Catman2608"
+def load_misc_settings(last_config_path):
+    with open(last_config_path, "r", encoding="utf-8") as file:
+        data = json.load(file)
+    return data
 def get_macos_menu_offset():
     if sys.platform != "darwin":
         return 0
@@ -413,14 +417,48 @@ def get_base_path():
     # 3. Running from raw source code (.py file)
     else:
         return Path(__file__).parent.resolve(), False
+# Get AppData path
+def get_appdata_path():
+    """Unified base directory for app data."""
+    if not BETA_VERSION == 0:
+        beta = "beta"
+    else:
+        beta = ""
+    if getattr(sys, 'frozen', False):
+        # Compiled App → Use User Directory
+        if sys.platform == "darwin":
+            return os.path.join(
 
+                os.path.expanduser("~"),
+                "Library", "Application Support",
+                "SolarFishingV5", beta
+            )
+        elif sys.platform == "win32":
+            return os.path.join(
+
+                os.path.expanduser("~"),
+                "AppData", "Roaming",
+                "SolarFishingV5", beta
+            )
+        else:
+            return os.path.join(os.path.expanduser("~"), "SolarFishingV5")
+    # Dev Mode → Project Directory
+    return os.path.dirname(os.path.abspath(__file__))
 # Establish the global base path for Solar Fishing V5
 BASE_PATH, IS_COMPILED = get_base_path()
+APPDATA_PATH = get_appdata_path()
 # Make sure base path exists
 os.makedirs(BASE_PATH, exist_ok=True)
 # Configs Path
 LAST_CONFIG = os.path.join(BASE_PATH, "last_config.json")
-CONFIGS_PATH = os.path.join(BASE_PATH, "configs")
+data = load_misc_settings(LAST_CONFIG)
+try:
+    if data["appdata_settings"] == "on":
+        CONFIGS_PATH = os.path.join(APPDATA_PATH, "configs")
+    else:
+        CONFIGS_PATH = os.path.join(BASE_PATH, "configs")
+except:
+    CONFIGS_PATH = os.path.join(BASE_PATH, "configs")
 IMAGES_PATH = os.path.join(BASE_PATH, "images")
 UI_PATH = os.path.join(BASE_PATH, "ui")
 # File management
@@ -457,12 +495,12 @@ AREA_CONFIG = {
     "totem": {
         "color": "#00de07",
         "label": "Totem Box (Day/Night)",
-        "default": {"x": 0.9531, "y": 0.8333, "width": 0.0208, "height": 0.0463},
+        "default": {"x": 0.9504, "y": 0.8305, "width": 0.0234, "height": 0.0490},
     },
     "sovereign": {
         "color": "#4200ff",
         "label": "Sovereign Box (Bar)",
-        "default": {"x": 0.2844, "y": 0.7981, "width": 0.4297, "height": 0.0389},
+        "default": {"x": 0.2844, "y": 0.8184, "width": 0.4297, "height": 0.0185},
     },
     "lullaby": {
         "color": "#126744",
@@ -472,12 +510,12 @@ AREA_CONFIG = {
     "chat": {
         "color": "#004383",
         "label": "Chat Box",
-        "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
+        "default": {"x": 0.0030, "y": 0.0683, "width": 0.2536, "height": 0.3323},
     },
     "backpack": {
         "color": "#ffe195",
         "label": "Backpack Box",
-        "default": {"x": 0.3983, "y": 0.8581, "width": 0.0426, "height": 0.0712},
+        "default": {"x": 0.3373, "y": 0.6108, "width": 0.3254, "height": 0.2656},
     },
     "treasure_appraisal": {
         "color": "#4f35f6",
@@ -492,27 +530,27 @@ AREA_CONFIG = {
     "appraisal_dialogue": {
         "color": "#000fff",
         "label": "Dialogue Box (Appraisal)",
-        "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
+        "default": {"x": 0.5483, "y": 0.4230, "width": 0.2697, "height": 0.2017},
     },
     "appraisal_hotbar": {
         "color": "#e78300",
         "label": "Hotbar Box (Appraisal)",
-        "default": {"x": 0.3983, "y": 0.8581, "width": 0.0426, "height": 0.0712},
+        "default": {"x": 0.5529, "y": 0.8905, "width": 0.0373, "height": 0.0619},
     },
     "enchantment": {
         "color": "#008363",
         "label": "Enchantment Box (Text)",
-        "default": {"x": 0.3983, "y": 0.8581, "width": 0.0426, "height": 0.0712},
+        "default": {"x": 0.3061, "y": 0.3932, "width": 0.3649, "height": 0.1674},
     },
     "angler_dialogue": {
         "color": "#99ff95",
         "label": "Dialogue Box (Angler)",
-        "default": {"x": 0.3983, "y": 0.8581, "width": 0.0426, "height": 0.0712},
+        "default": {"x": 0.3331, "y": 0.4006, "width": 0.3118, "height": 0.1526},
     },
     "angler_quest": {
-        "color": "#121299",
+        "color": "#126799",
         "label": "Quest Box (Angler)",
-        "default": {"x": 0.3983, "y": 0.8581, "width": 0.0426, "height": 0.0712},
+        "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
     },
 }
 # Display / iteration order (also used for number-key toggles 1–9 in the selector)
@@ -1314,7 +1352,7 @@ class Api:
         self.eyedropper = Eyedropper(self)
         self.fish_overlay = FishOverlay(self)
         # Load Settings
-        self.load_misc_settings()
+        self._load_misc_settings()
     def _refresh_screen_dimensions(self):
         """
         Re-query mss for the primary monitor's current resolution and update all
@@ -1449,6 +1487,7 @@ class Api:
                 continue
 
     def save_settings(self, config_name, settings, text="Settings saved"):
+
         try:
             if not config_name:
                 return {"success": False, "error": "No config selected."}
@@ -1471,6 +1510,7 @@ class Api:
             else:
                 self._propagate_global_settings(settings, only_flag=True)
 
+            self.save_misc_settings()
             self.set_status(text)
             return {"success": True}
 
@@ -1507,6 +1547,7 @@ class Api:
             self.vars = settings.copy()
             self.current_config = config_name
             self.save_last_config(config_name)
+            self._load_misc_settings()
             return {"success": True, "settings": settings}
 
         except Exception as e:
@@ -1601,23 +1642,12 @@ class Api:
         except Exception as e:
             return { "success": False, "error": str(e) }
 
-    def load_misc_settings(self):
+    def _load_misc_settings(self):
         """Load miscellaneous settings from last_config.json."""
-        # Defaults
-        self.current_rod_name = "Default"
-        self.bar_areas = {name: None for name in AREA_ORDER}
-        # Default Hotkeys
-        start_key  = "F5"
-        change_key = "F6"
-        stop_key   = "F7"
+        current_path = os.path.join(BASE_PATH, "last_config.json")
+        data = load_misc_settings(current_path)
+        # Bar Areas
         try:
-            path = os.path.join(BASE_PATH, "last_config.json")
-            if not os.path.exists(path):
-                return
-
-            with open(path, "r") as f:
-                data = json.load(f)
-            # Bar Areas
             loaded_areas = data.get("bar_areas", {})
             for key in AREA_ORDER:
                 area = loaded_areas.get(key)
@@ -1628,16 +1658,22 @@ class Api:
                         "width": float(area.get("width", 0)),
                         "height": float(area.get("height", 0)),
                     }
-            # Hotkeys
-            start_key  = data.get("start_key", "F5")
-            change_key = data.get("change_bar_areas_key", "F6")
-            stop_key   = data.get("stop_key", "F7")
-        except Exception as e:
-            self.set_status(f"Failed to load misc settings: {e}")
-        # Convert Hotkeys
-        self.hotkey_start = self._string_to_key(start_key)
-        self.hotkey_change_areas = self._string_to_key(change_key)
-        self.hotkey_stop = self._string_to_key(stop_key)
+        except:
+            pass
+        # Hotkeys
+        if "start_key" in self.vars and "area_selector_key" in self.vars and "stop_key" in self.vars:
+            # Case 1: Hotkeys are in self.vars
+            pass
+        elif "start_key" in data and "area_selector_key" in data and "stop_key" in data:
+            # Case 2: Hotkeys are in data
+            self.vars["start_key"] = data["start_key"]
+            self.vars["area_selector_key"] = data["area_selector_key"]
+            self.vars["stop_key"] = data["stop_key"]
+        else:
+            # Case 3: Hotkeys are not in self.vars and data
+            self.vars["start_key"] = "F5"
+            self.vars["area_selector_key"] = "F6"
+            self.vars["stop_key"] = "F7"
     def save_misc_settings(self):
         """Save miscellaneous settings."""
         path = os.path.join(BASE_PATH, "last_config.json")
@@ -1666,9 +1702,9 @@ class Api:
         # Save
         data["bar_areas"] = clean_bar_areas
         # Hotkeys
-        # data["start_key"] = self.vars["start_key"]
-        # data["change_bar_areas_key"] = self.vars["change_bar_areas_key"]
-        # data["stop_key"] = self.vars["stop_key"]
+        data["start_key"] = self.vars["start_key"]
+        data["area_selector_key"] = self.vars["area_selector_key"]
+        data["stop_key"] = self.vars["stop_key"]
         with open(path, "w") as f:
             json.dump(data, f, indent=4)
     def open_base_folder(self):
@@ -1749,12 +1785,13 @@ class Api:
             # while still preserving each config's own colors.
             if self._is_global_settings_enabled(default_settings):
                 self._propagate_global_settings(default_settings, only_flag=False)
-
+            self.message_box_javascript("Settings reset to default")
             return {
 
                 "success": True
             }
         except Exception as e:
+            self.message_box_javascript(f"Error resetting settings: {e}")
             return {
 
                 "success": False,
@@ -1789,11 +1826,13 @@ class Api:
                     f,
                     indent=4
                 )
+            self.message_box_javascript("Colors reset to default")
             return {
 
                 "success": True
             }
         except Exception as e:
+            self.message_box_javascript(f"Error resetting colors: {e}")
             return {
 
                 "success": False,
@@ -1825,9 +1864,11 @@ class Api:
                     name: dict(AREA_CONFIG[name]["default"])
                     for name in AREA_ORDER
                 }
+            self.message_box_javascript("Areas reset to default")
             return {"success": True}
 
         except Exception as e:
+            self.message_box_javascript(f"Error resetting areas: {e}")
             return {
 
                 "success": False,
@@ -1880,26 +1921,103 @@ class Api:
         except Exception:
             pass
 
-    def message_box_javascript(self, message, clipboard_content):
+    def message_box_javascript(self, message, dialogue_type="ok"):
         try:
-            # Clean the error string so it doesn't break JavaScript execution syntax
-            # We escape backslashes, single quotes, and newlines
-            escaped_error = clipboard_content.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-            # Construct the self-invoking JS code block
-            js_code = f"""
-            (function() {{
-                let confirmed = confirm("{message}");
-                if (confirmed) {{
-                    navigator.clipboard.writeText('{escaped_error}')
-                        .then(() => alert("Error log copied to clipboard!"))
-                        .catch(err => alert("Failed to copy error: " + err));
-                }}
-            }})();
-            """
-            # Evaluate using the same 'window' reference your set_status uses
-            window.evaluate_js(js_code)
+            # Escape characters that could break the JavaScript string
+            escaped_message = (
+                message
+                .replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+            )
+
+            if dialogue_type == "askyesno":
+                js_code = f"""
+                (function() {{
+                    return confirm("{escaped_message}");
+                }})();
+                """
+                return window.evaluate_js(js_code)
+
+            else:
+                js_code = f"""
+                (function() {{
+                    alert("{escaped_message}");
+                    return null;
+                }})();
+                """
+                window.evaluate_js(js_code)
+                return None
+
         except Exception:
-            pass # Keep it safe just like set_status
+            return False if dialogue_type == "askyesno" else None
+
+    def copy_to_clipboard(self, text):
+        """Copy text to the system clipboard. Returns True on success."""
+        if text is None:
+            return False
+        text = str(text)
+        try:
+            if sys.platform == "darwin":
+                pasteboard = AppKit.NSPasteboard.generalPasteboard()
+                pasteboard.clearContents()
+                # NSPasteboardTypeString is preferred; fall back to legacy type name
+                paste_type = getattr(AppKit, "NSPasteboardTypeString", None) or AppKit.NSStringPboardType
+                return bool(pasteboard.setString_forType_(text, paste_type))
+            elif sys.platform == "win32":
+                # Prefer PowerShell Set-Clipboard for reliable Unicode support
+                try:
+                    completed = subprocess.run(
+                        [
+                            "powershell",
+                            "-NoProfile",
+                            "-Command",
+                            "Set-Clipboard -Value ([Console]::In.ReadToEnd())",
+                        ],
+                        input=text,
+                        text=True,
+                        capture_output=True,
+                        timeout=5,
+                    )
+                    if completed.returncode == 0:
+                        return True
+                except Exception:
+                    pass
+                # Fallback: clip.exe with UTF-16LE
+                try:
+                    completed = subprocess.run(
+                        ["clip"],
+                        input=text.encode("utf-16le"),
+                        capture_output=True,
+                        timeout=5,
+                    )
+                    return completed.returncode == 0
+                except Exception:
+                    return False
+            else:
+                # Linux: try xclip, then xsel
+                payload = text.encode("utf-8")
+                for cmd in (
+                    ["xclip", "-selection", "clipboard"],
+                    ["xsel", "--clipboard", "--input"],
+                ):
+                    try:
+                        completed = subprocess.run(
+                            cmd,
+                            input=payload,
+                            capture_output=True,
+                            timeout=5,
+                        )
+                        if completed.returncode == 0:
+                            return True
+                    except FileNotFoundError:
+                        continue
+                    except Exception:
+                        continue
+                return False
+        except Exception:
+            return False
 
     def get_error_line(self, lines):
         matches = re.findall(r'\bline\s+(\d+)\b', lines)
@@ -1989,9 +2107,9 @@ class Api:
     # Hotkeys
     def _get_hotkeys(self):
         try:
-            start_key = self.normalize_key(str(self.vars["start_stop"]))
-            areas_key = self.normalize_key(str(self.vars["change_areas"]))
-            stop_key = self.normalize_key(str(self.vars["force_stop"]))
+            start_key = self.normalize_key(str(self.vars["start_key"]))
+            areas_key = self.normalize_key(str(self.vars["area_selector_key"]))
+            stop_key = self.normalize_key(str(self.vars["stop_key"]))
         except Exception as e:
             self.set_status(f"Get hotkeys failed: {e}")
             start_key = "f5"
@@ -2382,6 +2500,8 @@ class Api:
         self._click_at(click_x, click_y)
         time.sleep(0.3)
         self._click_at(backpack_confirm_x, backpack_confirm_y)
+        time.sleep(0.3)
+        self._send_key(backpack_key)
         time.sleep(0.3)
         return
 
@@ -2870,11 +2990,17 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            self.message_box_javascript(f"""An error occured during appraisal. 
+            result = self.message_box_javascript(f"""An error occured during appraisal. 
             Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", full_error)
+            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
             self.macro_running = False
             self.stop_macro(f"Appraisal error: {e}")
+            return
         # Get areas
         dialogue_left, dialogue_top, _, _, dialogue_width, dialogue_height = self.get_areas("appraisal_dialogue")
         hotbar_left, hotbar_top, hotbar_right, hotbar_bottom, _, _ = self.get_areas("appraisal_hotbar")
@@ -2895,29 +3021,44 @@ class Api:
         # Main loop
         time.sleep(0.1)
         self._send_key("e", 0.05)
-        while self.macro_running:
-            attempts = attempts + 1
-            # Click
-            if appraisal_mode == "normal":
-                time.sleep(click_delay)
-                self._click_at(appraisal_x, appraisal_y)
-            else:
-                self.click_backpack(appraisal_x, appraisal_y)
-            # Detection
-            fish = self.capture_frame[hotbar_top:hotbar_bottom, hotbar_left:hotbar_right]
-            processed_img = self.process_image_for_ocr(fish)
-            text = pytesseract.image_to_string(processed_img, config="--psm 7")
-            for match in range(len(appraisal_mutations_list)):
-                # print("Requirements:", appraisal_mutations_list[match].lower().rstrip(",").replace(" ", ""))
-                # print("Text:", text.lower().rstrip(",").replace(" ", ""))
-                if appraisal_mutations_list[match].lower().rstrip(",").replace(" ", "") in text.lower().rstrip(",").replace(" ", ""):
-                    self.stop_macro("Appraisal finished")
-            if self.macro_running == False:
-                self.stop_macro("")
-            if round(attempts) == attempts and logging_mode != "disabled":
-                if attempts == logging_cycle:
-                    self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
-                logging_cycle = logging_cycle + attempts
+        try:
+            while self.macro_running:
+                attempts = attempts + 1
+                # Click
+                if appraisal_mode == "normal":
+                    time.sleep(click_delay)
+                    self._click_at(appraisal_x, appraisal_y)
+                else:
+                    self.click_backpack(appraisal_x, appraisal_y)
+                # Detection
+                fish = self.capture_frame[hotbar_top:hotbar_bottom, hotbar_left:hotbar_right]
+                processed_img = self.process_image_for_ocr(fish)
+                text = pytesseract.image_to_string(processed_img, config="--psm 7")
+                for match in range(len(appraisal_mutations_list)):
+                    # print("Requirements:", appraisal_mutations_list[match].lower().rstrip(",").replace(" ", ""))
+                    # print("Text:", text.lower().rstrip(",").replace(" ", ""))
+                    if appraisal_mutations_list[match].lower().rstrip(",").replace(" ", "") in text.lower().rstrip(",").replace(" ", ""):
+                        self.stop_macro("Appraisal finished")
+                if self.macro_running == False:
+                    self.stop_macro("")
+                if round(attempts) == attempts and logging_mode != "disabled":
+                    if attempts == logging_cycle:
+                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
+                    logging_cycle = logging_cycle + attempts
+        except Exception as e:
+            time.sleep(0.2)
+            full_error = traceback.format_exc()
+            result = self.message_box_javascript(f"""An error occured during appraisal. 
+            Please copy the error and report the bug:\\n{e}\\n
+            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
+            self.macro_running = False
+            self.stop_macro(f"Appraisal error: {e}")
+            return
         self.set_status("Macro Stopped")
     def start_treasure_appraisal(self):
         # Validate Tesseract
@@ -2928,11 +3069,17 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            self.message_box_javascript(f"""An error occured during appraisal.
+            result = self.message_box_javascript(f"""An error occured during appraisal.
             Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", full_error)
+            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
             self.macro_running = False
             self.stop_macro(f"Appraisal error: {e}")
+            return
         # Areas
         treasure_left, treasure_top, treasure_right, treasure_bottom, treasure_width, treasure_height = self.get_areas("treasure_appraisal")
         ocr_left, ocr_top, ocr_right, ocr_bottom, ocr_width, ocr_height = self.get_areas("treasure_ocr")
@@ -2983,7 +3130,14 @@ class Api:
             full_error = traceback.format_exc()
             error_lines = full_error.splitlines()
             error_line = self.get_error_line(error_lines[1])
-            self.message_box_javascript(f"An error at line {error_line} occured. Please copy the error and report the bug:\\n{e}\\nWould you like to copy the full crash log to your clipboard?", full_error)
+            result = self.message_box_javascript(f"""An error at line {error_line} occured. 
+                                                 Please copy the error and report the bug:\\n{e}\\n
+                                                 Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
             if IS_COMPILED == False:
                 print(full_error)
             self.macro_running = False
@@ -2997,11 +3151,17 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            self.message_box_javascript(f"""An error occured during enchantment. 
+            result = self.message_box_javascript(f"""An error occured during enchantment. 
             Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", full_error)
+            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
             self.macro_running = False
             self.stop_macro(f"Enchantment error: {e}")
+            return
         # Get Areas
         enchantment_left, enchantment_top, enchantment_right, enchantment_bottom, enchantment_width, enchantment_height = self.get_areas("enchantment")
         # Split Enchantments
@@ -3055,7 +3215,14 @@ class Api:
             full_error = traceback.format_exc()
             error_lines = full_error.splitlines()
             error_line = self.get_error_line(error_lines[1])
-            self.message_box_javascript(f"An error at line {error_line} occured. Please copy the error and report the bug:\\n{e}\\nWould you like to copy the full crash log to your clipboard?", full_error)
+            result = self.message_box_javascript(f"""An error at line {error_line} occured. 
+                                                 Please copy the error and report the bug:\\n{e}\\n
+                                                 Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
             if IS_COMPILED == False:
                 print(full_error)
             self.macro_running = False
@@ -3069,11 +3236,17 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            self.message_box_javascript(f"""An error occured during angler. 
+            result = self.message_box_javascript(f"""An error occured during angler. 
             Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", full_error)
+            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
             self.macro_running = False
             self.stop_macro(f"Angler error: {e}")
+            return
         dialogue_left, dialogue_top, _, _, dialogue_width, dialogue_height = self.get_areas("angler_dialogue")
         backpack_left, backpack_top, _, _, backpack_width, backpack_height = self.get_areas("backpack")
         quest_left, quest_top, quest_right, quest_bottom, _, _ = self.get_areas("angler_quest")
@@ -3092,185 +3265,204 @@ class Api:
         # Check for utilities
         self._check_logging_trigger(-1)
         # Main loop
-        while self.macro_running:
-            time.sleep(0.1)
-            # STEP 1: CLICK E → OPEN QUEST DIALOGUE
-            self._send_key("e")
-            time.sleep(1.5)
-            # Click at angler area (accept quest)
-            self._click_at(angler_click_x, angler_click_y)
-            # STEP 2: OCR QUEST AREA — GET REQUIRED FISH TEXT
-            time.sleep(3)
-            img = self._grab_screen_full()
-            quest = img[quest_top:quest_bottom, quest_left:quest_right]
-            gray = cv2.cvtColor(quest, cv2.COLOR_BGR2GRAY)
-            gray = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-            gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
-            quest_text = pytesseract.image_to_string(gray)
-            lines = [
-                line.strip().lower()
-                for line in quest_text.splitlines()
-                if line.strip()
-            ]
-            required_fish = lines[-1] if lines else ""
-            self.set_status(f"Quest fish: {required_fish}")
-            if not required_fish:
-                self.set_status("Could not read fish name")
-                time.sleep(utility_restart_delay)
-                continue
-
-            # STEP 3: OPEN BACKPACK
-            self._send_key(backpack_slot)
-            time.sleep(0.5)
-            # STEP 4: CLICK SEARCH BAR + TYPE FISH NAME
-            self._click_at(backpack_x, backpack_y)
-            time.sleep(0.5)
-            # Type fish name
-            for char in required_fish:
-                self._send_key(char)
-            time.sleep(1.5)
-            # STEP 5: LOCATE quest_text IN QUEST AREA VIA OCR AND CLICK IT
-            img = self._grab_screen_full()
-            quest_region = img[quest_top:quest_bottom, quest_left:quest_right]
-            gray_q = cv2.cvtColor(quest_region, cv2.COLOR_BGR2GRAY)
-            gray_q = cv2.resize(gray_q, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-            gray_q = cv2.threshold(gray_q, 150, 255, cv2.THRESH_BINARY)[1]
-            ocr_data_q = pytesseract.image_to_data(
-                gray_q,
-                output_type=pytesseract.Output.DICT,
-                config="--psm 11"
-            )
-            quest_click_x, quest_click_y = None, None
-            for i, text_tok in enumerate(ocr_data_q["text"]):
-                tok = text_tok.strip().lower()
-                try:
-                    conf = float(ocr_data_q["conf"][i])
-                except Exception:
-                    conf = -1
-                if conf < 40 or not tok:
+        try:
+            while self.macro_running:
+                time.sleep(0.1)
+                # STEP 1: CLICK E → OPEN QUEST DIALOGUE
+                self._send_key("e")
+                time.sleep(1.5)
+                # Click at angler area (accept quest)
+                self._click_at(angler_click_x, angler_click_y)
+                # STEP 2: OCR QUEST AREA — GET REQUIRED FISH TEXT
+                time.sleep(3)
+                img = self._grab_screen_full()
+                quest = img[quest_top:quest_bottom, quest_left:quest_right]
+                gray = cv2.cvtColor(quest, cv2.COLOR_BGR2GRAY)
+                gray = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+                gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
+                quest_text = pytesseract.image_to_string(gray)
+                lines = [
+                    line.strip().lower()
+                    for line in quest_text.splitlines()
+                    if line.strip()
+                ]
+                required_fish = lines[-1] if lines else ""
+                self.set_status(f"Quest fish: {required_fish}")
+                if not required_fish:
+                    self.set_status("Could not read fish name")
+                    time.sleep(utility_restart_delay)
                     continue
 
-                if tok in required_fish or required_fish in tok:
-                    qx = ocr_data_q["left"][i]
-                    qy = ocr_data_q["top"][i]
-                    qw = ocr_data_q["width"][i]
-                    qh = ocr_data_q["height"][i]
-                    # Undo the 3× upscale to get back to screen coords
-                    quest_click_x = quest_left + (qx + qw // 2) // 3
-                    quest_click_y = quest_top  + (qy + qh // 2) // 3
-                    break
+                # STEP 3: OPEN BACKPACK
+                self._send_key(backpack_slot)
+                time.sleep(0.5)
+                # STEP 4: CLICK SEARCH BAR + TYPE FISH NAME
+                self._click_at(backpack_x, backpack_y)
+                time.sleep(0.5)
+                # Type fish name
+                for char in required_fish:
+                    self._send_key(char)
+                time.sleep(1.5)
+                # STEP 5: LOCATE quest_text IN QUEST AREA VIA OCR AND CLICK IT
+                img = self._grab_screen_full()
+                quest_region = img[quest_top:quest_bottom, quest_left:quest_right]
+                gray_q = cv2.cvtColor(quest_region, cv2.COLOR_BGR2GRAY)
+                gray_q = cv2.resize(gray_q, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+                gray_q = cv2.threshold(gray_q, 150, 255, cv2.THRESH_BINARY)[1]
+                ocr_data_q = pytesseract.image_to_data(
+                    gray_q,
+                    output_type=pytesseract.Output.DICT,
+                    config="--psm 11"
+                )
+                quest_click_x, quest_click_y = None, None
+                for i, text_tok in enumerate(ocr_data_q["text"]):
+                    tok = text_tok.strip().lower()
+                    try:
+                        conf = float(ocr_data_q["conf"][i])
+                    except Exception:
+                        conf = -1
+                    if conf < 40 or not tok:
+                        continue
 
-            if quest_click_x is not None:
-                self.set_status(
-                    f"Quest text '{required_fish}' found at "
-                    f"{quest_click_x}, {quest_click_y} — clicking"
-                )
-                self._click_at(quest_click_x, quest_click_y)
-            else:
-                self.set_status(
-                    f"Quest text '{required_fish}' not found via OCR, skipping click"
-                )
-            time.sleep(0.25)
-            # STEP 6: CLOSE BACKPACK
-            self._send_key(backpack_slot)
-            time.sleep(0.5)
-            # STEP 7: CLICK E → FINISH QUEST (PIXEL SEARCH OR RATIO)
-            self._send_key("e")
-            time.sleep(1.2)
-            # Click at angler area
-            self._click_at(angler_click_x, angler_click_y)
-            # STEP 8: COOLDOWN
-            time.sleep(utility_restart_delay)
+                    if tok in required_fish or required_fish in tok:
+                        qx = ocr_data_q["left"][i]
+                        qy = ocr_data_q["top"][i]
+                        qw = ocr_data_q["width"][i]
+                        qh = ocr_data_q["height"][i]
+                        # Undo the 3× upscale to get back to screen coords
+                        quest_click_x = quest_left + (qx + qw // 2) // 3
+                        quest_click_y = quest_top  + (qy + qh // 2) // 3
+                        break
+
+                if quest_click_x is not None:
+                    self.set_status(
+                        f"Quest text '{required_fish}' found at "
+                        f"{quest_click_x}, {quest_click_y} — clicking"
+                    )
+                    self._click_at(quest_click_x, quest_click_y)
+                else:
+                    self.set_status(
+                        f"Quest text '{required_fish}' not found via OCR, skipping click"
+                    )
+                time.sleep(0.25)
+                # STEP 6: CLOSE BACKPACK
+                self._send_key(backpack_slot)
+                time.sleep(0.5)
+                # STEP 7: CLICK E → FINISH QUEST (PIXEL SEARCH OR RATIO)
+                self._send_key("e")
+                time.sleep(1.2)
+                # Click at angler area
+                self._click_at(angler_click_x, angler_click_y)
+                # STEP 8: COOLDOWN
+                time.sleep(utility_restart_delay)
+        except Exception as e:
+            time.sleep(0.2)
+            full_error = traceback.format_exc()
+            result = self.message_box_javascript(f"""An error occured during angler. 
+            Please copy the error and report the bug:\\n{e}\\n
+            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
+            self.macro_running = False
+            self.stop_macro(f"Angler error: {e}")
+            return
         self.set_status("Macro Stopped")
     def start_fishing(self):
-        # 1. Core Config & Modes
-        scale = get_scale_factor()
-        self.macro_running = True
-        casting_mode = self.vars["casting_mode"].lower()
-        shake_mode = self.vars["shake_mode"].lower()
-        logging_mode = self.vars["logging_mode"].lower()
-        fishing_profile = self.vars["fishing_profile"].lower()
-        sovereign_recharge = self.vars["sovereign_recharge"]
-        click_after_minigame = self.vars["click_after_minigame"].lower()
-        target_time = self.vars["target_time"].lower()
-        logging_cycle = int(self.vars["logging_cycle"])
-        hunt_cycles = int(self.vars["hunt_cycles"])
-        auto_reconnect = self.vars["auto_reconnect"]
-        hunt_detect = int(self._get_var_number("hunt_detect", 20, float))
-        minimum_percentage = float(self.vars["minimum_percentage"].strip("%"))
-        maximum_percentage = float(self.vars["maximum_percentage"].strip("%"))
-        # 2. Hotkey & Inventory Slots
-        bag_slot = str(self.vars["bag_slot"])
-        rod_slot = str(self.vars["rod_slot"])
-        sundial_slot = str(self.vars["sundial_slot"])
-        target_slot = str(self.vars["target_slot"])
-        # 3. Delays & Timings
-        select_rod_duration = float(self.vars["select_rod_duration"])
-        delay_before_casting = float(self._get_var_number("delay_before_casting", 0.5, float))
-        delay_after_casting = float(self._get_var_number("cast_delay", 1.0, float))
-        sundial_delay = float(self.vars["sundial_delay"])
-        totem_delay = float(self.vars["totem_delay"])
-        restart_delay = float(self.vars["restart_delay"])
-        # 4. Screen Regions & Coordinates
-        shake_left, shake_top, shake_right, shake_bottom, shake_w, shake_h = self.get_areas("shake")
-        fish_left, fish_top, fish_right, fish_bottom, _, fish_height = self.get_areas("fish")
-        friend_left_s, friend_top_s, friend_right_s, friend_bottom_s, _, _ = self.get_areas("friend")
-        totem_left, totem_top, totem_right, totem_bottom, _, _ = self.get_areas("totem")
-        sovereign_left, sovereign_top, sovereign_right, sovereign_bottom, sovereign_width, _ = self.get_areas("sovereign")
-        shake_x = shake_left + (shake_w // 2)
-        shake_y = shake_top + (shake_h // 2)
-        detection_method = self.vars["detection_method"].lower()
-        # 5. Features & Overlay Settings
-        shake_failsafe = int(self.vars["shake_failsafe"])
-        fish_color = self.vars["fish_color"]
-        fish_tolerance = int(self.vars["fish_tolerance"])
-        friend_color = self.vars["friends_color"]
-        friend_tolerance = int(self.vars["friends_tolerance"])
-        sovereign_recharge_color = self.vars["sovereign_recharge_color"]
-        sovereign_recharge_tolerance = int(self.vars["sovereign_recharge_tolerance"])
-        auto_refresh = self.vars["auto_refresh"]
-        auto_totem = self.vars["auto_totem"]
-        fish_overlay = self.vars["fish_overlay"]
-        enchant_click_x = float(self.vars["enchant_click_x"])
-        enchant_click_y = float(self.vars["enchant_click_y"])
-        # 6. Optimized OpenCV Template Matching Setup
         try:
-            sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
-            moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
-            sun_resized = self.auto_crop_template(sun)
-            moon_resized = self.auto_crop_template(moon)
+            # 1. Core Config & Modes
+            scale = get_scale_factor()
+            self.macro_running = True
+            casting_mode = self.vars["casting_mode"].lower()
+            shake_mode = self.vars["shake_mode"].lower()
+            logging_mode = self.vars["logging_mode"].lower()
+            fishing_profile = self.vars["fishing_profile"].lower()
+            sovereign_recharge = self.vars["sovereign_recharge"]
+            click_after_minigame = self.vars["click_after_minigame"].lower()
+            target_time = self.vars["target_time"].lower()
+            logging_cycle = int(self.vars["logging_cycle"])
+            hunt_cycles = int(self.vars["hunt_cycles"])
+            auto_reconnect = self.vars["auto_reconnect"]
+            hunt_detect = int(self._get_var_number("hunt_detect", 20, float))
+            minimum_percentage = float(self.vars["minimum_percentage"].strip("%"))
+            maximum_percentage = float(self.vars["maximum_percentage"].strip("%"))
+            # 2. Hotkey & Inventory Slots
+            bag_slot = str(self.vars["bag_slot"])
+            rod_slot = str(self.vars["rod_slot"])
+            sundial_slot = str(self.vars["sundial_slot"])
+            target_slot = str(self.vars["target_slot"])
+            relic_slot = str(self.vars["relic_slot"])
+            # 3. Delays & Timings
+            select_rod_duration = float(self.vars["select_rod_duration"])
+            delay_before_casting = float(self._get_var_number("delay_before_casting", 0.5, float))
+            delay_after_casting = float(self._get_var_number("cast_delay", 1.0, float))
+            sundial_delay = float(self.vars["sundial_delay"])
+            totem_delay = float(self.vars["totem_delay"])
+            restart_delay = float(self.vars["restart_delay"])
+            # 4. Screen Regions & Coordinates
+            shake_left, shake_top, shake_right, shake_bottom, shake_w, shake_h = self.get_areas("shake")
+            fish_left, fish_top, fish_right, fish_bottom, _, fish_height = self.get_areas("fish")
+            friend_left_s, friend_top_s, friend_right_s, friend_bottom_s, _, _ = self.get_areas("friend")
+            totem_left, totem_top, totem_right, totem_bottom, _, _ = self.get_areas("totem")
+            sovereign_left, sovereign_top, sovereign_right, sovereign_bottom, sovereign_width, _ = self.get_areas("sovereign")
+            shake_x = shake_left + (shake_w // 2)
+            shake_y = shake_top + (shake_h // 2)
+            detection_method = self.vars["detection_method"].lower()
+            # 5. Features & Overlay Settings
+            shake_failsafe = int(self.vars["shake_failsafe"])
+            fish_color = self.vars["fish_color"]
+            fish_tolerance = int(self.vars["fish_tolerance"])
+            friend_color = self.vars["friends_color"]
+            friend_tolerance = int(self.vars["friends_tolerance"])
+            sovereign_recharge_color = self.vars["sovereign_recharge_color"]
+            sovereign_recharge_tolerance = int(self.vars["sovereign_recharge_tolerance"])
+            auto_refresh = self.vars["auto_refresh"]
+            auto_totem = self.vars["auto_totem"]
+            fish_overlay = self.vars["fish_overlay"]
+            enchant_click_x = float(self.vars["enchant_click_x"])
+            enchant_click_y = float(self.vars["enchant_click_y"])
+            # 6. Optimized OpenCV Template Matching Setup
+            try:
+                sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
+                moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
+                sun_resized = self.auto_crop_template(sun)
+                moon_resized = self.auto_crop_template(moon)
+            except:
+                self.set_status("Error: Can't find sun.png and moon.png. Auto Totem is disabled.")
+                self.send_logging("Error: Can't find sun.png and moon.png. Auto Totem is disabled.", 0, -1)
+                auto_totem = "off"
+            # 7. Internal Tracking State
+            self.scan_delay = 0.1
+            self.current_cycle = 0
+            current_time = None
+            current_hunt = ""
+            # Catch Metrics (0 = success, 1 = failed, 2 = N/A initial state)
+            self.catch_success = 2
+            self.catch_rate = 0.0
+            successful_catches = 0
+            logging_cycle2 = logging_cycle
+            hunt_cycles2 = hunt_cycles
+            if fish_overlay == "on":
+                # Position the overlay just above or below the fish bar so it does
+                # not cover the actual minigame.  show() expects (left, top, width,
+                # height) in physical pixels — NOT right/bottom.
+                fish_center = int((fish_top + fish_bottom) / 2)
+                if fish_center > HALF_HEIGHT:
+                    fish_top_overlay = fish_top - fish_height - fish_height
+                else:
+                    fish_top_overlay = fish_top + fish_height + fish_height
+                overlay_width = fish_right - fish_left
+                overlay_height = fish_height
+                self.fish_overlay.show(
+                    fish_left,
+                    fish_top_overlay,
+                    overlay_width,
+                    overlay_height,
+                )
         except:
-            self.set_status("Error: Can't find sun.png and moon.png. Auto Totem is disabled.")
-            self.send_logging("Error: Can't find sun.png and moon.png. Auto Totem is disabled.", 0, -1)
-            auto_totem = "off"
-        # 7. Internal Tracking State
-        self.scan_delay = 0.1
-        self.current_cycle = 0
-        current_time = None
-        current_hunt = ""
-        # Catch Metrics (0 = success, 1 = failed, 2 = N/A initial state)
-        self.catch_success = 2
-        self.catch_rate = 0.0
-        successful_catches = 0
-        logging_cycle2 = logging_cycle
-        hunt_cycles2 = hunt_cycles
-        if fish_overlay == "on":
-            # Position the overlay just above or below the fish bar so it does
-            # not cover the actual minigame.  show() expects (left, top, width,
-            # height) in physical pixels — NOT right/bottom.
-            fish_center = int((fish_top + fish_bottom) / 2)
-            if fish_center > HALF_HEIGHT:
-                fish_top_overlay = fish_top - fish_height - fish_height
-            else:
-                fish_top_overlay = fish_top + fish_height + fish_height
-            overlay_width = fish_right - fish_left
-            overlay_height = fish_height
-            self.fish_overlay.show(
-                fish_left,
-                fish_top_overlay,
-                overlay_width,
-                overlay_height,
-            )
+            pass
         # Main Loop (With bug reports)
         try:
             while self.macro_running:
@@ -3286,6 +3478,7 @@ class Api:
                 # Auto Totem
                 if auto_totem == "on":
                     self.set_status("Auto Totem")
+                    time.sleep(0.1)
                     if not target_time == "disabled":
                         totem = self.capture_frame[totem_top:totem_bottom, totem_left:totem_right]
                         sun_found, _, sun_confidence = self.image_search(totem, sun_resized)
@@ -3304,9 +3497,11 @@ class Api:
                                 current_time = "Night"
                         if not target_time == current_time:
                             self._send_key(sundial_slot)
+                            self._click_at(shake_x, shake_y)
                             self.interruptible_sleep(sundial_delay)
                             self.send_logging("**Sundial Success**", f"Cycle #{self.current_cycle}", "N/A")
                     self._send_key(target_slot)
+                    self._click_at(shake_x, shake_y)
                     self.interruptible_sleep(totem_delay)
                     self._send_key(rod_slot)
                     time.sleep(delay_after_casting / 4)
@@ -3322,6 +3517,9 @@ class Api:
                     distance = round(abs(sovereign_right2 - sovereign_left) / sovereign_width, 2)
                     while distance < maximum_percentage:
                         if distance < minimum_percentage:
+                            self._send_key(rod_slot)
+                            time.sleep(0.1)
+                            self._send_key(relic_slot)
                             self.click_backpack(enchant_click_x, enchant_click_y)
                         elif distance > maximum_percentage:
                             break
@@ -3399,7 +3597,14 @@ class Api:
             time.sleep(0.2)
             full_error = traceback.format_exc()
             error_line = self.get_error_line(full_error)
-            self.message_box_javascript(f"An error at line {error_line} occured. Please copy the error and report the bug:\\n{e}\\nWould you like to copy the full crash log to your clipboard?", full_error)
+            result = self.message_box_javascript(f"""An error at line {error_line} occured. 
+            Please copy the error and report the bug:\\n{e}\\n
+            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
             if IS_COMPILED == False:
                 print(full_error)
             else:
@@ -3508,6 +3713,8 @@ class Api:
         released = False
         # Simple method variables
         speed_samples = []
+        white_positions = []
+        white_timestamps = []
         max_speed_samples = 20
         release_delay = float(self.vars["release_delay_simple"])
         perfect_threshold = float(self.vars["perfect_threshold"])  # Hardcoded value - setting removed in later versions
@@ -3520,6 +3727,9 @@ class Api:
             last_time_to_impact = None
             # Get screen resolution for scaling
             scaling_factor = 1920 / SCREEN_WIDTH
+        if perfect_cast_method == "prediction":
+            highest_cast_percentage = 100
+            highest_cast_percentage_updated = False
         # Initialize tracking variables
         green_abs_top = 0
         green_abs_left = 0
@@ -3664,11 +3874,10 @@ class Api:
 
                 last_fill_percentage = actual_fill_percentage
                 last_frame_time = current_time
-            else:  # perfect_cast_method == 1 (VELOCITY-BASED METHOD)
+            elif perfect_cast_method == "velocity":  # perfect_cast_method == "velocity" (VELOCITY-BASED METHOD)
                 # --- Velocity tracking ---
-                now_pc = time.perf_counter()
                 white_positions.append((0, white_abs_top))  # x is irrelevant; track Y only
-                white_timestamps.append(now_pc)
+                white_timestamps.append(current_time)
                 if len(white_positions) > MAX_VELOCITY_SAMPLES:
                     white_positions.pop(0)
                     white_timestamps.pop(0)
@@ -3746,6 +3955,64 @@ class Api:
                             released = True
                 if released:
                     break
+            elif perfect_cast_method == "prediction":  # perfect_cast_method == "prediction" (PREDICTION METHOD)
+                # --- SIMPLE (PERCENTAGE-BASED) METHOD ---
+                actual_fill_percentage = (1 - (current_distance / total_distance)) * 100
+                fill_speed = 0.0
+                position_offset_percent = 0.0
+                if last_fill_percentage is not None and last_frame_time is not None:
+                    time_delta = current_time - last_frame_time
+                    if time_delta > 0:
+                        fill_change = actual_fill_percentage - last_fill_percentage
+                        if fill_change < -50:
+                            last_fill_percentage = None
+                            last_frame_time = None
+                            reached_bottom_5_percent = False
+                            speed_samples.clear()
+                        elif fill_change > 0:
+                            instant_fill_speed = fill_change / time_delta
+                            speed_samples.append(instant_fill_speed)
+                            if len(speed_samples) > max_speed_samples:
+                                speed_samples.pop(0)
+                if speed_samples:
+                    fill_speed = sum(speed_samples) / len(speed_samples)
+                    base_offset = 1.5 * math.log(1 + fill_speed / 25.0)
+                    if release_timing < 0:
+                        base_multiplier = 1.0 - (release_timing / 5.0)
+                        speed_scale = min(6.0, (fill_speed / 100.0) ** 2)
+                        timing_multiplier = 1.0 + (base_multiplier - 1.0) * speed_scale
+                        position_offset_percent = max(0.0, min(50.0, base_offset * timing_multiplier))
+                    else:
+                        position_offset_percent = max(0.0, min(50.0, base_offset))
+                predicted_fill_percentage = actual_fill_percentage + position_offset_percent
+                offset_pixels = int((position_offset_percent / 100.0) * total_distance)
+                predicted_white_y_top = white_abs_top - offset_pixels
+                bottom_threshold = 5.0 + position_offset_percent
+                if predicted_fill_percentage <= bottom_threshold and not reached_bottom_5_percent:
+                    reached_bottom_5_percent = True
+                    last_fill_percentage = None
+                    last_frame_time = None
+                    speed_samples.clear()
+                if last_fill_percentage is not None:
+                    cast_velocity = actual_fill_percentage - last_fill_percentage
+                else:
+                    cast_velocity = 0.1
+                if cast_velocity < 0:
+                    if highest_cast_percentage_updated == False:
+                        # Store the highest percentage from the previous bar movement
+                        highest_cast_percentage = last_fill_percentage
+                        highest_cast_percentage_updated = True
+                        time.sleep(0.2)
+                if release_timing <= 0:
+                    release_threshold = highest_cast_percentage
+                else:
+                    release_threshold = highest_cast_percentage + (release_timing / 50.0) * 4.5
+                if reached_bottom_5_percent and predicted_fill_percentage >= release_threshold:
+                    released = True
+                    break
+
+                last_fill_percentage = actual_fill_percentage
+                last_frame_time = current_time
 
             if time.time() - start_time > fall_scan_timeout:
                 break
@@ -4880,7 +5147,7 @@ class Api:
                             last_fish_x2 = fish_x2
                             last_left_x = left_x
                             last_right_x = right_x
-                            print(f"📏 Initial: Target=({fish_x}, {fish_x2}), Gap={initial_target_gap}, Bars=({left_x}, {right_x})")
+                            # print(f"📏 Initial: Target=({fish_x}, {fish_x2}), Gap={initial_target_gap}, Bars=({left_x}, {right_x})")
                             is_initial_run = False
                         else:
                             # SUBSEQUENT RUNS: Simple rules
@@ -4966,7 +5233,7 @@ class Api:
                                     time_since_first_detection = current_time - teleport_first_detected_time
                                     if time_since_first_detection >= TELEPORT_CONFIRM_TIME:
                                         # Teleport confirmed - accept new positions
-                                        print(f"⚠️ TELEPORT CONFIRMED after {time_since_first_detection:.3f}s - Accepting new positions (jump: {max_jump:.0f}px > {TELEPORT_THRESHOLD}px threshold)")
+                                        # print(f"⚠️ TELEPORT CONFIRMED after {time_since_first_detection:.3f}s - Accepting new positions (jump: {max_jump:.0f}px > {TELEPORT_THRESHOLD}px threshold)")
                                         last_fish_x = fish_x
                                         last_fish_x2 = fish_x2
                                         last_left_x = left_x
@@ -4979,7 +5246,7 @@ class Api:
                                         teleport_first_detected_time = None
                                     else:
                                         # Still confirming - use old positions for tracking
-                                        print(f"⏳ Potential teleport (jump: {max_jump:.0f}px > {TELEPORT_THRESHOLD}px, confirming: {time_since_first_detection:.3f}s/{TELEPORT_CONFIRM_TIME}s) - Using last positions")
+                                        # print(f"⏳ Potential teleport (jump: {max_jump:.0f}px > {TELEPORT_THRESHOLD}px, confirming: {time_since_first_detection:.3f}s/{TELEPORT_CONFIRM_TIME}s) - Using last positions")
                                         fish_x = last_fish_x
                                         fish_x2 = last_fish_x2
                                         left_x = last_left_x
@@ -4992,7 +5259,7 @@ class Api:
                                     potential_teleport_right_bar = right_x
                                     teleport_first_detected_time = current_time
                                     # Use old positions while confirming
-                                    print(f"🔍 New teleport candidate detected (jump: {max_jump:.0f}px > {TELEPORT_THRESHOLD}px threshold) - Starting confirmation")
+                                    # print(f"🔍 New teleport candidate detected (jump: {max_jump:.0f}px > {TELEPORT_THRESHOLD}px threshold) - Starting confirmation")
                                     fish_x = last_fish_x
                                     fish_x2 = last_fish_x2
                                     left_x = last_left_x
@@ -5263,10 +5530,6 @@ class Api:
             if fish_detected == True:
                 if not fish_x == note_x:
                     last_fish_x = fish_x
-            try:
-                last_arrow_x = arrow_x
-            except:
-                pass
 
             # Cleanup
             is_initial_run = False
@@ -5338,7 +5601,7 @@ You are running version {APP_VERSION} but you're supposed to run version {js_app
         if js_beta_version != BETA_VERSION:
             if not BETA_VERSION == 0 or js_beta_version == 0:
                 messagebox.showerror("Beta Version Mismatch", f"""
-You are running beta {APP_VERSION} but you're supposed to run beta {js_app_version}.\nPlease report this bug in the Discord Server.
+You are running beta {BETA_VERSION} but you're supposed to run beta {js_beta_version}.\nPlease report this bug in the Discord Server.
 """)
                 return False
 

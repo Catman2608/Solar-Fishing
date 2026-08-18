@@ -2,9 +2,9 @@
     "global_settings": "off",
     "automation_mode": "fishing",
     "fishing_profile": "normal",
-    "start_stop": "F5",
-    "change_areas": "F6",
-    "force_stop": "F7",
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7",
     "rod_slot": "1",
     "bag_slot": "2",
     "sundial_slot": "6",
@@ -124,5 +124,6 @@
     "lullaby_mask_lost_ratio": "0.2",
     "user_id": "67",
     "backpack_confirm_x": "0.5",
-    "backpack_confirm_y": "0.5"
+    "backpack_confirm_y": "0.5",
+    "appdata_settings": "off"
 }

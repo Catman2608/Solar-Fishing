@@ -1572,7 +1572,7 @@ class Api:
             self.set_status(f"Failed to load misc settings: {e}")
         # Convert Hotkeys
         self.hotkey_start = self._string_to_key(start_key)
-        self.hotkey_change_areas = self._string_to_key(change_key)
+        self.hotkey_area_selector_key = self._string_to_key(change_key)
         self.hotkey_stop = self._string_to_key(stop_key)
     def save_misc_settings(self):
         """Save miscellaneous settings."""
@@ -1859,9 +1859,9 @@ class Api:
     # Main macro functions
     def _get_hotkeys(self):
         try:
-            start_key = self.normalize_key(str(self.vars["start_stop"]))
-            areas_key = self.normalize_key(str(self.vars["change_areas"]))
-            stop_key = self.normalize_key(str(self.vars["force_stop"]))
+            start_key = self.normalize_key(str(self.vars["start_key"]))
+            areas_key = self.normalize_key(str(self.vars["area_selector_key"]))
+            stop_key = self.normalize_key(str(self.vars["stop_key"]))
         except Exception as e:
             self.set_status(f"Get hotkeys failed: {e}")
             start_key = "f5"
@@ -4170,9 +4170,9 @@ class Api:
                     bar_y2=min(1.0, white_ratio + bar_height / 2)
                 )
             # --- Velocity tracking ---
-            now_pc = time.perf_counter()
+            current_time = time.perf_counter()
             white_positions.append((0, white_y_top))   # x is irrelevant; track Y only
-            white_timestamps.append(now_pc)
+            white_timestamps.append(current_time)
             if len(white_positions) > MAX_VELOCITY_SAMPLES:
                 white_positions.pop(0)
                 white_timestamps.pop(0)
