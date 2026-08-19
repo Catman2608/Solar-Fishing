@@ -1,5 +1,6 @@
 {
     "global_settings": "off",
+    "appdata_settings": "off",
     "automation_mode": "fishing",
     "fishing_profile": "normal",
     "start_key": "F5",
@@ -11,6 +12,7 @@
     "target_slot": "7",
     "mirror_slot": "8",
     "backpack_slot": "2",
+    "relic_slot": "9",
     "tranquility_key_1": "D",
     "tranquility_key_2": "F",
     "tranquility_key_3": "J",
@@ -116,6 +118,10 @@
     "appraisal_click_x": "0.5",
     "appraisal_click_y": "0.5",
     "minimum_multiplier": "0.5",
+    "treasure_appraisal_ocr_x": "0.5",
+    "treasure_appraisal_ocr_y": "0.5",
+    "treasure_appraisal_reappraise_x": "0.5",
+    "treasure_appraisal_reappraise_y": "0.5",
     "enchantment_mode": "normal",
     "enchant_enchants": "Steady, Momentum",
     "enchant_click_x": "0.5",
@@ -123,6 +129,5 @@
     "angler_click_x": "0.5",
     "angler_click_y": "0.5",
     "backpack_x": "0.5",
-    "backpack_y": "0.5",
-    "appdata_settings": "off"
+    "backpack_y": "0.5"
 }

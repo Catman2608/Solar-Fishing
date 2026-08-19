@@ -1,5 +1,5 @@
 const APP_VERSION = "5.01";
-const BETA_VERSION = "1";
+const BETA_VERSION = "2";
 const DEVELOPER = "Catman2608";
 let currentConfig = null;
 const validHexColor = /^#([0-9A-F]{3}|[0-9A-F]{6})$/i;
@@ -462,11 +462,33 @@ async function importConfig() {
                 const text = await file.text();
                 const settings = JSON.parse(text);
 
-                applySettings(settings);
-                await syncSettings();
-                await saveConfig();
+                const configName = window.prompt(
+                    "Enter a name for the imported config:",
+                    file.name.replace(/\.json$/i, "")
+                );
 
-                setStatus(`Imported: ${file.name}`);
+                if (configName === null) {
+                    return;
+                }
+
+                const trimmedName = configName.trim();
+
+                if (!trimmedName) {
+                    setStatus("Invalid config name");
+                    return;
+                }
+
+                const result = await pywebview.api.import_config(
+                    trimmedName,
+                    settings
+                );
+                
+                await refreshConfigs();
+                if (result.success) {
+                    setStatus(`Imported: ${trimmedName}`);
+                } else {
+                    setStatus(`Error: "${result.error}"`);
+                }
             } catch (err) {
                 console.error(err);
                 setStatus("Invalid config file");
