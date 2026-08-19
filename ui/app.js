@@ -668,9 +668,9 @@ function updateAccentColor() {
     const rightValid = !isTooNeutral(normalizedRight);
     const fishValid = !isTooNeutral(normalizedFish);
     
-    let leftGradient = "#ffffff";
-    let rightGradient = "#ffffff";
-    let accentColor = "#ffffff"; // Always a valid hex color
+    let leftGradient = "#fa6b35";
+    let rightGradient = "#fa6b35";
+    let accentColor = "#fa6b35"; // Always a valid hex color
     let isGradient = false;
     
     if (leftValid && rightValid) {
@@ -696,9 +696,9 @@ function updateAccentColor() {
         accentColor = normalizedFish;
     } else {
         // Ultimate fallback
-        leftGradient = "#ffffff";
-        rightGradient = "#ffffff";
-        accentColor = "#ffffff";
+        leftGradient = "#fa6b35";
+        rightGradient = "#fa6b35";
+        accentColor = "#fa6b35";
     }
     
     // Apply CSS variables

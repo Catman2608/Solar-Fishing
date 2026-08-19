@@ -673,8 +673,8 @@ button {
 
 /* Merged duplicate .simple-box h4 blocks */
 .simple-box p {
-    color: var(--text-secondary);
-    font-size: 13px;
+    color: var(--text-primary);
+    font-size: 12px;
 }
 
 .simple-box h4 {
