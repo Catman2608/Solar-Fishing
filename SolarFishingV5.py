@@ -1,5 +1,5 @@
 # Imports
-# GUI (Primary and fallback)
+# GUI (primary and fallback)
 import webview
 import customtkinter as ctk
 from tkinter import messagebox
@@ -25,7 +25,7 @@ import shutil
 import math
 import random
 from pathlib import Path
-# Keyboard and Mouse clicks (platform-specific)
+# Keyboard and mouse clicks (platformspecific)
 from pynput.keyboard import Listener as KeyListener, Key
 from pynput import keyboard, mouse
 from pynput.keyboard import Controller as KeyboardController
@@ -40,7 +40,7 @@ elif sys.platform == "darwin":
 elif sys.platform == "linux":
     from Xlib import X, XK, display as Xdisplay
     from Xlib.ext import xtest
-# OCR (with fallback if user didn't install Tesseract)
+# OCR (with fallback if user didn't install tesseract)
 try:
     import pytesseract
     if sys.platform == "win32":
@@ -51,7 +51,7 @@ try:
         pytesseract.pytesseract.tesseract_cmd = "/opt/homebrew/bin/tesseract"
 except:
     pytesseract = None
-# Define platform-specific constants
+# Define platformspecific constants
 # All platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
@@ -59,9 +59,12 @@ APP_VERSION = 5.01
 BETA_VERSION = 1
 DEVELOPER = "Catman2608"
 def load_misc_settings(last_config_path):
-    with open(last_config_path, "r", encoding="utf-8") as file:
-        data = json.load(file)
-    return data
+    try:
+        with open(last_config_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        return data
+    except:
+        return {}
 def get_macos_menu_offset():
     if sys.platform != "darwin":
         return 0
@@ -88,7 +91,7 @@ def cgimage_to_srgb_numpy(image):
         bytes_per_row = width * 4
         # Allocate the destination buffer once per frame.
         raw = np.empty((height, width, 4), dtype=np.uint8)
-        # Reuse the cached sRGB color space.
+        # Reuse the cached srgb color space.
         context = Quartz.CGBitmapContextCreate(
             raw,
             width,
@@ -107,14 +110,14 @@ def cgimage_to_srgb_numpy(image):
             Quartz.CGRectMake(0, 0, width, height),
             image
         )
-        # Return a BGR view without making another full-frame allocation.
+        # Return a bgr view without making another fullframe allocation.
         return raw[:, :, :3][:, :, ::-1]
 
     return image
 
 # Screen dimensions via mss — use monitor[1] (primary) not monitor[0] (virtual combined).
-# On Windows with DPI scaling, pywebview's x/y/width/height use physical pixels,
-# so we must query the raw physical resolution, not the scaled logical resolution.
+# On windows with dpi scaling, pywebview's x/y/width/height use physical pixels,
+# So we must query the raw physical resolution, not the scaled logical resolution.
 try:
     MSS = mss.MSS
 except AttributeError:
@@ -130,7 +133,7 @@ with MSS() as _sct:
     SCREEN_TOP    = _m["top"]
 HALF_WIDTH = int(SCREEN_WIDTH / 2)
 HALF_HEIGHT = int(SCREEN_HEIGHT / 2)
-# Windows (Transparency and Ctypes WinDLL)
+# Windows (transparency and ctypes windll)
 if sys.platform == "win32":
     windll = ctypes.windll.user32
     MOUSEEVENTF_MOVE = 0x0001
@@ -138,7 +141,7 @@ if sys.platform == "win32":
     MOUSEEVENTF_LEFTUP = 0x0004
     MOUSEEVENTF_RIGHTDOWN = 0x0008
     MOUSEEVENTF_RIGHTUP = 0x0010
-    # Ctypes GUI constants
+    # Ctypes gui constants
     SW_MAXIMIZE = 3
     user32 = ctypes.windll.user32
     user32.GetWindowLongW.restype = wintypes.LONG
@@ -152,18 +155,18 @@ if sys.platform == "win32":
         wintypes.HWND,
         ctypes.c_int
     ]
-    # Set DPI awareness early to ensure consistent coordinate handling
+    # Set dpi awareness early to ensure consistent coordinate handling
     try:
         windll.shcore.SetProcessDpiAwareness(1)  # PROCESS_PER_MONITOR_DPI_AWARE
-        # DPI awareness successfully set
+        # Dpi awareness successfully set
     except:
         try:
             windll.user32.SetProcessDPIAware()  # Fallback for older Windows
-            # DPI awareness set (fallback method)
+            # Dpi awareness set (fallback method)
         except:
             pass  # DPI awareness could not be set - coordinates may be inconsistent
 
-    # Windows API related functions
+    # Windows api related functions
     def get_scale_factor():
         return 1
 
@@ -206,7 +209,7 @@ if sys.platform == "win32":
 
         return None
 
-# macOS (Keyboard, scale factor, mouse button)
+# macOS (keyboard, scale factor, mouse button)
 elif sys.platform == "darwin":
     _scale_cache = None
     MAC_KEY_MAP = {
@@ -244,7 +247,7 @@ elif sys.platform == "darwin":
         """
         if x is None or y is None:
             x, y = get_mouse_position()
-        # Map button → (Quartz button constant, down event, up event)
+        # Map button → (quartz button constant, down event, up event)
         button_map = {
             "left":   (Quartz.kCGMouseButtonLeft, Quartz.kCGEventLeftMouseDown, Quartz.kCGEventLeftMouseUp),
             1:        (Quartz.kCGMouseButtonLeft, Quartz.kCGEventLeftMouseDown, Quartz.kCGEventLeftMouseUp),
@@ -308,7 +311,7 @@ elif sys.platform == "darwin":
                 Quartz.kCGHIDEventTap,
                 Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
             )
-# Linux (Mouse positions and Xdisplay)
+# Linux (mouse positions and xdisplay)
 elif sys.platform.startswith("linux"):
     _xdisplay = None
     def _get_xdisplay():
@@ -358,11 +361,9 @@ elif sys.platform.startswith("linux"):
         d.sync()
     def send_key(key, delay=0.05, click_type=0):
         d = _get_xdisplay()
-
         keysym = XK.string_to_keysym(str(key))
         if keysym == 0:
             keysym = XK.string_to_keysym(str(key).lower())
-
         if keysym == 0:
             return
 
@@ -373,83 +374,72 @@ elif sys.platform.startswith("linux"):
         if click_type == 0:
             xtest.fake_input(d, X.KeyPress, keycode)
             d.sync()
-
             time.sleep(delay)
-
             xtest.fake_input(d, X.KeyRelease, keycode)
             d.sync()
-
         elif click_type == 1:
             xtest.fake_input(d, X.KeyPress, keycode)
             d.sync()
-
         elif click_type == 2:
             xtest.fake_input(d, X.KeyRelease, keycode)
             d.sync()
-
         else:
             xtest.fake_input(d, X.KeyPress, keycode)
             d.sync()
-
             time.sleep(delay)
-
             xtest.fake_input(d, X.KeyRelease, keycode)
             d.sync()
 # Config management
 def get_base_path():
-    # 1. Check if the application is bundled/frozen
+    # 1. check if the application is bundled/frozen
     if getattr(sys, 'frozen', False):
-        # Detect if it's a macOS application bundle (.app)
-        # In macOS bundles, the executable runs inside Contents/MacOS/
+        # Detect if it's a macos application bundle (.app)
+        # In macos bundles, the executable runs inside contents/macos/
         if sys.platform == 'darwin' and '.app/Contents/MacOS' in sys.executable:
             return Path(sys.executable).parent.resolve(), True
 
-        # Detect if it's a Linux packaged environment (like AppImage)
-        # Linux AppImages extract to a mount point, keeping assets inside the binary environment
+        # Detect if it's a linux packaged environment (like appimage)
+        # Linux appimages extract to a mount point, keeping assets inside the binary environment
         elif sys.platform.startswith('linux') and 'AppRun' in sys.executable:
             return Path(sys.executable).parent.resolve(), True
 
-        # 2. Windows EXE (One-File) or standard local folder deployment
-        # Returns the directory containing the actual .exe file, NOT the temporary _MEIPASS folder
+        # 2. windows exe (onefile) or standard local folder deployment
+        # Returns the directory containing the actual .exe file, not the temporary _meipass folder
         else:
             return Path(sys.executable).parent.resolve(), True
 
-    # 3. Running from raw source code (.py file)
+    # 3. running from raw source code (.py file)
     else:
         return Path(__file__).parent.resolve(), False
-# Get AppData path
+# Get appdata path
 def get_appdata_path():
     """Unified base directory for app data."""
-    if not BETA_VERSION == 0:
-        beta = "beta"
-    else:
-        beta = ""
     if getattr(sys, 'frozen', False):
-        # Compiled App → Use User Directory
+        # Compiled app → use user directory
         if sys.platform == "darwin":
             return os.path.join(
 
                 os.path.expanduser("~"),
                 "Library", "Application Support",
-                "SolarFishingV5", beta
+                "SolarFishingV5"
             )
         elif sys.platform == "win32":
             return os.path.join(
 
                 os.path.expanduser("~"),
                 "AppData", "Roaming",
-                "SolarFishingV5", beta
+                "SolarFishingV5"
             )
         else:
             return os.path.join(os.path.expanduser("~"), "SolarFishingV5")
-    # Dev Mode → Project Directory
+    # Dev mode → project directory
     return os.path.dirname(os.path.abspath(__file__))
-# Establish the global base path for Solar Fishing V5
+# Establish the global base path for solar fishing v5
 BASE_PATH, IS_COMPILED = get_base_path()
 APPDATA_PATH = get_appdata_path()
 # Make sure base path exists
 os.makedirs(BASE_PATH, exist_ok=True)
-# Configs Path
+# Configs path
 LAST_CONFIG = os.path.join(BASE_PATH, "last_config.json")
 data = load_misc_settings(LAST_CONFIG)
 try:
@@ -471,9 +461,9 @@ def open_base_folder():
     else:  # Linux
         subprocess.run(["xdg-open", folder])
 # ─────────────────────────────────────────────────────────────────────────────
-# Central area definitions.  To add a new selectable area:
-#   1. Add an entry below (key, color, label, default ratios 0–1).
-#   2. That's it — selector UI, save/load, defaults, and the show/hide menu
+# Central area definitions.  to add a new selectable area:
+# 1. add an entry below (key, color, label, default ratios 0–1).
+# 2. that's it — selector ui, save/load, defaults, and the show/hide menu
 #      all pick it up automatically.  Use get_areas("your_key") later if needed.
 # ─────────────────────────────────────────────────────────────────────────────
 AREA_CONFIG = {
@@ -522,16 +512,6 @@ AREA_CONFIG = {
         "label": "Treasure Appraisal Box (Grid)",
         "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
     },
-    "treasure_ocr": {
-        "color": "#ff4512",
-        "label": "Treasure Appraisal Box (OCR)",
-        "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
-    },
-    "appraisal_dialogue": {
-        "color": "#000fff",
-        "label": "Dialogue Box (Appraisal)",
-        "default": {"x": 0.5483, "y": 0.4230, "width": 0.2697, "height": 0.2017},
-    },
     "appraisal_hotbar": {
         "color": "#e78300",
         "label": "Hotbar Box (Appraisal)",
@@ -542,18 +522,13 @@ AREA_CONFIG = {
         "label": "Enchantment Box (Text)",
         "default": {"x": 0.3061, "y": 0.3932, "width": 0.3649, "height": 0.1674},
     },
-    "angler_dialogue": {
-        "color": "#99ff95",
-        "label": "Dialogue Box (Angler)",
-        "default": {"x": 0.3331, "y": 0.4006, "width": 0.3118, "height": 0.1526},
-    },
     "angler_quest": {
         "color": "#126799",
         "label": "Quest Box (Angler)",
         "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
     },
 }
-# Display / iteration order (also used for number-key toggles 1–9 in the selector)
+# Display / iteration order (also used for numberkey toggles 1–9 in the selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
 class AreaSelector:
     """
@@ -571,9 +546,9 @@ class AreaSelector:
         self._visible = {name: True for name in AREA_ORDER}
         self._screen_capture = None
         self._screenshot_b64 = None
-        # CSS client size of the overlay (reported by JS). Used for pixel↔ratio
-        # conversion so boxes align when display scale ≠ 100%. Falls back to
-        # SCREEN_* until window_ready reports the real size.
+        # Css client size of the overlay (reported by js). used for pixel↔ratio
+        # Conversion so boxes align when display scale ≠ 100%. falls back to
+        # Screen_* until window_ready reports the real size.
         self._view_w = float(SCREEN_WIDTH)
         self._view_h = float(SCREEN_HEIGHT)
     def _capture_and_crop(self):
@@ -603,7 +578,7 @@ class AreaSelector:
             return None
 
         try:
-            # JPEG keeps the payload small enough for evaluate_js
+            # Jpeg keeps the payload small enough for evaluate_js
             ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
             if not ok:
                 return None
@@ -651,8 +626,8 @@ class AreaSelector:
         self._screen_capture = self._capture_and_crop()
         self._screenshot_b64 = self._encode_screenshot(self._screen_capture)
         menu_offset = get_macos_menu_offset()
-        # Default view size until JS reports the real CSS client size.
-        # At scale ≠ 100% these often differ from SCREEN_* (physical).
+        # Default view size until js reports the real css client size.
+        # At scale ≠ 100% these often differ from screen_* (physical).
         self._view_w = float(SCREEN_WIDTH)
         self._view_h = float(max(1, SCREEN_HEIGHT - menu_offset))
         self.area_window = webview.create_window(
@@ -729,9 +704,9 @@ class AreaSelector:
         menu_offset = get_macos_menu_offset()
         vw = float(self._view_w) if self._view_w and self._view_w > 0 else float(SCREEN_WIDTH)
         vh = float(self._view_h) if self._view_h and self._view_h > 0 else float(max(1, SCREEN_HEIGHT - menu_offset))
-        # Reconstruct full-screen height in the same units as the view so
-        # stored ratios (relative to the full screen including menu bar)
-        # map correctly into the overlay's client coordinate space.
+        # Reconstruct fullscreen height in the same units as the view so
+        # Stored ratios (relative to the full screen including menu bar)
+        # Map correctly into the overlay's client coordinate space.
         full_h = vh + float(menu_offset)
         result = {}
         for name, area in self._areas.items():
@@ -841,10 +816,10 @@ class AreaSelector:
             pass
 
         if self._screenshot_b64 and self.area_window and self._open:
-            # Inject via a short data reference; JS stores it and draws.
+            # Inject via a short data reference; js stores it and draws.
             try:
                 # Pass as return value of a dedicated getter instead of
-                # embedding a huge string in evaluate_js when possible.
+                # Embedding a huge string in evaluate_js when possible.
                 self.area_window.evaluate_js(
                     "window.__applyScreenshot && window.__applyScreenshot()"
                 )
@@ -940,7 +915,7 @@ class Eyedropper:
             return None
 
         try:
-            # JPEG keeps the payload small enough for evaluate_js
+            # Jpeg keeps the payload small enough for evaluate_js
             ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
             if not ok:
                 return None
@@ -954,7 +929,6 @@ class Eyedropper:
     def show(self, color_key=None):
         """Open the eyedropper overlay. Optional color_key is the settings
         field that should receive the picked color (e.g. 'fish_color').
-
         Thin js_api object — only exposes the methods the HTML page calls.
         Do NOT pass `self` (or any object that holds a reference to the
         pywebview Window): on macOS Cocoa that triggers infinite recursion
@@ -1011,7 +985,7 @@ class Eyedropper:
         self._visible = True
         self.eyedropper_window.events.closed += self._on_closed
         if sys.platform == "win32":
-            # Maximize on Windows after the window is created
+            # Maximize on windows after the window is created
             def maximize_area_selector():
                 try:
                     hwnd = _get_hwnd(self.eyedropper_window)
@@ -1044,14 +1018,14 @@ class Eyedropper:
     def close(self):
         """Alias used by shutdown / toggle paths."""
         self.hide()
-    # ── JS API methods (called from eyedropper.html) ──
+    # ── js api methods (called from eyedropper.html) ──
     def window_ready(self, win_x, win_y):
         """JS signals the page is ready — push the frozen screenshot."""
         if self._screenshot_b64 and self.eyedropper_window and self._open:
-            # Inject via a short data reference; JS stores it and draws.
+            # Inject via a short data reference; js stores it and draws.
             try:
                 # Pass as return value of a dedicated getter instead of
-                # embedding a huge string in evaluate_js when possible.
+                # Embedding a huge string in evaluate_js when possible.
                 self.eyedropper_window.evaluate_js(
                     "window.__applyScreenshot && window.__applyScreenshot()"
                 )
@@ -1167,7 +1141,7 @@ class Eyedropper:
         self._open = False
         self._visible = False
         self._screenshot_b64 = None
-        # Keep last_picked_color so the main UI can still poll it
+        # Keep last_picked_color so the main ui can still poll it
 class FishOverlay:
     HTML_FILE = os.path.join(UI_PATH, "fish_overlay.html")
     def __init__(self, parent_app):
@@ -1195,7 +1169,7 @@ class FishOverlay:
         top = int(top / scale)
         width = max(1, int(width / scale))
         height = max(1, int(height / scale))
-        # Clamp so the window stays on-screen (logical screen size)
+        # Clamp so the window stays onscreen (logical screen size)
         screen_w = max(1, SCREEN_WIDTH)
         screen_h = max(1, SCREEN_HEIGHT)
         width = min(width, screen_w)
@@ -1271,7 +1245,6 @@ class FishOverlay:
                 # Window may already be disposed (race with stop_macro / hide)
                 self._open = False
                 self.overlay_window = None
-
     def clear(self):
         """Clears rendering elements inside the web view context."""
         self._eval("window.fishOverlay && window.fishOverlay.clear()")
@@ -1307,10 +1280,9 @@ class FishOverlay:
         try:
             self.overlay_window.evaluate_js(script)
         except Exception:
-            # WebView2 may already be disposed; mark closed so we stop trying
+            # Webview2 may already be disposed; mark closed so we stop trying
             self._open = False
             self.overlay_window = None
-
     def _on_closed(self):
         """Internal callback cleaning lifecycle states upon execution exit."""
         self.overlay_window = None
@@ -1321,28 +1293,28 @@ class Api:
         self.vars = {} # Save Entry Variables Here
         self.current_config = self.get_last_config()
         self.load_settings_into_vars(self.current_config)
-        # Start Hotkey Listener
+        # Start hotkey listener
         try:
             self.key_listener = KeyListener(on_press=self.on_key_press)
             self.key_listener.daemon = True
             self.key_listener.start()
         except Exception as e:
             self.set_status(f"Key Listener error: {e}")
-        # Store Screen Width And Height To Use Later
+        # Store screen width and height to use later
         self.SCREEN_WIDTH = SCREEN_WIDTH
         self.SCREEN_HEIGHT = SCREEN_HEIGHT
         self.SCREEN_LEFT = SCREEN_LEFT
         self.SCREEN_TOP = SCREEN_TOP
         self.SCREEN_SCALE = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
-        # Macro State
+        # Macro state
         self.macro_running = False
         self.macro_thread = None
-        # Safe Defaults Before Key Listener Starts (Will Be Overwritten By Load_Misc_Settings)
+        # Safe defaults before key listener starts (will be overwritten by load_misc_settings)
         self.bar_areas = {name: None for name in AREA_ORDER}
         self.current_rod_name = "Default"
         self.scale_x_1440 = self.SCREEN_WIDTH / 2560
         self.scale_y_1440 = self.SCREEN_HEIGHT / 1440
-        # Screen Capture
+        # Screen capture
         self.capture_thread = None
         self.capture_frame = None
         self.capture_id = 0
@@ -1351,7 +1323,7 @@ class Api:
         self.area_selector = AreaSelector(self)
         self.eyedropper = Eyedropper(self)
         self.fish_overlay = FishOverlay(self)
-        # Load Settings
+        # Load settings
         self._load_misc_settings()
     def _refresh_screen_dimensions(self):
         """
@@ -1374,9 +1346,9 @@ class Api:
         self.SCREEN_SCALE  = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
         self.scale_x_1440  = self.SCREEN_WIDTH  / 2560
         self.scale_y_1440  = self.SCREEN_HEIGHT / 1440
-        # Force the capture pipelines to rebuild the thread-local monitor dict.
+        # Force the capture pipelines to rebuild the threadlocal monitor dict.
         self._thread_local = threading.local()
-    # Save Config
+    # Save config
     def _get_prompt_defaults(self):
         defaults = {}
         index_path = os.path.join(UI_PATH, "index.html")
@@ -1447,7 +1419,6 @@ class Api:
 
     def _propagate_global_settings(self, settings, only_flag=False):
         """Write shared settings into every config, preserving each config's colors.
-
         When only_flag is True, only the global_settings checkbox value is synced
         (used when Global Settings is turned off so the flag stays consistent).
         """
@@ -1457,7 +1428,6 @@ class Api:
             }
         else:
             keys_to_write = self._non_color_settings(settings)
-
         if not keys_to_write:
             return
 
@@ -1472,14 +1442,12 @@ class Api:
                         existing = json.load(f)
                     if not isinstance(existing, dict):
                         existing = {}
-
                 merged = dict(existing)
                 merged.update(keys_to_write)
-                # Preserve per-config colors (in case a key was mistakenly included)
+                # Preserve perconfig colors (in case a key was mistakenly included)
                 for ck in color_keys:
                     if ck in existing:
                         merged[ck] = existing[ck]
-
                 os.makedirs(folder, exist_ok=True)
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(merged, f, indent=4)
@@ -1487,7 +1455,6 @@ class Api:
                 continue
 
     def save_settings(self, config_name, settings, text="Settings saved"):
-
         try:
             if not config_name:
                 return {"success": False, "error": "No config selected."}
@@ -1501,15 +1468,13 @@ class Api:
             config_path = os.path.join(folder, "config.json")
             with open(config_path, "w") as f:
                 json.dump(settings,f,indent=4)
-
-            # Global Settings: share every setting except colors across all configs.
+            # Global settings: share every setting except colors across all configs.
             # When turned off, still keep the global_settings flag itself in sync
-            # so switching configs does not re-enable it from an old file.
+            # So switching configs does not reenable it from an old file.
             if self._is_global_settings_enabled(settings):
                 self._propagate_global_settings(settings, only_flag=False)
             else:
                 self._propagate_global_settings(settings, only_flag=True)
-
             self.save_misc_settings()
             self.set_status(text)
             return {"success": True}
@@ -1517,16 +1482,15 @@ class Api:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    # Load Config
+    # Load config
     def load_settings(self, config_name):
         try:
             if not config_name:
                 return {"success": False, "error": "No config selected."}
 
             settings, config_path = self._load_settings_data(config_name)
-
-            # If Global Settings is active (in the session or the loaded file), keep
-            # non-color values shared and only swap in this config's colors.
+            # If global settings is active (in the session or the loaded file), keep
+            # Noncolor values shared and only swap in this config's colors.
             was_global = self._is_global_settings_enabled(self.vars)
             file_global = self._is_global_settings_enabled(settings)
             if was_global or file_global:
@@ -1541,7 +1505,6 @@ class Api:
                     if ck in settings:
                         merged[ck] = settings[ck]
                 settings = merged
-
             with open(config_path, "w") as f:
                 json.dump(settings,f,indent=4)
             self.vars = settings.copy()
@@ -1553,7 +1516,7 @@ class Api:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    # List Configs
+    # List configs
     def list_configs(self):
         try:
             configs = sorted([folder for folder in os.listdir(CONFIGS_PATH) if os.path.isdir(os.path.join(CONFIGS_PATH, folder))])
@@ -1562,7 +1525,7 @@ class Api:
         except Exception:
             return []
 
-    # Settings State
+    # Settings state
     def update_settings(self, settings):
         self.vars.update(settings)
         return {"success": True}
@@ -1628,7 +1591,7 @@ class Api:
             result["config_name"] = config_name
         return result
 
-    # Delete Config
+    # Delete config
     def delete_config(self, config_name):
         try:
             folder = os.path.join( CONFIGS_PATH, config_name )
@@ -1646,7 +1609,7 @@ class Api:
         """Load miscellaneous settings from last_config.json."""
         current_path = os.path.join(BASE_PATH, "last_config.json")
         data = load_misc_settings(current_path)
-        # Bar Areas
+        # Bar areas
         try:
             loaded_areas = data.get("bar_areas", {})
             for key in AREA_ORDER:
@@ -1662,22 +1625,28 @@ class Api:
             pass
         # Hotkeys
         if "start_key" in self.vars and "area_selector_key" in self.vars and "stop_key" in self.vars:
-            # Case 1: Hotkeys are in self.vars
+            # Case 1: hotkeys are in self.vars
             pass
         elif "start_key" in data and "area_selector_key" in data and "stop_key" in data:
-            # Case 2: Hotkeys are in data
+            # Case 2: hotkeys are in data
             self.vars["start_key"] = data["start_key"]
             self.vars["area_selector_key"] = data["area_selector_key"]
             self.vars["stop_key"] = data["stop_key"]
         else:
-            # Case 3: Hotkeys are not in self.vars and data
+            # Case 3: hotkeys are not in self.vars and data
             self.vars["start_key"] = "F5"
             self.vars["area_selector_key"] = "F6"
             self.vars["stop_key"] = "F7"
+        # Images
+        try:
+            sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
+            moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
+        except:
+            self.message_box_javascript("Missing required image files:\nsun.png, moon.png\nAuto Totem will be disabled")
     def save_misc_settings(self):
         """Save miscellaneous settings."""
         path = os.path.join(BASE_PATH, "last_config.json")
-        # Existing Data
+        # Existing data
         data = {}
         if os.path.exists(path):
             try:
@@ -1686,7 +1655,7 @@ class Api:
             except:
                 pass
 
-        # Clean Areas
+        # Clean areas
         clean_bar_areas = {}
         for key in AREA_ORDER:
             area = self.bar_areas.get(key)
@@ -1768,21 +1737,19 @@ class Api:
                     default_settings[color_key] = (
                         existing_config[color_key]
                     )
-            # Keep the current Global Settings flag (do not force it off on reset)
+            # Keep the current global settings flag (do not force it off on reset)
             if "global_settings" in existing_config:
                 default_settings["global_settings"] = existing_config["global_settings"]
             elif "global_settings" in self.vars:
                 default_settings["global_settings"] = self.vars["global_settings"]
-
             with open(config_path, "w") as f:
                 json.dump(
                     default_settings,
                     f,
                     indent=4
                 )
-
-            # When Global Settings is on, reset non-color settings across every config
-            # while still preserving each config's own colors.
+            # When global settings is on, reset noncolor settings across every config
+            # While still preserving each config's own colors.
             if self._is_global_settings_enabled(default_settings):
                 self._propagate_global_settings(default_settings, only_flag=False)
             self.message_box_javascript("Settings reset to default")
@@ -1856,9 +1823,9 @@ class Api:
             config_data.pop("bar_areas", None)
             with open(config_path, "w") as f:
                 json.dump(config_data, f, indent=4)
-            # Also reset the in-memory areas so they take effect immediately.
-            # Use AREA_CONFIG defaults (ratios) rather than {} so get_areas and
-            # any code that inspects bar_areas directly still see valid geometry.
+            # Also reset the inmemory areas so they take effect immediately.
+            # Use area_config defaults (ratios) rather than {} so get_areas and
+            # Any code that inspects bar_areas directly still see valid geometry.
             if hasattr(self, "bar_areas"):
                 self.bar_areas = {
                     name: dict(AREA_CONFIG[name]["default"])
@@ -1923,7 +1890,7 @@ class Api:
 
     def message_box_javascript(self, message, dialogue_type="ok"):
         try:
-            # Escape characters that could break the JavaScript string
+            # Escape characters that could break the javascript string
             escaped_message = (
                 message
                 .replace("\\", "\\\\")
@@ -1931,7 +1898,6 @@ class Api:
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
             )
-
             if dialogue_type == "askyesno":
                 js_code = f"""
                 (function() {{
@@ -1962,11 +1928,11 @@ class Api:
             if sys.platform == "darwin":
                 pasteboard = AppKit.NSPasteboard.generalPasteboard()
                 pasteboard.clearContents()
-                # NSPasteboardTypeString is preferred; fall back to legacy type name
+                # Nspasteboardtypestring is preferred; fall back to legacy type name
                 paste_type = getattr(AppKit, "NSPasteboardTypeString", None) or AppKit.NSStringPboardType
                 return bool(pasteboard.setString_forType_(text, paste_type))
             elif sys.platform == "win32":
-                # Prefer PowerShell Set-Clipboard for reliable Unicode support
+                # Prefer powershell setclipboard for reliable unicode support
                 try:
                     completed = subprocess.run(
                         [
@@ -1984,7 +1950,7 @@ class Api:
                         return True
                 except Exception:
                     pass
-                # Fallback: clip.exe with UTF-16LE
+                # Fallback: clip.exe with utf16le
                 try:
                     completed = subprocess.run(
                         ["clip"],
@@ -2026,9 +1992,9 @@ class Api:
 
         return int(matches[-1])
 
-    # Area Selector
+    # Area selector
     def open_area_selector(self):
-        # Build current areas from bar_areas or AREA_CONFIG defaults (all keys, including appraisal)
+        # Build current areas from bar_areas or area_config defaults (all keys, including appraisal)
         areas = {}
         for name in AREA_ORDER:
             a = self.bar_areas.get(name)
@@ -2038,7 +2004,7 @@ class Api:
         else:
             self.area_selector.show()
             self.area_selector.update_all(areas)
-    # Debug Screenshots
+    # Debug screenshots
     def take_debug_screenshot(self):
         """
         Capture every area in AREA_ORDER plus a full-screen shot, and save
@@ -2135,8 +2101,8 @@ class Api:
                     return
 
                 else:
-                    # Set flag BEFORE starting threads to avoid race where
-                    # the capture thread starts, sees macro_running=False, and exits immediately.
+                    # Set flag before starting threads to avoid race where
+                    # The capture thread starts, sees macro_runningfalse, and exits immediately.
                     self.macro_running = True
                     # Save current settings to config before starting
                     self.save_settings(self.current_config, self.vars)
@@ -2169,15 +2135,15 @@ class Api:
             self.save_settings(self.current_config, self.vars, f"Pressed: {key}")
     def _string_to_key(self, key_string):
         key_string = key_string.strip().lower()
-        # Try Special Keys
+        # Try special keys
         if hasattr(Key, key_string):
             return getattr(Key, key_string)
 
-        # Fallback To Character
+        # Fallback to character
         return key_string
 
-    # Keyboard/Mouse Functions (Platform-specific)
-    # Hold Mouse
+    # Keyboard/mouse functions (platformspecific)
+    # Hold mouse
     def hold_mouse(self, mouse=False):
         "Hold mouse. True for right click, False for left click."
         if self.macro_running == False:
@@ -2191,9 +2157,9 @@ class Api:
         elif sys.platform == "darwin":
             _mouse_event(button="right" if mouse else "left", press=True)
         else:
-            # Linux - now uses the unified X11 implementation
+            # Linux  now uses the unified x11 implementation
             _mouse_event(button="right" if mouse else "left", press=True)
-    # Release Mouse
+    # Release mouse
     def release_mouse(self, mouse=False):
         "Release mouse. True for right click, False for left click."
         if self.macro_running == False:
@@ -2207,9 +2173,9 @@ class Api:
         elif sys.platform == "darwin":
             _mouse_event(button="right" if mouse else "left", press=False)
         else:
-            # Linux - now uses the unified X11 implementation
+            # Linux  now uses the unified x11 implementation
             _mouse_event(button="right" if mouse else "left", press=False)
-    # Click At
+    # Click at
     def _click_at(self, x, y, click_count=1):
         if self.macro_running == False:
             return
@@ -2217,12 +2183,12 @@ class Api:
         if x is None or y is None:
             return
 
-        # Convert coordinates if needed (Retina scaling)
+        # Convert coordinates if needed (retina scaling)
         if sys.platform == "darwin":
             scale = get_scale_factor()
             x = int(x / scale)
             y = int(y / scale)
-        # Seperate branches for Windows and macOS mouse events
+        # Seperate branches for windows and macos mouse events
         if sys.platform == "win32":
             windll.SetCursorPos(x, y)
             windll.mouse_event(MOUSEEVENTF_MOVE, 0, 1, 0, 0)
@@ -2300,10 +2266,10 @@ class Api:
             time.sleep(min(0.01, remaining))
     # Get values
     def get_areas(self, area_key):
-        # Apply Scale Factor.  All area values (saved or default) are ratios 0–1.
-        # Returning physical pixels here.  The previous default path returned
-        # already-pixel coordinates and then multiplied by SCREEN_* again,
-        # producing enormous sizes (full-screen overlay after reset_areas).
+        # Apply scale factor.  all area values (saved or default) are ratios 0–1.
+        # Returning physical pixels here.  the previous default path returned
+        # Alreadypixel coordinates and then multiplied by screen_* again,
+        # Producing enormous sizes (fullscreen overlay after reset_areas).
         scale = get_scale_factor()
         area_data = self.bar_areas.get(area_key)
         if (isinstance(area_data, dict) and area_data.get("width", 0) > 0 and area_data.get("height", 0) > 0):
@@ -2326,7 +2292,7 @@ class Api:
         return left2, top2, right2, bottom2, width2, height2
 
     def _get_default_areas(self, area):
-        """Return (left, top, right, bottom) as ratios 0–1 from AREA_CONFIG defaults.
+        """Return (left, top, right, bottom) as ratios 0-1 from AREA_CONFIG defaults.
         Must stay in ratio space so get_areas can apply scale * SCREEN_* once."""
         cfg = AREA_CONFIG.get(area)
         if cfg:
@@ -2467,9 +2433,9 @@ class Api:
         Extracts numeric value from OCR text, handling common issues.
         Returns None if no valid number is found.
         """
-        # Clean up common OCR artifacts
+        # Clean up common ocr artifacts
         cleaned = text.strip()
-        # Replace common OCR mistakes (O -> 0, l -> 1, etc.)
+        # Replace common ocr mistakes (o > 0, l > 1, etc.)
         cleaned = cleaned.replace('O', '0').replace('o', '0')
         cleaned = cleaned.replace('l', '1').replace('I', '1')
         # Find number with optional decimal
@@ -2487,9 +2453,9 @@ class Api:
     def click_backpack(self, x, y):
         # Areas
         backpack_left, backpack_top, backpack_right, backpack_bottom, backpack_width, backpack_height = self.get_areas("backpack")
-        # User Settings
+        # User settings
         backpack_key = str(self.vars["backpack_key"])
-        # Click Positions
+        # Click positions
         backpack_confirm_x = (float(self.vars["backpack_confirm_x"]) * backpack_width) + backpack_left
         backpack_confirm_y = (float(self.vars["backpack_confirm_y"]) * backpack_height) + backpack_top
         click_x = (float(self.vars[x]) * backpack_width) + backpack_left
@@ -2566,11 +2532,11 @@ class Api:
         Returns:
             (center_x, center_y) or None
         """
-        # required_fish_pixels
+        # Required_fish_pixels
         if frame is None:
             return None, None
 
-        # Color Mask (Vectorized Like Your Fast Version)
+        # Color mask (vectorized like your fast version)
         target_bgr = np.array(self._hex_to_bgr(target_color_hex), dtype=np.int16)
         frame_int = frame.astype(np.int16)
         tol = int(np.clip(tolerance, 0, 255))
@@ -2578,12 +2544,12 @@ class Api:
         if not np.any(mask):
             return None, None
 
-        # Connected Components (Cluster Detection) 
+        # Connected components (cluster detection)
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
         if num_labels <= 1:
             return None, None  # Only Background
 
-        # Skip Label 0 (Background)
+        # Skip label 0 (background)
         largest_label = None
         largest_area = 0
         for label in range(1, num_labels):
@@ -2594,7 +2560,7 @@ class Api:
         if largest_label is None:
             return None, None
 
-        # Centroid 
+        # Centroid
         center_x, center_y = centroids[largest_label]
         return int(center_x), int(center_y)
 
@@ -2607,7 +2573,7 @@ class Api:
             frame: BGR image from dxcam/mss
         """
         try:
-            # Convert BGR to grayscale
+            # Convert bgr to grayscale
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             # Scale circle detection parameters based on resolution
             # Reference values are for 2560x1440 resolution
@@ -2619,7 +2585,7 @@ class Api:
             scaled_max_radius = int(300 * scale_factor)
             scaled_good_min_radius = int(50 * scale_factor)
             scaled_good_max_radius = int(120 * scale_factor)
-            # Hough Circle Transform with strict parameters for perfect circles only
+            # Hough circle transform with strict parameters for perfect circles only
             circles = cv2.HoughCircles(
                 gray,
                 cv2.HOUGH_GRADIENT,
@@ -2632,20 +2598,20 @@ class Api:
             )
             if circles is not None:
                 circles = np.round(circles[0, :]).astype("int")
-                # Additional filtering: Only accept circles with good radius range for SHAKE buttons
+                # Additional filtering: only accept circles with good radius range for shake buttons
                 good_circles = []
                 for (x, y, r) in circles:
-                    # SHAKE buttons are typically 50-120 pixels radius (scaled)
+                    # Shake buttons are typically 50120 pixels radius (scaled)
                     if scaled_good_min_radius <= r <= scaled_good_max_radius:
                         good_circles.append((x, y, r))
                 if good_circles:
-                    # Return the largest good circle (most likely to be SHAKE button)
+                    # Return the largest good circle (most likely to be shake button)
                     largest_circle = max(good_circles, key=lambda c: c[2])
                     x, y, r = largest_circle
                     # print(f"    🔍 Circle detected at local ({x}, {y}) with radius {r} (scale: {scale_factor:.3f})")
                     return int(x), int(y)
 
-            # Only use strict HoughCircles detection - no backup methods to avoid false positives
+            # Only use strict houghcircles detection  no backup methods to avoid false positives
             return None, None
 
         except Exception as e:
@@ -2721,12 +2687,12 @@ class Api:
             original_width: Original frame width before normalization (for coordinate scaling back)
         """
         try:
-            # Get minimum line density from settings (configurable via GUI)
+            # Get minimum line density from settings (configurable via gui)
             MIN_LINE_DENSITY = float(self._get_var_number("fish_line_min_density", 0.8))
             BRIGHTNESS_THRESHOLD = 10  # Minimum brightness for edge pixels
             # Reference fish box dimensions at 1280x720 (lower detail for better edge detection)
-            # At 1280x720: fish box is 762*(1280/2560) to 1797*(1280/2560) = 381 to 898 (width=517)
-            # Height: 1215*(720/1440) to 1258*(720/1440) = 607 to 629 (height=22)
+            # At 1280x720: fish box is 762*(1280/2560) to 1797*(1280/2560)  381 to 898 (width517)
+            # Height: 1215*(720/1440) to 1258*(720/1440)  607 to 629 (height22)
             REFERENCE_FISH_WIDTH = 517   # Fish box width at 720p
             REFERENCE_FISH_HEIGHT = 22   # Fish box height at 720p
             # Store original dimensions for coordinate scaling
@@ -2739,18 +2705,18 @@ class Api:
                 width_scale = original_width / REFERENCE_FISH_WIDTH
             else:
                 width_scale = 1.0
-            # Step 1: Convert to grayscale
+            # Step 1: convert to grayscale
             grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            # Step 2: Laplacian edge detection (NLM removed for 10x speedup)
+            # Step 2: laplacian edge detection (nlm removed for 10x speedup)
             laplacian = cv2.Laplacian(grayscale, cv2.CV_8U)
-            # Step 3: Filter vertical lines by brightness threshold and density
+            # Step 3: filter vertical lines by brightness threshold and density
             height, width = laplacian.shape
-            # Vectorized column density calculation (10x faster than Python loop)
+            # Vectorized column density calculation (10x faster than python loop)
             column_densities = np.sum(laplacian > BRIGHTNESS_THRESHOLD, axis=0) / height
             line_coords = np.where(column_densities >= MIN_LINE_DENSITY)[0].tolist()
-            # Merge adjacent lines (consecutive x-coordinates) into single lines
+            # Merge adjacent lines (consecutive xcoordinates) into single lines
             # Takes the middle position of each group of adjacent pixels
-            # lines must be within 2 pixels to be considered part of the same group
+            # Lines must be within 2 pixels to be considered part of the same group
             if line_coords:
                 merged_lines = []
                 group_start = line_coords[0]
@@ -2796,7 +2762,7 @@ class Api:
             if 0 <= x < frame.shape[1]:
                 height = frame.shape[0]
                 y_center = height // 2
-                # BGR tuple → convert to RRGGBB hex string
+                # Bgr tuple → convert to rrggbb hex string
                 b, g, r = frame[y_center, x].tolist()
                 colors.append(f"#{r:02x}{g:02x}{b:02x}")
             else:
@@ -2808,38 +2774,38 @@ class Api:
         Crop padding from template using the same thresholding logic
         as your image_search function
         """
-        # 1. Convert to grayscale
+        # 1. convert to grayscale
         if len(template.shape) == 3:
             gray_temp = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
         else:
             gray_temp = template
-        # 2. Threshold to find ONLY white/bright pixels (same as image_search)
+        # 2. threshold to find only white/bright pixels (same as image_search)
         _, thresh_temp = cv2.threshold(gray_temp, lower_white, 255, cv2.THRESH_BINARY)
-        # 3. Find all white pixels (the actual totem content)
+        # 3. find all white pixels (the actual totem content)
         coords = cv2.findNonZero(thresh_temp)
         # If no white pixels found, return original
         if coords is None:
             return template
 
-        # 4. Get bounding box of white pixels
+        # 4. get bounding box of white pixels
         x, y, w, h = cv2.boundingRect(coords)
-        # 5. Crop the ORIGINAL template (not the thresholded version)
-        #    to preserve color/quality
+        # 5. crop the original template (not the thresholded version)
+        # To preserve color/quality
         cropped = template[y:y+h, x:x+w]
         return cropped
 
     def image_search(self, screenshot, template, lower_white=200, threshold=0.8):
-        # 1. Resize screenshot (assuming template is already resized)
+        # 1. resize screenshot (assuming template is already resized)
         screenshot_cropped = self.auto_crop_template(screenshot)
         template_height, template_width, _ = template.shape # template_height
         screenshot_resized = cv2.resize(screenshot_cropped, (template_width, template_height))
-        # 2. Convert screenshot & template to grayscale
+        # 2. convert screenshot & template to grayscale
         gray_screen = cv2.cvtColor(screenshot_resized, cv2.COLOR_BGR2GRAY)
         gray_temp = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-        # 3. Threshold both images so ONLY white/bright pixels remain (255) and rest is black (0)
+        # 3. threshold both images so only white/bright pixels remain (255) and rest is black (0)
         _, thresh_screen = cv2.threshold(gray_screen, lower_white, 255, cv2.THRESH_BINARY)
         _, thresh_temp = cv2.threshold(gray_temp, lower_white, 255, cv2.THRESH_BINARY)
-        # 4. Perform template matching on binary masks
+        # 4. perform template matching on binary masks
         result = cv2.matchTemplate(thresh_screen, thresh_temp, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
         if max_val >= threshold:
@@ -2869,7 +2835,7 @@ class Api:
 
         return numerator / denominator
 
-    # Utility Functions
+    # Utility functions
     def test_logging(self):
         logging_mode = self.vars["logging_mode"].capitalize()
         self.send_logging(f"**{logging_mode} is working**", "Macro Stopped")
@@ -2937,7 +2903,7 @@ class Api:
                 self.set_status("Error: failed to capture screenshot for Discord")
                 return
 
-            # Ensure BGR for imencode (mss already BGR; quartz conversion is BGR)
+            # Ensure bgr for imencode (mss already bgr; quartz conversion is bgr)
             if screenshot.shape[2] == 4:
                 screenshot = cv2.cvtColor(screenshot, cv2.COLOR_BGRA2BGR)
             _, buffer = cv2.imencode(".png", screenshot)
@@ -2982,7 +2948,7 @@ class Api:
         except Exception as e:
             self.set_status(f"Error writing debug log: {e}")
     def start_appraisal(self):
-        # Validate Tesseract
+        # Validate tesseract
         try:
             tesseract_path = self.vars["tesseract_path"]
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -3002,17 +2968,16 @@ class Api:
             self.stop_macro(f"Appraisal error: {e}")
             return
         # Get areas
-        dialogue_left, dialogue_top, _, _, dialogue_width, dialogue_height = self.get_areas("appraisal_dialogue")
         hotbar_left, hotbar_top, hotbar_right, hotbar_bottom, _, _ = self.get_areas("appraisal_hotbar")
-        # Split mutations (Sometimes it contains , at the end)
+        # Split mutations (sometimes it contains , at the end)
         appraisal_mode = self.vars["appraisal_mode"].lower()
         appraisal_mutations = self.vars["appraisal_mutations"]
         appraisal_mutations_list = appraisal_mutations.split(",")
         # Positions
         appraisal_x_ratio = float(self.vars["appraisal_click_x"])
         appraisal_y_ratio = float(self.vars["appraisal_click_y"])
-        appraisal_x = int(dialogue_width * appraisal_x_ratio) + dialogue_left
-        appraisal_y = int(dialogue_height * appraisal_y_ratio) + dialogue_top
+        appraisal_x = int(SCREEN_WIDTH * appraisal_x_ratio)
+        appraisal_y = int(SCREEN_HEIGHT * appraisal_y_ratio)
         click_delay = float(self.vars["click_delay"])
         # Other calculations
         logging_cycle = int(self.vars["logging_cycle"])
@@ -3061,7 +3026,7 @@ class Api:
             return
         self.set_status("Macro Stopped")
     def start_treasure_appraisal(self):
-        # Validate Tesseract
+        # Validate tesseract
         try:
             tesseract_path = self.vars["tesseract_path"]
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -3082,21 +3047,33 @@ class Api:
             return
         # Areas
         treasure_left, treasure_top, treasure_right, treasure_bottom, treasure_width, treasure_height = self.get_areas("treasure_appraisal")
-        ocr_left, ocr_top, ocr_right, ocr_bottom, ocr_width, ocr_height = self.get_areas("treasure_ocr")
         # Area calculations
         treasure_click_center = treasure_left + int(treasure_width / 2)
         treasure_click_left = treasure_left + int(treasure_width / 5)
         treasure_click_right = treasure_right - int(treasure_width / 5)
         treasure_click_y_multiplier = int(treasure_height / 7.25)
         # Settings
+        treasure_appraisal_ocr_x = float(self.vars["treasure_appraisal_ocr_x"])
+        treasure_appraisal_ocr_y = float(self.vars["treasure_appraisal_ocr_y"])
+        treasure_appraisal_reappraise_x = float(self.vars["treasure_appraisal_reappraise_x"])
+        treasure_appraisal_reappraise_y = float(self.vars["treasure_appraisal_reappraise_y"])
+        reappraise_x_screen = int(treasure_appraisal_reappraise_x * SCREEN_WIDTH)
+        reappraise_y_screen = int(treasure_appraisal_reappraise_y * SCREEN_HEIGHT)
+        ocr_width = int((treasure_width / 357) * 80) # Scaled at 720p
+        ocr_height = int((treasure_height / 459) * 15) # Scaled at 720p
+        ocr_left = treasure_appraisal_ocr_x - int(ocr_width / 2)
+        ocr_top = treasure_appraisal_ocr_y - int(ocr_height / 2)
+        ocr_right = treasure_appraisal_ocr_x + int(ocr_width / 2)
+        ocr_bottom = treasure_appraisal_ocr_y + int(ocr_height / 2)
         minimum_multiplier = float(self.vars["minimum_multiplier"])
         logging_mode = self.vars["logging_mode"].lower()
         # Cache values (failsafe)
         attempts = 0
-        # Main Loop
+        # Main loop
         try:
             while self.macro_running:
                 attempts = attempts + 1
+                # Main loop (appraise 7 times)
                 for i in range(7):
                     slot = random.randint(1, 3)
                     if slot == 1:
@@ -3107,7 +3084,9 @@ class Api:
                         current_click_x = treasure_click_right
                     current_click_y = treasure_top + (treasure_click_y_multiplier * (i + 1))
                     self._click_at(current_click_x, current_click_y)
+                    time.sleep(0.5)
                 time.sleep(2)
+                # Check for ocr
                 ocr_image = self.capture_frame[ocr_top:ocr_bottom, ocr_left:ocr_right]
                 processed_img = self.process_image_for_ocr(ocr_image)
                 text = pytesseract.image_to_string(processed_img, config="--psm 7")
@@ -3119,6 +3098,7 @@ class Api:
                         self.set_status("Treasure Appraisal: extracted_value < minimum_multiplier")
                 else:
                     self.set_status("Treasure Appraisal: extracted_value == None")
+                self._click_at(reappraise_x_screen, reappraise_y_screen)
                 if self.macro_running == False:
                     self.stop_macro("")
                 if round(attempts) == attempts and logging_mode != "disabled":
@@ -3143,7 +3123,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Error at line {error_line}: {e}")
     def start_enchantment(self):
-        # Validate Tesseract
+        # Validate tesseract
         try:
             tesseract_path = self.vars["tesseract_path"]
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -3162,17 +3142,17 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Enchantment error: {e}")
             return
-        # Get Areas
+        # Get areas
         enchantment_left, enchantment_top, enchantment_right, enchantment_bottom, enchantment_width, enchantment_height = self.get_areas("enchantment")
-        # Split Enchantments
+        # Split enchantments
         enchantment_mode = self.vars["enchantment_mode"].lower()
         enchant_enchants = self.vars["enchant_enchants"]
         enchant_enchants_list = enchant_enchants.split(",")
         # Positions
         enchantment_x_ratio = float(self.vars["enchant_click_x"])
         enchantment_y_ratio = float(self.vars["enchant_click_y"])
-        enchantment_x = int(enchantment_width * enchantment_x_ratio) + enchantment_left
-        enchantment_y = int(enchantment_height * enchantment_y_ratio) + enchantment_top
+        enchantment_x = int(SCREEN_WIDTH * enchantment_x_ratio)
+        enchantment_y = int(SCREEN_HEIGHT * enchantment_y_ratio)
         # Delays
         e_delay = float(self.vars["e_delay"])
         click_delay = float(self.vars["click_delay"])
@@ -3181,7 +3161,7 @@ class Api:
         logging_cycle = int(self.vars["logging_cycle"])
         logging_mode = self.vars["logging_mode"].lower()
         attempts = 0.0
-        # Main Loop
+        # Main loop
         try:
             while self.macro_running:
                 time.sleep(0.1)
@@ -3228,7 +3208,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Error at line {error_line}: {e}")
     def start_angler(self):
-        # Validate Tesseract
+        # Validate tesseract
         try:
             tesseract_path = self.vars["tesseract_path"]
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
@@ -3247,33 +3227,32 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Angler error: {e}")
             return
-        dialogue_left, dialogue_top, _, _, dialogue_width, dialogue_height = self.get_areas("angler_dialogue")
         backpack_left, backpack_top, _, _, backpack_width, backpack_height = self.get_areas("backpack")
         quest_left, quest_top, quest_right, quest_bottom, _, _ = self.get_areas("angler_quest")
         backpack_slot = str(self.vars["backpack_slot"])
         utility_restart_delay = int(self.vars["utility_restart_delay"])
-        # Angler Key
+        # Angler key
         angler_x_ratio = float(self.vars["angler_click_x"])
         angler_y_ratio = float(self.vars["angler_click_y"])
-        angler_click_x = int(dialogue_width * angler_x_ratio) + dialogue_left
-        angler_click_y = int(dialogue_height * angler_y_ratio) + dialogue_top
-        # Backpack Key
+        angler_click_x = int(SCREEN_WIDTH * angler_x_ratio)
+        angler_click_y = int(SCREEN_HEIGHT * angler_y_ratio)
+        # Backpack key
         backpack_x_ratio = self.vars["backpack_x"]
         backpack_y_ratio = self.vars["backpack_y"]
-        backpack_x = int(backpack_width * backpack_x_ratio) + backpack_left
-        backpack_y = int(backpack_height * backpack_y_ratio) + backpack_top
+        backpack_x = int(SCREEN_WIDTH * backpack_x_ratio)
+        backpack_y = int(SCREEN_HEIGHT * backpack_y_ratio)
         # Check for utilities
         self._check_logging_trigger(-1)
         # Main loop
         try:
             while self.macro_running:
                 time.sleep(0.1)
-                # STEP 1: CLICK E → OPEN QUEST DIALOGUE
+                # Step 1: click e → open quest dialogue
                 self._send_key("e")
                 time.sleep(1.5)
                 # Click at angler area (accept quest)
                 self._click_at(angler_click_x, angler_click_y)
-                # STEP 2: OCR QUEST AREA — GET REQUIRED FISH TEXT
+                # Step 2: ocr quest area — get required fish text
                 time.sleep(3)
                 img = self._grab_screen_full()
                 quest = img[quest_top:quest_bottom, quest_left:quest_right]
@@ -3293,17 +3272,17 @@ class Api:
                     time.sleep(utility_restart_delay)
                     continue
 
-                # STEP 3: OPEN BACKPACK
+                # Step 3: open backpack
                 self._send_key(backpack_slot)
                 time.sleep(0.5)
-                # STEP 4: CLICK SEARCH BAR + TYPE FISH NAME
+                # Step 4: click search bar + type fish name
                 self._click_at(backpack_x, backpack_y)
                 time.sleep(0.5)
                 # Type fish name
                 for char in required_fish:
                     self._send_key(char)
                 time.sleep(1.5)
-                # STEP 5: LOCATE quest_text IN QUEST AREA VIA OCR AND CLICK IT
+                # Step 5: locate quest_text in quest area via ocr and click it
                 img = self._grab_screen_full()
                 quest_region = img[quest_top:quest_bottom, quest_left:quest_right]
                 gray_q = cv2.cvtColor(quest_region, cv2.COLOR_BGR2GRAY)
@@ -3345,15 +3324,15 @@ class Api:
                         f"Quest text '{required_fish}' not found via OCR, skipping click"
                     )
                 time.sleep(0.25)
-                # STEP 6: CLOSE BACKPACK
+                # Step 6: close backpack
                 self._send_key(backpack_slot)
                 time.sleep(0.5)
-                # STEP 7: CLICK E → FINISH QUEST (PIXEL SEARCH OR RATIO)
+                # Step 7: click e → finish quest (pixel search or ratio)
                 self._send_key("e")
                 time.sleep(1.2)
                 # Click at angler area
                 self._click_at(angler_click_x, angler_click_y)
-                # STEP 8: COOLDOWN
+                # Step 8: cooldown
                 time.sleep(utility_restart_delay)
         except Exception as e:
             time.sleep(0.2)
@@ -3372,7 +3351,7 @@ class Api:
         self.set_status("Macro Stopped")
     def start_fishing(self):
         try:
-            # 1. Core Config & Modes
+            # 1. core config & modes
             scale = get_scale_factor()
             self.macro_running = True
             casting_mode = self.vars["casting_mode"].lower()
@@ -3388,20 +3367,20 @@ class Api:
             hunt_detect = int(self._get_var_number("hunt_detect", 20, float))
             minimum_percentage = float(self.vars["minimum_percentage"].strip("%"))
             maximum_percentage = float(self.vars["maximum_percentage"].strip("%"))
-            # 2. Hotkey & Inventory Slots
+            # 2. hotkey & inventory slots
             bag_slot = str(self.vars["bag_slot"])
             rod_slot = str(self.vars["rod_slot"])
             sundial_slot = str(self.vars["sundial_slot"])
             target_slot = str(self.vars["target_slot"])
             relic_slot = str(self.vars["relic_slot"])
-            # 3. Delays & Timings
+            # 3. delays & timings
             select_rod_duration = float(self.vars["select_rod_duration"])
             delay_before_casting = float(self._get_var_number("delay_before_casting", 0.5, float))
             delay_after_casting = float(self._get_var_number("cast_delay", 1.0, float))
             sundial_delay = float(self.vars["sundial_delay"])
             totem_delay = float(self.vars["totem_delay"])
             restart_delay = float(self.vars["restart_delay"])
-            # 4. Screen Regions & Coordinates
+            # 4. screen regions & coordinates
             shake_left, shake_top, shake_right, shake_bottom, shake_w, shake_h = self.get_areas("shake")
             fish_left, fish_top, fish_right, fish_bottom, _, fish_height = self.get_areas("fish")
             friend_left_s, friend_top_s, friend_right_s, friend_bottom_s, _, _ = self.get_areas("friend")
@@ -3410,7 +3389,7 @@ class Api:
             shake_x = shake_left + (shake_w // 2)
             shake_y = shake_top + (shake_h // 2)
             detection_method = self.vars["detection_method"].lower()
-            # 5. Features & Overlay Settings
+            # 5. features & overlay settings
             shake_failsafe = int(self.vars["shake_failsafe"])
             fish_color = self.vars["fish_color"]
             fish_tolerance = int(self.vars["fish_tolerance"])
@@ -3423,7 +3402,7 @@ class Api:
             fish_overlay = self.vars["fish_overlay"]
             enchant_click_x = float(self.vars["enchant_click_x"])
             enchant_click_y = float(self.vars["enchant_click_y"])
-            # 6. Optimized OpenCV Template Matching Setup
+            # 6. optimized opencv template matching setup
             try:
                 sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
                 moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
@@ -3433,12 +3412,12 @@ class Api:
                 self.set_status("Error: Can't find sun.png and moon.png. Auto Totem is disabled.")
                 self.send_logging("Error: Can't find sun.png and moon.png. Auto Totem is disabled.", 0, -1)
                 auto_totem = "off"
-            # 7. Internal Tracking State
+            # 7. internal tracking state
             self.scan_delay = 0.1
             self.current_cycle = 0
             current_time = None
             current_hunt = ""
-            # Catch Metrics (0 = success, 1 = failed, 2 = N/A initial state)
+            # Catch metrics (0  success, 1  failed, 2  n/a initial state)
             self.catch_success = 2
             self.catch_rate = 0.0
             successful_catches = 0
@@ -3446,8 +3425,8 @@ class Api:
             hunt_cycles2 = hunt_cycles
             if fish_overlay == "on":
                 # Position the overlay just above or below the fish bar so it does
-                # not cover the actual minigame.  show() expects (left, top, width,
-                # height) in physical pixels — NOT right/bottom.
+                # Not cover the actual minigame.  show() expects (left, top, width,
+                # Height) in physical pixels — not right/bottom.
                 fish_center = int((fish_top + fish_bottom) / 2)
                 if fish_center > HALF_HEIGHT:
                     fish_top_overlay = fish_top - fish_height - fish_height
@@ -3463,7 +3442,7 @@ class Api:
                 )
         except:
             pass
-        # Main Loop (With bug reports)
+        # Main loop (with bug reports)
         try:
             while self.macro_running:
                 self.set_status("Resetting statistics")
@@ -3475,7 +3454,7 @@ class Api:
                     self._send_key(rod_slot)
                     self.interruptible_sleep(delay_after_casting / 2)
                 self.set_status("Using Utilities")
-                # Auto Totem
+                # Auto totem
                 if auto_totem == "on":
                     self.set_status("Auto Totem")
                     time.sleep(0.1)
@@ -3565,7 +3544,7 @@ class Api:
                     else:
                         self._execute_shake_click(shake_mode)
                     time.sleep(self.scan_delay)
-                # Minigame — sets self.catch_success = 0 at start; flips to 1 if fish ever leaves the bar
+                # Minigame — sets self.catch_success  0 at start; flips to 1 if fish ever leaves the bar
                 self.set_status("Playing Bar Minigame")
                 if fishing_profile == "reverse":
                     self._enter_minigame_dreambreaker()
@@ -3625,9 +3604,9 @@ class Api:
         reconnect_threshold = int((reconnect_threshold / 1500) * shake_width)
         img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
         disconnect_x, disconnect_y = self.find_color_cluster(img, "#393b3d", 5, reconnect_threshold)
+        reconnect_x, reconnect_y = self.find_color_cluster(img, "#FFFFFF", 8, int(reconnect_threshold / 2))
         while self.macro_running:
-            if not disconnect_x == None:
-                reconnect_x, reconnect_y = self.find_color_cluster(img, "#FFFFFF", 8, int(reconnect_threshold / 2))
+            if disconnect_x is not None and reconnect_x is not None:
                 self.interruptible_sleep(1)
                 reconnect_x_screen = reconnect_x + shake_left
                 reconnect_y_screen = reconnect_y + shake_top
@@ -3641,6 +3620,9 @@ class Api:
                 self._click_at(center_x, center_y)
                 self.interruptible_sleep(0.2)
                 self._click_at(mirror_click_x, mirror_click_y)
+                self.send_logging("**Reconnect Success**", f"Cycle #{self.current_cycle}", 1)
+            else:
+                self.send_logging("**Reconnect Failed**", f"Cycle #{self.current_cycle}", 1)
             return
 
     def hunt_detect(self, current_hunt):
@@ -3664,7 +3646,7 @@ class Api:
             gray,
             config="--psm 6"
         )
-        # Get the bottom-most non-empty OCR line
+        # Get the bottommost nonempty ocr line
         lines = [
             line.strip()
             for line in text.splitlines()
@@ -3694,14 +3676,14 @@ class Api:
         # Colors
         white_cast_color = self.vars["white_cast_color"]
         pinion_notes_color = self.vars["green_cast_color"]
-        # Tolerance 
+        # Tolerance
         white_cast_tolerance = int(self.vars["white_cast_tolerance"])
         green_cast_tolerance = int(self.vars["green_cast_tolerance"])
-        # Perfect Cast Settings
+        # Perfect cast settings
         perfect_cast_method = self.vars["perfect_cast_method"].lower()
         fall_scan_timeout = float(self.vars["fall_scan_timeout"])
         self.scan_delay = float(self.vars["cast_scan_delay"])
-        # Last values (Failsafe)
+        # Last values (failsafe)
         last_capture_id = 0
         is_initial_run = True
         is_green_tracking = False
@@ -3766,9 +3748,9 @@ class Api:
 
             # Scanning from shake_left, shake_top to shake_right, shake_bottom
             shake_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
-            # GREEN DETECTION
+            # Green detection
             if is_green_tracking:
-                # Track in sub-region around last known green position
+                # Track in subregion around last known green position
                 green_area_top = max(0, green_abs_top - green_padding)
                 green_area_bottom = min(shake_img.shape[0], green_abs_top + green_padding)
                 green_area_left = max(0, green_abs_left - green_padding)
@@ -3807,7 +3789,7 @@ class Api:
                 else:
                     continue  # No green found, try again
 
-            # WHITE DETECTION (using absolute green coordinates)
+            # White detection (using absolute green coordinates)
             scan_bottom = int(shake_img.shape[0] * 0.9)
             green_center_x = (green_abs_left + green_abs_right) // 2
             white_frame = shake_img[green_abs_top:scan_bottom, green_abs_left:green_abs_right]
@@ -3825,9 +3807,9 @@ class Api:
             if total_distance <= 0:
                 continue
 
-            # === RELEASE LOGIC BASED ON SELECTED METHOD ===
+            # Release logic based on selected method
             if perfect_cast_method == "simple":
-                # --- SIMPLE (PERCENTAGE-BASED) METHOD ---
+                # Simple (percentage-based) method
                 actual_fill_percentage = (1 - (current_distance / total_distance)) * 100
                 fill_speed = 0.0
                 position_offset_percent = 0.0
@@ -3875,15 +3857,15 @@ class Api:
                 last_fill_percentage = actual_fill_percentage
                 last_frame_time = current_time
             elif perfect_cast_method == "velocity":  # perfect_cast_method == "velocity" (VELOCITY-BASED METHOD)
-                # --- Velocity tracking ---
+                # Velocity tracking
                 white_positions.append((0, white_abs_top))  # x is irrelevant; track Y only
                 white_timestamps.append(current_time)
                 if len(white_positions) > MAX_VELOCITY_SAMPLES:
                     white_positions.pop(0)
                     white_timestamps.pop(0)
-                # local_distance: pixels remaining until white reaches green
+                # Local_distance: pixels remaining until white reaches green
                 local_distance = current_distance  # white_abs_top - green_abs_top; positive = white below green
-                # --- Velocity-band predictive release ---
+                # Velocity-band predictive release
                 if len(white_positions) >= 3:
                     velocity_y = self._calculate_speed_and_predict(white_positions, white_timestamps)
                     min_speed = 5 * scaling_factor
@@ -3892,7 +3874,7 @@ class Api:
                         moving_toward_green = (white_above_green and velocity_y > 0) or (not white_above_green and velocity_y < 0)
                         if moving_toward_green and local_distance > 0:
                             time_to_impact = local_distance / abs(velocity_y)
-                            # Bounce/miss detection: if TtI suddenly grows when very close, we passed green
+                            # Bounce/miss detection: if tti suddenly grows when very close, we passed green
                             bounce_threshold = 40 * scaling_factor
                             if last_time_to_impact is not None and local_distance < bounce_threshold:
                                 if time_to_impact > last_time_to_impact * 1.3:
@@ -3956,7 +3938,7 @@ class Api:
                 if released:
                     break
             elif perfect_cast_method == "prediction":  # perfect_cast_method == "prediction" (PREDICTION METHOD)
-                # --- SIMPLE (PERCENTAGE-BASED) METHOD ---
+                # Simple (Percentage-based) method
                 actual_fill_percentage = (1 - (current_distance / total_distance)) * 100
                 fill_speed = 0.0
                 position_offset_percent = 0.0
@@ -4013,7 +3995,6 @@ class Api:
 
                 last_fill_percentage = actual_fill_percentage
                 last_frame_time = current_time
-
             if time.time() - start_time > fall_scan_timeout:
                 break
 
@@ -4022,7 +4003,7 @@ class Api:
             last_capture_id = self.capture_id
             is_initial_run = False
             last_time = current_time
-        # Final Cleanup
+        # Final cleanup
         self.release_mouse()
         self._fish_overlay_cast_bounds = None
         return
@@ -4090,7 +4071,7 @@ class Api:
         initial_right = []
         initial_arrow = []
         initial_fish = []
-        # Per-frame detected note positions.
+        # Perframe detected note positions.
         lowest_left = []
         lowest_right = []
         lowest_arrow = []
@@ -4166,7 +4147,7 @@ class Api:
                     lowest_arrow.append(circle_y_ratio)
                 elif 0.75 < circle_x_ratio <= 1.0:
                     lowest_fish.append(circle_y_ratio)
-                # print(
+                # Print(
                 #     f"Circle #{circle}: "
                 #     f"x{circles[circle][0]} y{circles[circle][1]} "
                 #     f"xr{circle_x_ratio} yr{circle_y_ratio}"
@@ -4179,10 +4160,10 @@ class Api:
                     color=f"#{min(circle * 3500, 9999)}ff"
                 )
             # A note at its original starting position is still part of
-            # the protected initial state, so do nothing.
+            # The protected initial state, so do nothing.
             # If the original position disappeared because two circles
-            # connected, the newly detected position will not match the
-            # starting position and can be processed normally.
+            # Connected, the newly detected position will not match the
+            # Starting position and can be processed normally.
             for circle_y_ratio in lowest_left:
                 if circle_y_ratio in initial_left:
                     continue
@@ -4217,7 +4198,7 @@ class Api:
         return
 
     def _enter_minigame_dreambreaker(self):
-        # Helper Functions
+        # Helper functions
         mouse_down = False
         def hold_mouse(mouse_state=False):
             "Hold mouse. False for left click, True for right click."
@@ -4240,8 +4221,8 @@ class Api:
         fish_overlay = self.vars["fish_overlay"]
         if fish_overlay == "on":
             # Position the overlay just above or below the fish bar so it does
-            # not cover the actual minigame.  show() expects (left, top, width,
-            # height) in physical pixels — NOT right/bottom.
+            # Not cover the actual minigame.  show() expects (left, top, width,
+            # Height) in physical pixels — not right/bottom.
             fish_center = int((fish_top + fish_bottom) / 2)
             if fish_center > HALF_HEIGHT:
                 fish_top_overlay = fish_top - fish_height - fish_height
@@ -4274,12 +4255,12 @@ class Api:
             arrow_tolerance = 8
             fish_tolerance = 4
             friends_tolerance = 5
-        # Minigame Settings
+        # Minigame settings
         lock_cursor = self.vars["lock_cursor"]
         self.scan_delay = float(self.vars["minigame_scan_delay"])
         restart_delay = float(self.vars["restart_delay"])
         restart_method = self.vars["restart_method"].lower()
-        # Last Values (Failsafe)
+        # Last values (failsafe)
         scale = get_scale_factor()
         last_capture_id = 0
         last_bar_size = 0
@@ -4307,11 +4288,11 @@ class Api:
                 right_x, right_y = self.pixel_search(fish_img, left_color, left_tolerance, 1)
             if left_x is None or right_x is None:
                 detection_source = 1
-                # Bars not found - scan for arrows
+                # Bars not found  scan for arrows
                 arrow_x, arrow_y = self.pixel_search(fish_img, arrow_color, arrow_tolerance)
                 # Reconstruct missing bar edge from previous geometry instead of mouse state
                 if arrow_x is not None:
-                    # Treat 0 as unknown to match the previous None semantics
+                    # Treat 0 as unknown to match the previous none semantics
                     if last_left_x == 0:
                         last_left_x = None
                     if last_right_x == 0:
@@ -4330,11 +4311,11 @@ class Api:
                     # Flip decision if wrong
                     if arrow_on_left_side:
                         if dist_to_right < dist_to_left and dist_to_right < proximity_threshold:
-                            # Arrow is actually closer to RIGHT bar - we were wrong!
+                            # Arrow is actually closer to right bar  we were wrong!
                             arrow_on_left_side = False  # Flip the decision
                     else:
                         if dist_to_left < dist_to_right and dist_to_left < proximity_threshold:
-                            # Arrow is actually closer to LEFT bar - we were wrong!
+                            # Arrow is actually closer to left bar  we were wrong!
                             arrow_on_left_side = True  # Flip the decision
                     if arrow_on_left_side:
                         left_x = arrow_x
@@ -4354,7 +4335,7 @@ class Api:
             except:
                 bar_size = 0
                 bar_center = 0
-            # Friend and Fish restart
+            # Friend and fish restart
             if restart_method == "friend_area":
                 friend_x, friend_y = self.pixel_search(friend_img, friends_color, friends_tolerance)
                 if friend_x is not None and friend_y is not None:
@@ -4385,7 +4366,7 @@ class Api:
             last_capture_id = self.capture_id
             last_detection_source = detection_source
     def _enter_minigame_bellona(self):
-        # Helper Functions
+        # Helper functions
         mouse_down = False
         def hold_mouse(mouse_state=False):
             "Hold mouse. False for left click, True for right click."
@@ -4403,7 +4384,7 @@ class Api:
         shake_left, shake_top, shake_right, shake_bottom, _, shake_height = self.get_areas("shake")
         raw_fish_left, fish_top, raw_fish_right, fish_bottom, raw_fish_width, fish_height = self.get_areas("fish")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
-        # Area Calculations
+        # Area calculations
         fish_center = raw_fish_left + int(raw_fish_width / 2)
         fish_left = raw_fish_left
         fish_right = fish_center
@@ -4414,8 +4395,8 @@ class Api:
         fish_overlay = self.vars["fish_overlay"]
         if fish_overlay == "on":
             # Position the overlay just above or below the fish bar so it does
-            # not cover the actual minigame.  show() expects (left, top, width,
-            # height) in physical pixels — NOT right/bottom.
+            # Not cover the actual minigame.  show() expects (left, top, width,
+            # Height) in physical pixels — not right/bottom.
             fish_center = int((fish_top + fish_bottom) / 2)
             if fish_center > HALF_HEIGHT:
                 fish_top_overlay = fish_top - fish_height - fish_height
@@ -4448,7 +4429,7 @@ class Api:
             arrow_tolerance = 8
             fish_tolerance = 4
             friends_tolerance = 5
-        # Minigame Settings
+        # Minigame settings
         scale = get_scale_factor()
         bag_slot = str(self.vars["bag_slot"])
         bag_spam = self.vars["bag_spam"]
@@ -4486,7 +4467,7 @@ class Api:
                 fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
                 fish_img2 = self.capture_frame[fish_top:fish_bottom, fish_left2:fish_right2]
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-            # Fish Detection
+            # Fish detection
             fish_x1, fish_y1 = self.pixel_search(fish_img, fish_color, fish_tolerance)
             fish_x2, fish_y2 = self.pixel_search(fish_img2, fish_color, fish_tolerance)
             fish_detected = True
@@ -4503,7 +4484,7 @@ class Api:
             bar_detected = True
             bar_detected2 = True
             if left_x1 is not None or right_x1 is not None:
-                # Bar 1 Detected - calculate bar center and bar size
+                # Bar 1 detected  calculate bar center and bar size
                 bar_size1 = abs(right_x1 - left_x1)
                 bar_center1 = left_x1 + int(bar_size1 / 2)
             else:
@@ -4519,7 +4500,7 @@ class Api:
                 else:
                     bar_detected = False
             if left_x2 is not None or right_x2 is not None:
-                # Bar 2 Detected - calculate bar center and bar size
+                # Bar 2 detected  calculate bar center and bar size
                 bar_size2 = abs(right_x1 - left_x1)
                 bar_center2 = left_x1 + int(bar_size2 / 2)
             else:
@@ -4534,7 +4515,7 @@ class Api:
                     bar_center2 = left_x1 + int(bar_size2 / 2)
                 else:
                     bar_detected2 = False
-            # Friend and Fish restart
+            # Friend and fish restart
             if restart_method == "friend_area":
                 friend_x, friend_y = self.pixel_search(friend_img, friends_color, friends_tolerance)
                 if friend_x is not None and friend_y is not None:
@@ -4554,7 +4535,7 @@ class Api:
             # print(f"bar_detected: {bar_detected}")
             # print(f"left_x: {left_x}, right_x: {right_x}")
             # print(f"bar_center: {bar_center}, bar_size: {bar_size}")
-            # Bag Spam & Lock Cursor
+            # Bag spam & lock cursor
             bag_spam_cycle += 1
             if bag_spam_cycle == 5:
                 bag_spam_cycle = 0
@@ -4562,7 +4543,7 @@ class Api:
                     self._send_key(bag_slot)
                 if lock_cursor == "on":
                     mouse_controller.position = (int(shake_x / scale), int(shake_y / scale))
-            # Restore from Cache
+            # Restore from cache
             self.fish_overlay.clear()
             if bar_detected == False:
                 left_x1 = last_left_x1
@@ -4578,7 +4559,7 @@ class Api:
                 bar_size2 = last_bar_size2
             if fish_detected2 == False:
                 fish_x2 = last_fish_x2
-            # Edge Boundary for Left and Right Bar
+            # Edge boundary for left and right bar
             boundary1 = bar_size1 * bar_ratio_from_side
             boundary2 = bar_size2 * bar_ratio_from_side
             left_boundary1 = fish_left + boundary1
@@ -4652,7 +4633,7 @@ class Api:
             last_error2 = error2
             last_time = current_time
     def enter_minigame_lullaby(self):
-        # Helper Functions
+        # Helper functions
         mouse_down = False
         def hold_mouse(mouse_state=False):
             "Hold mouse. False for left click, True for right click."
@@ -4670,7 +4651,7 @@ class Api:
         lullaby_left, lullaby_top, lullaby_right, lullaby_bottom, _, _ = self.get_areas("lullaby")
         fish_left, fish_top, fish_right, fish_bottom, fish_width, fish_height = self.get_areas("fish")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
-        # Area Calculations
+        # Area calculations
         fish_overlay = self.vars["fish_overlay"]
         if fish_overlay == "on":
             fish_center = int((lullaby_top + lullaby_bottom) / 2)
@@ -4692,7 +4673,7 @@ class Api:
         arrow_color = self.vars["arrow_color"]
         fish_color = self.vars["fish_color"]
         friends_color = self.vars["friends_color"]
-        # Convert HEX → BGR once (capture frames are BGR)
+        # Convert hex → bgr once (capture frames are bgr)
         left_bgr = np.array(self._hex_to_bgr(left_color), dtype=np.int16)
         right_bgr = np.array(self._hex_to_bgr(right_color), dtype=np.int16)
         # Tolerance
@@ -4708,16 +4689,17 @@ class Api:
             arrow_tolerance = 8
             fish_tolerance = 4
             friends_tolerance = 5
-        # Minigame Variables
+        # Minigame variables
         lullaby_metronome_padding = int(self.vars["lullaby_metronome_padding"])
         lullaby_mask_lost_ratio = float(self.vars["lullaby_mask_lost_ratio"])
-        # Cache Variables
+        # Cache variables
         is_initial_run = True
         last_capture_id = 0
         lullaby_area_x1 = None
         lullaby_area_x2 = None
         lullaby_area_y1 = None
         lullaby_area_y2 = None
+        metronome_inside = False
         last_metronome_inside = False
         # Initial color masks
         initial_left_mask = None
@@ -4735,10 +4717,8 @@ class Api:
                 time.sleep(self.scan_delay)
                 continue
 
-            # ---------------------------------------------------------
-            # INITIAL RUN
-            # Find the Lullaby area and save the initial color masks.
-            # ---------------------------------------------------------
+            # Initial run
+            # Find the lullaby area and save the initial color masks.
             if is_initial_run:
                 lullaby_img = self.capture_frame[
                     lullaby_top:lullaby_bottom,
@@ -4746,7 +4726,7 @@ class Api:
                 ]
                 # Current frame as int16 so subtraction cannot overflow
                 lullaby_pixels = lullaby_img.astype(np.int16)
-                # Create initial masks (colors already converted to BGR above)
+                # Create initial masks (colors already converted to bgr above)
                 left_diff = np.abs(lullaby_pixels - left_bgr)
                 right_diff = np.abs(lullaby_pixels - right_bgr)
                 initial_left_mask = np.all(
@@ -4772,7 +4752,7 @@ class Api:
                 # Save initial mask coordinates
                 initial_left_coords = (left_x, left_y)
                 initial_right_coords = (right_x, right_y)
-                # Calculate the complete initial Lullaby area
+                # Calculate the complete initial lullaby area
                 lullaby_area_x1 = min(
                     left_x.min(),
                     right_x.min()
@@ -4806,14 +4786,10 @@ class Api:
                     lullaby_img.shape[0],
                     lullaby_area_y2 + lullaby_metronome_padding
                 )
-                # -----------------------------------------------------
                 # Switch to the smaller region after initialization.
-                # -----------------------------------------------------
                 is_initial_run = False
-            # ---------------------------------------------------------
-            # SUBSEQUENT RUNS
-            # Only capture/process the smaller Lullaby region.
-            # ---------------------------------------------------------
+            # Subsequent runs
+            # Only capture/process the smaller lullaby region.
             else:
                 lullaby_img2 = self.capture_frame[
                     lullaby_top + lullaby_area_y1:
@@ -4831,11 +4807,9 @@ class Api:
                     np.abs(current_pixels - right_bgr) <= right_tolerance,
                     axis=2
                 )
-                # -----------------------------------------------------
                 # Compare current masks against the initial masks.
-                # The initial masks are in full Lullaby coordinates,
-                # so crop them to the same smaller region first.
-                # -----------------------------------------------------
+                # The initial masks are in full lullaby coordinates,
+                # So crop them to the same smaller region first.
                 initial_left_small = initial_left_mask[
                     lullaby_area_y1:lullaby_area_y2,
                     lullaby_area_x1:lullaby_area_x2
@@ -4871,12 +4845,12 @@ class Api:
                 else:
                     right_missing_ratio = 0.0
                 # If enough of the original area disappears,
-                # the metronome is likely covering that area.
+                # The metronome is likely covering that area.
                 metronome_inside = (
                     left_missing_ratio > lullaby_mask_lost_ratio
                     or right_missing_ratio > lullaby_mask_lost_ratio
                 )
-                # Metronome Logic (metronome_inside == True)
+                # Metronome logic (metronome_inside  true)
                 if last_metronome_inside != metronome_inside:
                     hold_mouse()
                     time.sleep(0.05)
@@ -4885,7 +4859,7 @@ class Api:
             time.sleep(self.scan_delay)
             last_capture_id = self.capture_id
     def _enter_minigame(self):
-        # Helper Functions
+        # Helper functions
         mouse_down = False
         def hold_mouse(mouse_state=False):
             "Hold mouse. False for left click, True for right click."
@@ -4903,7 +4877,7 @@ class Api:
         shake_left, shake_top, shake_right, shake_bottom, _, shake_height = self.get_areas("shake")
         fish_left, fish_top, fish_right, fish_bottom, fish_width, fish_height = self.get_areas("fish")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
-        # Area Calculations
+        # Area calculations
         note_height = fish_bottom - shake_top
         shake_x = int((shake_left + shake_right) / 2)
         shake_y = int((shake_top + shake_bottom) / 2)
@@ -4913,8 +4887,8 @@ class Api:
         fish_overlay = self.vars["fish_overlay"]
         if fish_overlay == "on":
             # Position the overlay just above or below the fish bar so it does
-            # not cover the actual minigame.  show() expects (left, top, width,
-            # height) in physical pixels — NOT right/bottom.
+            # Not cover the actual minigame.  show() expects (left, top, width,
+            # Height) in physical pixels — not right/bottom.
             if fish_center_y > HALF_HEIGHT:
                 fish_top_overlay = fish_top - fish_height - fish_height
             else:
@@ -4949,7 +4923,7 @@ class Api:
             fish_tolerance = 4
             pinion_notes_tolerance = 5
             friends_tolerance = 5
-        # Minigame Settings
+        # Minigame settings
         scale = get_scale_factor()
         bag_slot = str(self.vars["bag_slot"])
         bag_spam = self.vars["bag_spam"]
@@ -4965,17 +4939,17 @@ class Api:
         kd = max(abs(float(self.vars["kd"])), 0.01)
         stopping_distance = max(abs(float(self.vars["stopping_distance"])), 0.01)
         velocity_smoothing = min(max(abs(float(self.vars["velocity_smoothing"])), 0.01), 1.0)
-        # Utility Settings
+        # Utility settings
         pinion_note_ratio = float(self.vars["pinion_note_ratio"])
-        # State Flags & Timers
+        # State flags & timers
         is_initial_run = True
         bar_detected = False
         frame_interpolation = False
         self.catch_success = 0
         last_time = time.perf_counter()
-        # Teleport detection variables - prevent sudden jumps unless consistent
-        # Use percentage-based threshold: if line moves > 50% of screen width, it's likely detection error
-        # At 1032px width, 50% = ~516px, which catches major detection errors while allowing natural movement
+        # Teleport detection variables  prevent sudden jumps unless consistent
+        # Use Percentage-based threshold: if line moves > 50% of screen width, it's likely detection error
+        # At 1032px width, 50%  ~516px, which catches major detection errors while allowing natural movement
         TELEPORT_THRESHOLD_PERCENT = 0.50  # 50% of fish area width
         TELEPORT_THRESHOLD = int(fish_center_x_relative * TELEPORT_THRESHOLD_PERCENT)  # Convert to pixels
         TELEPORT_CONFIRM_TIME = 0.15  # Time in seconds to confirm a teleport (150ms)
@@ -4986,14 +4960,14 @@ class Api:
         potential_teleport_right_bar = None
         teleport_first_detected_time = None
         initial_target_gap = None
-        # Current Minigame Frame Tracking
+        # Current minigame frame tracking
         bar_size = 0
         bar_center = 0
         error = 0
         line_coords = []
         note_x = 0
         note_y_ratio = 0
-        # Failsafe & Previous Frame Tracking (History)
+        # Failsafe & previous frame tracking (history)
         last_capture_id = 0
         last_fish_x = fish_center_x_relative
         last_left_x = fish_center_x_relative - (fish_width * 0.15)
@@ -5002,7 +4976,7 @@ class Api:
         last_bar_size = 0
         last_valid_bar_center = 0
         last_error = 0
-        # Velocities & Mechanics
+        # Velocities & mechanics
         bag_spam_cycle = 0
         color_check_bar_velocity = 0.0
         color_check_target_velocity = 0.0
@@ -5030,8 +5004,8 @@ class Api:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
                 frame_interpolation = False
             if frame_interpolation == True:
-                # Frame interpolation uses ONLY the last real detected frame
-                # and the velocity calculated from the previous real frame.
+                # Frame interpolation uses only the last real detected frame
+                # And the velocity calculated from the previous real frame.
                 fish_x = last_fish_x
                 if (
                     last_left_x is not None
@@ -5059,7 +5033,7 @@ class Api:
                     fish_detected = True
                 else:
                     fish_detected = False
-                # Bar detection (Color or Line)
+                # Bar detection (color or line)
                 if fishing_mode == "color":
                     left_x, left_y = self.pixel_search(fish_img, left_color, left_tolerance)
                     right_x, right_y = self.pixel_search(fish_img, right_color, right_tolerance, 1)
@@ -5075,11 +5049,11 @@ class Api:
                     else:
                         # Try arrow
                         bar_detected = False
-                        # Bars not found - scan for arrows
+                        # Bars not found  scan for arrows
                         arrow_x, arrow_y = self.pixel_search(fish_img, arrow_color, arrow_tolerance)
                         # Reconstruct missing bar edge from previous geometry instead of mouse state
                         if arrow_x is not None:
-                            # Treat 0 as unknown to match the previous None semantics
+                            # Treat 0 as unknown to match the previous none semantics
                             if last_left_x == 0:
                                 last_left_x = None
                             if last_right_x == 0:
@@ -5098,11 +5072,11 @@ class Api:
                             # Flip decision if wrong
                             if arrow_on_left_side:
                                 if dist_to_right < dist_to_left and dist_to_right < proximity_threshold:
-                                    # Arrow is actually closer to RIGHT bar - we were wrong!
+                                    # Arrow is actually closer to right bar  we were wrong!
                                     arrow_on_left_side = False  # Flip the decision
                             else:
                                 if dist_to_left < dist_to_right and dist_to_left < proximity_threshold:
-                                    # Arrow is actually closer to LEFT bar - we were wrong!
+                                    # Arrow is actually closer to left bar  we were wrong!
                                     arrow_on_left_side = True  # Flip the decision
                             if arrow_on_left_side:
                                 left_x = arrow_x
@@ -5115,7 +5089,7 @@ class Api:
                                 if left_x is None:
                                     left_x = right_x - last_bar_size
                         else:
-                            # Use Cache
+                            # Use cache
                             bar_detected = False
                     try:
                         bar_center = int((left_x + right_x) / 2)
@@ -5124,17 +5098,17 @@ class Api:
                         bar_center = 0
                         bar_size = 0
                 elif fishing_mode == "line":
-                    # Line Mode: Handle Cache Logic Inside The Branch
+                    # Line mode: handle cache logic inside the branch
                     line_coords = self._detect_lines_in_frame(fish_img)
                     if len(line_coords) > 2:
                         if is_initial_run or initial_target_gap is None:
-                            # INITIAL RUN: Find 2 closest lines to center as target lines
+                            # Initial run: find 2 closest lines to center as target lines
                             distance_coords = sorted([(abs(coord - fish_center_x_relative), coord) for coord in line_coords], key=lambda x: x[0])
                             target_pair = sorted([distance_coords[0][1], distance_coords[1][1]])
                             fish_x = target_pair[0]
                             fish_x2 = target_pair[1]
                             initial_target_gap = fish_x2 - fish_x
-                            # Find bars - closest to left of left target, closest to right of right target
+                            # Find bars  closest to left of left target, closest to right of right target
                             left_candidates = [x for x in line_coords if x < fish_x]
                             right_candidates = [x for x in line_coords if x > fish_x2]
                             left_x = max(left_candidates) if left_candidates else fish_x
@@ -5150,8 +5124,8 @@ class Api:
                             # print(f"📏 Initial: Target=({fish_x}, {fish_x2}), Gap={initial_target_gap}, Bars=({left_x}, {right_x})")
                             is_initial_run = False
                         else:
-                            # SUBSEQUENT RUNS: Simple rules
-                            # Rule 1: Find pair with gap matching initial_target_gap
+                            # Subsequent runs: simple rules
+                            # Rule 1: find pair with gap matching initial_target_gap
                             best_gap_diff = float('inf')
                             fish_x = last_fish_x
                             fish_x2 = last_fish_x2
@@ -5169,11 +5143,11 @@ class Api:
                             if actual_gap > initial_target_gap * 4:
                                 fish_x = last_fish_x
                                 fish_x2 = last_fish_x2
-                            # Rule 2: Bars = line closest to old bar position
-                            # CRITICAL: Exclude target lines from bar candidates
+                            # Rule 2: bars  line closest to old bar position
+                            # Critical: exclude target lines from bar candidates
                             other_lines = [x for x in line_coords if x != fish_x and x != fish_x2]
                             if len(other_lines) >= 2:
-                                # We have at least 2 non-target lines - pick closest to last positions
+                                # We have at least 2 nontarget lines  pick closest to last positions
                                 if last_left_x is not None:
                                     left_x = min(other_lines, key=lambda x: abs(x - last_left_x))
                                 else:
@@ -5185,7 +5159,7 @@ class Api:
                                 elif remaining_lines:
                                     right_x = remaining_lines[0]
                                 else:
-                                    # Should not happen if len(other_lines) >= 2
+                                    # Should not happen if len(other_lines) > 2
                                     right_x = last_right_x if last_right_x is not None else fish_x2
                             elif len(other_lines) == 1:
                                 # Only 3 total lines (2 target + 1 other)
@@ -5202,15 +5176,15 @@ class Api:
                                         right_x = single_line
                                         left_x = last_left_x  # Use last position
                                 else:
-                                    # No previous positions - just assign to left bar
+                                    # No previous positions  just assign to left bar
                                     left_x = single_line
                                     right_x = fish_x2  # Fallback
                             else:
                                 # No other lines besides targets (only 2 total lines)
-                                # Use last known bar positions ONLY - never use target lines as bars
+                                # Use last known bar positions only  never use target lines as bars
                                 left_x = last_left_x if last_left_x is not None else fish_x
                                 right_x = last_right_x if last_right_x is not None else fish_x2
-                        # Percentage-based anti-teleport validation
+                        # Percentage-based antiteleport validation
                         # Check if lines jumped more than threshold (likely detection error or occlusion)
                         if last_fish_x is not None and last_fish_x2 is not None:
                             # Calculate actual jump distances
@@ -5221,18 +5195,18 @@ class Api:
                             max_jump = max(target_left_jump, target_right_jump, left_bar_jump, right_bar_jump)
                             # If movement exceeds threshold percentage of screen width, it might be a teleport
                             if max_jump > TELEPORT_THRESHOLD:
-                                # Potential teleport - check if it's consistent at this new position
+                                # Potential teleport  check if it's consistent at this new position
                                 if (potential_teleport_target_left == fish_x and
                                     potential_teleport_target_right == fish_x2 and
                                     potential_teleport_left_bar == left_x and
                                     potential_teleport_right_bar == right_x):
-                                    # Same position detected again - track time
+                                    # Same position detected again  track time
                                     if teleport_first_detected_time is None:
                                         teleport_first_detected_time = current_time
                                     # Check if teleport has been consistent long enough
                                     time_since_first_detection = current_time - teleport_first_detected_time
                                     if time_since_first_detection >= TELEPORT_CONFIRM_TIME:
-                                        # Teleport confirmed - accept new positions
+                                        # Teleport confirmed  accept new positions
                                         # print(f"⚠️ TELEPORT CONFIRMED after {time_since_first_detection:.3f}s - Accepting new positions (jump: {max_jump:.0f}px > {TELEPORT_THRESHOLD}px threshold)")
                                         last_fish_x = fish_x
                                         last_fish_x2 = fish_x2
@@ -5245,14 +5219,14 @@ class Api:
                                         potential_teleport_right_bar = None
                                         teleport_first_detected_time = None
                                     else:
-                                        # Still confirming - use old positions for tracking
+                                        # Still confirming  use old positions for tracking
                                         # print(f"⏳ Potential teleport (jump: {max_jump:.0f}px > {TELEPORT_THRESHOLD}px, confirming: {time_since_first_detection:.3f}s/{TELEPORT_CONFIRM_TIME}s) - Using last positions")
                                         fish_x = last_fish_x
                                         fish_x2 = last_fish_x2
                                         left_x = last_left_x
                                         right_x = last_right_x
                                 else:
-                                    # New potential teleport position - start tracking
+                                    # New potential teleport position  start tracking
                                     potential_teleport_target_left = fish_x
                                     potential_teleport_target_right = fish_x2
                                     potential_teleport_left_bar = left_x
@@ -5265,7 +5239,7 @@ class Api:
                                     left_x = last_left_x
                                     right_x = last_right_x
                             else:
-                                # Normal movement - accept immediately and reset teleport tracking
+                                # Normal movement  accept immediately and reset teleport tracking
                                 last_fish_x = fish_x
                                 last_fish_x2 = fish_x2
                                 last_left_x = left_x
@@ -5276,12 +5250,12 @@ class Api:
                                 potential_teleport_right_bar = None
                                 teleport_first_detected_time = None
                         else:
-                            # First run - just accept positions
+                            # First run  just accept positions
                             last_fish_x = fish_x
                             last_fish_x2 = fish_x2
                             last_left_x = left_x
                             last_right_x = right_x
-            # Friend and Fish restart
+            # Friend and fish restart
             if restart_method == "friend_area":
                 friend_x, friend_y = self.pixel_search(friend_img, friends_color, friends_tolerance)
                 if friend_x is not None and friend_y is not None:
@@ -5301,7 +5275,7 @@ class Api:
             # print(f"bar_detected: {bar_detected}")
             # print(f"left_x: {left_x}, right_x: {right_x}")
             # print(f"bar_center: {bar_center}, bar_size: {bar_size}")
-            # Bag Spam & Lock Cursor
+            # Bag spam & lock cursor
             bag_spam_cycle += 1
             if bag_spam_cycle == 5:
                 bag_spam_cycle = 0
@@ -5309,7 +5283,7 @@ class Api:
                     self._send_key(bag_slot)
                 if lock_cursor == "on":
                     mouse_controller.position = (int(shake_x / scale), int(shake_y / scale))
-            # Restore from Cache
+            # Restore from cache
             self.fish_overlay.clear()
             if bar_detected == False:
                 left_x = last_left_x
@@ -5318,11 +5292,11 @@ class Api:
                 bar_size = last_bar_size
             if fish_detected == False:
                 fish_x = last_fish_x
-            # Note Detection
+            # Note detection
             if fishing_profile == "notes":
                 note_x, note_y = self.pixel_search(shake_img, pinion_notes_color, pinion_notes_tolerance)
                 if note_x is not None and note_y is not None:
-                    note_y_ratio = float(note_y / note_height)
+                    note_y_ratio = round(float(note_y / note_height), 2)
                     if note_y_ratio > pinion_note_ratio:
                         fish_x = note_x
                 else:
@@ -5332,16 +5306,16 @@ class Api:
             else:
                 # print("Note Tracking Disabled")
                 note_y_ratio = 0.0
-                if fishing_profile == "notes":
-                    # Catch fails if the note ratio becomes 1 and the bar can't catch it; stays success only if note ratio is less than 0.9
-                    if note_y_ratio > 0.9:
+            if fishing_profile == "notes":
+                # Catch fails if the note ratio becomes 1 and the bar can't catch it; stays success only if note ratio is less than 0.9
+                if note_y_ratio > 0.9:
+                    self.catch_success = 1
+            else:
+                # Catch fails if the fish ever leaves the bar; stays success only if fish stays inside the whole time
+                if left_x is not None and right_x is not None and fish_x is not None:
+                    if not (left_x <= fish_x <= right_x):
                         self.catch_success = 1
-                else:
-                    # Catch fails if the fish ever leaves the bar; stays success only if fish stays inside the whole time
-                    if left_x is not None and right_x is not None and fish_x is not None:
-                        if not (left_x <= fish_x <= right_x):
-                            self.catch_success = 1
-            # Edge Boundary
+            # Edge boundary
             if bar_size is not None:
                 boundary = bar_size * bar_ratio_from_side
                 left_boundary = boundary
@@ -5355,7 +5329,7 @@ class Api:
             left_x = min(abs(left_x), fish_width)
             right_x = min(abs(right_x), fish_width)
             fish_x = min(abs(fish_x), fish_width)
-            # Fish Overlay
+            # Fish overlay
             if fish_overlay == "on":
                 if fishing_mode == "color":
                     self.fish_overlay.draw_box(
@@ -5386,7 +5360,7 @@ class Api:
                     else:
                         for pos in range(len(line_coords)):
                             self.fish_overlay.draw_box(x1=line_coords[pos], y1=fish_height*0.15, x2=line_coords[pos], y2=fish_height*0.85, color="green")
-            # Controller Mode Selection
+            # Controller mode selection
             current_controller_mode = controller_mode
             # Time delta is measured only between real captured frames.
             # During interpolation, last_time is intentionally left unchanged.
@@ -5396,7 +5370,7 @@ class Api:
             # print("(left_x - last_left_x) / time_delta:", (left_x - last_left_x) / self.scan_delay)
             # print("frame_interpolation: ", frame_interpolation)
             if frame_interpolation == False:
-                # Calculate bar velocity ONLY from two real detected frames.
+                # Calculate bar velocity only from two real detected frames.
                 # Never calculate velocity from an interpolated position.
                 if (
                     bar_detected
@@ -5419,7 +5393,7 @@ class Api:
                 control_signal = 30
             else:
                 if current_controller_mode == "normal":
-                    # Normal: Traditional PD controller
+                    # Normal: traditional pd controller
                     if is_initial_run == True:
                         control_signal = 0
                         last_error = error
@@ -5434,7 +5408,7 @@ class Api:
                         # print("d_term: ", d_term)
                         last_error = error
                 elif current_controller_mode == "steady":
-                    # Steady: Asymmetric PD controller with asymmetric damping
+                    # Steady: asymmetric pd controller with asymmetric damping
                     if is_initial_run == True:
                         control_signal = 0
                         last_error = error
@@ -5457,16 +5431,16 @@ class Api:
                         control_signal = p_term + d_term
                         last_error = error
                 elif current_controller_mode == "predictive":
-                    # Predictive: Predictive controller with linear stopping distance and counter-thrust
-                    # Init Failsafe
+                    # Predictive: predictive controller with linear stopping distance and counterthrust
+                    # Init failsafe
                     if color_check_bar_velocity is None:
                         color_check_bar_velocity = 0.0
                     if color_check_target_velocity is None:
                         color_check_target_velocity = 0.0
-                    # Missing Data Failsafe
+                    # Missing data failsafe
                     if fish_x is None or bar_center is None:
                         control_signal = -30
-                    # Calculate Velocities
+                    # Calculate velocities
                     if last_bar_center is not None and last_fish_x is not None:
                         if time_delta > 0:
                             raw_bar_velocity = (bar_center - last_bar_center) / time_delta
@@ -5475,14 +5449,14 @@ class Api:
                                                         (1 - velocity_smoothing) * color_check_bar_velocity)
                             color_check_target_velocity = (velocity_smoothing * raw_target_velocity + 
                                                             (1 - velocity_smoothing) * color_check_target_velocity)
-                    # Calculate error and relative velocity FIRST
+                    # Calculate error and relative velocity first
                     try:
                         relative_velocity = float(color_check_bar_velocity - color_check_target_velocity)
                     except:
                         color_check_bar_velocity = 0
                         color_check_target_velocity = 0
                         control_signal = -30
-                    # Nan Guard AFTER variables are defined
+                    # Nan guard after variables are defined
                     if not np.isfinite(relative_velocity):
                         control_signal = -30
                     # Calculate stopping distance based on relative velocity
@@ -5493,20 +5467,20 @@ class Api:
                     # print("color_check_target_velocity: ", round(color_check_target_velocity, 2))
                     # print("relative_velocity: ", round(relative_velocity, 2))
                     # print("stopping_distance: ", round(stopping_distance2, 2))
-                    # On-Bar: Use Stopping-Distance / Counter-Thrust Logic
+                    # Onbar: use stoppingdistance / counterthrust logic
                     if error < -stopping_distance2:
-                        # Bar Is Left Of Fish Beyond Stopping Distance → Hold To Move Right
+                        # Bar is left of fish beyond stopping distance → hold to move right
                         control_signal = 30
                     elif error > stopping_distance2:
-                        # Bar Is Right Of Fish Beyond Stopping Distance → Release To Move Left
+                        # Bar is right of fish beyond stopping distance → release to move left
                         control_signal = -30
                     else:
-                        # Within Stopping Distance — Counter-Thrust Based On Relative Velocity
+                        # Within stopping distance — counterthrust based on relative velocity
                         if relative_velocity > 0:
-                            # Bar Moving Right Relative To Fish → Release (Apply Left Thrust)
+                            # Bar moving right relative to fish → release (apply left thrust)
                             control_signal = -30
                         else:
-                            # Bar Moving Left Relative To Fish → Hold (Apply Right Thrust)
+                            # Bar moving left relative to fish → hold (apply right thrust)
                             control_signal = 30
             # Mouse state
             interpolation_bar_velocity = (bar_center - last_valid_bar_center) / time_delta
@@ -5516,10 +5490,10 @@ class Api:
                 hold_mouse()
             else:
                 release_mouse()
-            # Update Cache
-            # Only real captured-frame detections are allowed to update the
-            # persistent bar position. Interpolated positions are temporary
-            # and must never become the next interpolation starting point.
+            # Update cache
+            # Only real capturedframe detections are allowed to update the
+            # Persistent bar position. interpolated positions are temporary
+            # And must never become the next interpolation starting point.
             if bar_detected == True:
                 last_left_x = left_x
                 last_right_x = right_x
@@ -5530,7 +5504,6 @@ class Api:
             if fish_detected == True:
                 if not fish_x == note_x:
                     last_fish_x = fish_x
-
             # Cleanup
             is_initial_run = False
             last_capture_id = self.capture_id
@@ -5583,13 +5556,13 @@ def check_setup_guide():
         with open(os.path.join(UI_PATH, "app.js"), "r", encoding="utf-8-sig") as file:
             # Read first two lines
             lines = [file.readline().strip() for _ in range(3)]
-            # Parse first line for APP_VERSION
+            # Parse first line for app_version
             first_line = lines[0]
             js_app_version = float(first_line.replace("const APP_VERSION = ", "").replace('"', "").replace(";", ""))
-            # Parse second line for BETA_VERSION
+            # Parse second line for beta_version
             second_line = lines[1]
             js_beta_version = float(second_line.replace("const BETA_VERSION = ", "").replace('"', "").replace(";", ""))
-            # Parse third line for DEVELOPER
+            # Parse third line for developer
             third_line = lines[2]
             js_developer = third_line.replace("const DEVELOPER = ", "").replace('"', "").replace(";", "")
         if js_app_version != APP_VERSION:
@@ -5620,7 +5593,7 @@ You tried to download an unauthorized version of Solar Fishing.\nPlease take act
 setup_state = check_setup_guide()
 if setup_state == False:
     sys.exit(0)
-# Main Window
+# Main window
 def on_closed():
     api.fish_overlay.hide()
     api.eyedropper.hide()

@@ -59,7 +59,7 @@
                         </label>
                     </div>
                     <div class="switch2">
-                        <p>Save Settings to AppData</p>
+                        <p>Save Settings to AppData (requires restart)</p>
                         <label class="switch">
                             <input id=appdata_settings type="checkbox">
                             <span class="slider"></span>
@@ -134,7 +134,7 @@
                         </div>
                         <div class="simple-box">
                             <p>Backpack Slot</p>
-                            <input id="backpack_slot" type="text" placeholder="2">
+                            <input id="backpack_slot" type="text" placeholder="G">
                         </div>
                         <div class="simple-box">
                             <p>Enchant Relic Slot</p>
@@ -371,11 +371,11 @@
                     </div>
                     <div class="text">
                         <label>Select Rod Duration</label>
-                        <input id=select_rod_duration type="text" placeholder="0.35">
+                        <input id=select_rod_duration type="text" placeholder="0.2">
                     </div>
                     <div class="text">
                         <label>Delay</label>
-                        <input id=delay_before_casting type="text" placeholder="0.5">
+                        <input id=delay_before_casting type="text" placeholder="0.2">
                     </div>
                     <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
@@ -385,7 +385,7 @@
                     <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
                         <label>Delay</label>
-                        <input id=delay_after_casting type="text" placeholder="1">
+                        <input id=delay_after_casting type="text" placeholder="0.5">
                     </div>
                 </div>
                 <div class="card">
@@ -413,7 +413,7 @@
                     </div>
                     <div class="text">
                         <label>Restart Delay</label>
-                        <input id=restart_delay type="text" placeholder="2.5">
+                        <input id=restart_delay type="text" placeholder="1.5">
                     </div>
                     <div class="text">
                         <label>Bar Ratio From Side</label>
@@ -438,15 +438,18 @@
                     </div>
                     <div class="text">
                         <label>Stopping Distance</label>
-                        <input id=stopping_distance type="text" placeholder="1.5">
+                        <input id=stopping_distance type="text" placeholder="0.6">
                     </div>
                     <div class="text">
                         <label>Velocity Smoothing</label>
-                        <input id=velocity_smoothing type="text" placeholder="0.2">
+                        <input id=velocity_smoothing type="text" placeholder="0.6">
                     </div>
                 </div>
                 <div class="card">
                     <h3>Detection</h3>
+                    <div class="description"> 
+                        <p>Configure detection and how it works.</p>
+                    </div>
                     <div class="text">
                         <label>Minimum Line Density</label>
                         <input id=fish_line_min_density type="text" placeholder="0.8">
@@ -503,15 +506,15 @@
                     </div>
                     <div class="text">
                         <label>Webhook URL</label>
-                        <input id=logging_url type="text" placeholder="[___]">
+                        <input id=logging_url type="text" placeholder="None">
                     </div>
                     <div class="text">
                         <label>User ID</label>
-                        <input id=user_id type="text" placeholder="67">
+                        <input id=user_id type="text" placeholder="None">
                     </div>
                     <div class="text">
                         <label>Webhook Name</label>
-                        <input id=logging_name type="text" placeholder="Solar Fishing V4">
+                        <input id=logging_name type="text" placeholder="Solar Fishing V5">
                     </div>
                     <div class="text">
                         <label>Cycles</label>
@@ -691,7 +694,7 @@
                 </div>
                 <div class="card">
                     <h3>Auto Appraisal (toggle in Overview tab)</h3>
-                    <div class="description"> 
+                    <div class="description">
                         <p>Automatically appraise caught fish based on your settings.</p>
                     </div>
                     <div class="dropdown">
@@ -706,22 +709,38 @@
                         <input id=appraisal_mutations type="text" placeholder="Hexed, Abyssal">
                     </div>
                     <div class="text">
-                        <label>Click X (Ratio)</label>
+                        <label>Click X (Screen Ratio)</label>
                         <input id=appraisal_click_x type="text" placeholder="0.5">
                     </div>
                     <div class="text">
-                        <label>Click Y (Ratio)</label>
+                        <label>Click Y (Screen Ratio)</label>
                         <input id=appraisal_click_y type="text" placeholder="0.5">
                     </div>
                 </div>
                 <div class="card">
                     <h3>Auto Treasure Appraisal (toggle in Overview tab)</h3>
                     <div class="description"> 
-                        <p>Automatically appraise caught fish in the Treasure Island.</p>
+                        <p>Text X and Y scales with the Treasure Appraisal box.</p>
                     </div>
                     <div class="text">
                         <label>Minimum Multiplier</label>
                         <input id=minimum_multiplier type="text" placeholder="0.5">
+                    </div>
+                    <div class="text">
+                        <label>Text X (Screen Ratio)</label>
+                        <input id=treasure_appraisal_ocr_x type="text" placeholder="0.5">
+                    </div>
+                    <div class="text">
+                        <label>Text Y (Screen Ratio)</label>
+                        <input id=treasure_appraisal_ocr_y type="text" placeholder="0.5">
+                    </div>
+                    <div class="text">
+                        <label>Reappraise X (Screen Ratio)</label>
+                        <input id=treasure_appraisal_reappraise_x type="text" placeholder="0.5">
+                    </div>
+                    <div class="text">
+                        <label>Reappraise X (Screen Ratio)</label>
+                        <input id=treasure_appraisal_reappraise_y type="text" placeholder="0.5">
                     </div>
                 </div>
                 <div class="card">
@@ -742,11 +761,11 @@
                         <input id=enchant_enchants type="text" placeholder="Steady, Momentum">
                     </div>
                     <div class="text">
-                        <label>Click X (Ratio)</label>
+                        <label>Click X (Screen Ratio)</label>
                         <input id=enchant_click_x type="text" placeholder="0.5">
                     </div>
                     <div class="text">
-                        <label>Click Y (Ratio)</label>
+                        <label>Click Y (Screen Ratio)</label>
                         <input id=enchant_click_y type="text" placeholder="0.5">
                     </div>
                 </div>
@@ -756,19 +775,19 @@
                         <p>Automate interactions with the Angler NPC and related tasks.</p>
                     </div>
                     <div class="text">
-                        <label>Click X (Ratio)</label>
+                        <label>Dialogue Click X (Screen Ratio)</label>
                         <input id=angler_click_x type="text" placeholder="0.5">
                     </div>
                     <div class="text">
-                        <label>Click Y (Ratio)</label>
+                        <label>Dialogue Click Y (Screen Ratio)</label>
                         <input id=angler_click_y type="text" placeholder="0.5">
                     </div>
                     <div class="text">
-                        <label>Backpack X (Ratio)</label>
+                        <label>Backpack X (Screen Ratio)</label>
                         <input id=backpack_x type="text" placeholder="0.5">
                     </div>
                     <div class="text">
-                        <label>Backpack Y (Ratio)</label>
+                        <label>Backpack Y (Screen Ratio)</label>
                         <input id=backpack_y type="text" placeholder="0.5">
                     </div>
                 </div>
