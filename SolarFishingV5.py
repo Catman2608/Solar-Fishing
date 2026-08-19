@@ -25,6 +25,14 @@ import shutil
 import math
 import random
 from pathlib import Path
+# Capture
+if sys.platform == "win32":
+    try:
+        import dxcam
+    except:
+        dxcam = None
+else:
+    dxcam = None
 # Keyboard and mouse clicks (platformspecific)
 from pynput.keyboard import Listener as KeyListener, Key
 from pynput import keyboard, mouse
@@ -51,12 +59,12 @@ try:
         pytesseract.pytesseract.tesseract_cmd = "/opt/homebrew/bin/tesseract"
 except:
     pytesseract = None
-# Define platformspecific constants
+# Define platform-specific constants
 # All platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
 APP_VERSION = 5.01
-BETA_VERSION = 1
+BETA_VERSION = 2
 DEVELOPER = "Catman2608"
 def load_misc_settings(last_config_path):
     try:
@@ -1841,11 +1849,33 @@ class Api:
                 "success": False,
                 "error": str(e)
             }
+    def import_config(self, config_name, settings):
+        try:
+            if not config_name:
+                return {"success": False, "error": "No config name provided."}
+
+            if config_name in (".", "..") or "/" in config_name or "\\" in config_name:
+                return {"success": False, "error": "Invalid config name."}
+
+            folder = os.path.join(CONFIGS_PATH, config_name)
+            os.makedirs(folder, exist_ok=True)
+
+            settings = self._fill_blank_settings(settings)
+
+            config_path = os.path.join(folder, "config.json")
+
+            with open(config_path, "w") as f:
+                json.dump(settings, f, indent=4)
+
+            return {"success": True}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     def export_config(self, settings):
         try:
             path = webview.windows[0].create_file_dialog(
                 webview.FileDialog.SAVE,
-                save_filename="config.json"
+                save_filename=f"{self.current_config}.json"
             )
             if not path:
                 return {"success": False, "error": "Cancelled"}
@@ -1854,6 +1884,7 @@ class Api:
                 path = path[0]
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=4)
+            self.message_box_javascript(f"Exported {self.current_config}.json")
             return {"success": True, "path": path}
 
         except Exception as e:
@@ -2117,11 +2148,15 @@ class Api:
                     elif automation_mode == "treasure_appraisal":
                         self.macro_thread = threading.Thread(target=self.start_treasure_appraisal, daemon=True)
                     self.macro_thread.start()
-                    if sys.platform == "darwin":
-                        self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
+                    if dxcam is not None:
+                        self.camera = dxcam.create(output_color="BGR")
+                        self.camera.start()
                     else:
-                        self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
-                    self.capture_thread.start()
+                        if sys.platform == "darwin":
+                            self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
+                        else:
+                            self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
+                        self.capture_thread.start()
             elif key == bar_areas_key:
                 # Guard to prevent area selector from being opened the second the macro started
                 if self.macro_running == True:
@@ -3459,6 +3494,8 @@ class Api:
                     self.set_status("Auto Totem")
                     time.sleep(0.1)
                     if not target_time == "disabled":
+                        if dxcam is not None:
+                            self.capture_frame = self.camera.get_latest_frame()
                         totem = self.capture_frame[totem_top:totem_bottom, totem_left:totem_right]
                         sun_found, _, sun_confidence = self.image_search(totem, sun_resized)
                         moon_found, _, moon_confidence = self.image_search(totem, moon_resized)
@@ -3518,10 +3555,11 @@ class Api:
                 self.set_status("Shaking")
                 self.scan_delay = float(self.vars["shake_scan_delay"])
                 for attempts in range(shake_failsafe):
+                    if dxcam is not None:
+                        self.capture_frame = self.camera.get_latest_frame()
                     if self.capture_frame is None:
                         attempts = attempts - 1
                         continue
-
                     if detection_method == "friend_area":
                         friend_img = self.capture_frame[friend_top_s:friend_bottom_s, friend_left_s:friend_right_s]
                         friend_x, friend_y = self.pixel_search(friend_img, friend_color, friend_tolerance)
@@ -3722,6 +3760,10 @@ class Api:
         last_frame_time = None
         # Loop
         while self.macro_running:
+            # Check if DXCAM is available
+            if dxcam is not None:
+                self.capture_frame = self.camera.get_latest_frame()
+                self.capture_id = last_capture_id + 1
             # Get image from self.capture_frame
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
@@ -4023,6 +4065,8 @@ class Api:
         shake_left, shake_top, shake_right, shake_bottom, _, _ = self.get_areas("shake")
         shake_color = self.vars["shake_color"]
         shake_tolerance = self.vars["shake_tolerance"]
+        if dxcam is not None:
+            self.capture_frame = self.camera.get_latest_frame()
         shake_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
         if shake_mode == "pixel":
             shake_x, shake_y = self.pixel_search(shake_img, shake_color, shake_tolerance)
@@ -4085,11 +4129,16 @@ class Api:
         self.fish_overlay.resize(left_offset, shake_top, overlay_width, shake_height)
         time.sleep(0.5)
         while self.macro_running:
-            # Crop images
+            # Check if DXCAM is available
+            if dxcam is not None:
+                self.capture_frame = self.camera.get_latest_frame()
+                self.capture_id = last_capture_id + 1
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
                 continue
-
+            elif self.capture_frame is None:
+                time.sleep(self.scan_delay)
+                continue
             else:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
                 detection_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
@@ -4267,6 +4316,10 @@ class Api:
         last_bar_center = 0
         last_detection_source = 0
         while self.macro_running:
+            # Check if DXCAM is available
+            if dxcam is not None:
+                self.capture_frame = self.camera.get_latest_frame()
+                self.capture_id = last_capture_id + 1
             # Get image from self.capture_frame
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
@@ -4454,6 +4507,10 @@ class Api:
         last_fish_x2 = 0
         last_time = time.perf_counter()
         while self.macro_running:
+            # Check if DXCAM is available
+            if dxcam is not None:
+                self.capture_frame = self.camera.get_latest_frame()
+                self.capture_id = last_capture_id + 1
             # Get image from self.capture_frame
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
@@ -4708,12 +4765,16 @@ class Api:
         initial_left_coords = None
         initial_right_coords = None
         while self.macro_running:
+            # Check if DXCAM is available
+            if dxcam is not None:
+                self.capture_frame = self.camera.get_latest_frame()
+                self.capture_id = last_capture_id + 1
             # Get image from self.capture_frame
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
                 continue
 
-            if self.capture_frame is None:
+            elif self.capture_frame is None:
                 time.sleep(self.scan_delay)
                 continue
 
@@ -4985,6 +5046,10 @@ class Api:
         # Loop
         while self.macro_running:
             current_time = time.perf_counter()
+            # Check if DXCAM is available
+            if dxcam is not None:
+                self.capture_frame = self.camera.get_latest_frame()
+                self.capture_id = last_capture_id + 1
             # Get image from self.capture_frame
             if self.capture_id == last_capture_id:
                 if controller_mode == "predictive":
@@ -5491,7 +5556,7 @@ class Api:
             else:
                 release_mouse()
             # Update cache
-            # Only real capturedframe detections are allowed to update the
+            # Only real captured frame detections are allowed to update the
             # Persistent bar position. interpolated positions are temporary
             # And must never become the next interpolation starting point.
             if bar_detected == True:
@@ -5529,6 +5594,10 @@ class Api:
             and self.capture_thread is not threading.current_thread()
         ):
             self.capture_thread.join()
+        try:
+            self.camera.stop()
+        except:
+            pass
         if not text == "":
             self.set_status(text)
         try:
