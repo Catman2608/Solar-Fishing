@@ -450,52 +450,49 @@ async function exportConfig() {
 
 async function importConfig() {
     try {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".json,application/json";
+        const result = await pywebview.api.select_import_config();
 
-        input.onchange = async (event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-
-            try {
-                const text = await file.text();
-                const settings = JSON.parse(text);
-
-                const configName = window.prompt(
-                    "Enter a name for the imported config:",
-                    file.name.replace(/\.json$/i, "")
-                );
-
-                if (configName === null) {
-                    return;
-                }
-
-                const trimmedName = configName.trim();
-
-                if (!trimmedName) {
-                    setStatus("Invalid config name");
-                    return;
-                }
-
-                const result = await pywebview.api.import_config(
-                    trimmedName,
-                    settings
-                );
-                
-                await refreshConfigs();
-                if (result.success) {
-                    setStatus(`Imported: ${trimmedName}`);
-                } else {
-                    setStatus(`Error: "${result.error}"`);
-                }
-            } catch (err) {
-                console.error(err);
-                setStatus("Invalid config file");
+        if (!result.success) {
+            if (result.cancelled) {
+                return;
             }
-        };
 
-        input.click();
+            console.error(result.error);
+            setStatus(`Error: "${result.error}"`);
+            return;
+        }
+
+        const defaultName = result.filename.replace(/\.json$/i, "");
+
+        const configName = window.prompt(
+            "Enter a name for the imported config:",
+            defaultName
+        );
+
+        if (configName === null) {
+            setStatus("Import cancelled");
+            return;
+        }
+
+        const trimmedName = configName.trim();
+
+        if (!trimmedName) {
+            setStatus("Invalid config name");
+            return;
+        }
+
+        const importResult = await pywebview.api.import_config(
+            trimmedName,
+            result.settings
+        );
+
+        await refreshConfigs();
+
+        if (importResult.success) {
+            setStatus(`Imported: ${trimmedName}`);
+        } else {
+            setStatus(`Error: "${importResult.error}"`);
+        }
     } catch (err) {
         console.error(err);
         setStatus("Import failed");
