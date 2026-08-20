@@ -254,13 +254,24 @@ function sendUpdate(x, y) {
 }
 
 function reportPoint(name, x, y) {
-    const b = boxes[name];
-    if (!b || !b.w || !b.h) return;
-    const xr = Math.max(0, Math.min(1, (x - b.x) / b.w));
-    const yr = Math.max(0, Math.min(1, (y - b.y) / b.h));
+    let xr, yr, reportName;
+    const b = name && boxes[name];
+    if (b && b.w && b.h) {
+        // Ratio relative to the clicked area box
+        reportName = name;
+        xr = Math.max(0, Math.min(1, (x - b.x) / b.w));
+        yr = Math.max(0, Math.min(1, (y - b.y) / b.h));
+    } else {
+        // No area under the click → full-screen (viewport) ratios 0–1
+        reportName = "screen";
+        const w = window.innerWidth || 1;
+        const h = window.innerHeight || 1;
+        xr = Math.max(0, Math.min(1, x / w));
+        yr = Math.max(0, Math.min(1, y / h));
+    }
     if (window.pywebview && pywebview.api && pywebview.api.on_point_select) {
         try {
-            pywebview.api.on_point_select(name, xr, yr);
+            pywebview.api.on_point_select(reportName, xr, yr);
         } catch (e) {}
     }
 }
@@ -268,7 +279,7 @@ function reportPoint(name, x, y) {
 function updateHint() {
     const hint = document.getElementById("hint");
     if (selectPointMode) {
-        hint.textContent = "Select Point ON · Click an area for ratios & close · Esc / F6 to save & close · 1-9 toggle";
+        hint.textContent = "Select Point ON · Click area or empty space for ratios & close · Esc / F6 to save & close · 1-9 toggle";
     } else {
         hint.textContent = "Drag boxes · Resize handles · Esc / F6 to save & close · 1-9 toggle areas";
     }
@@ -294,8 +305,7 @@ function toggleSelectPoint() {
 canvas.addEventListener("mousemove", e => {
     const x = e.clientX, y = e.clientY;
     if (selectPointMode) {
-        const name = boxAt(x, y);
-        canvas.style.cursor = name ? "crosshair" : "default";
+        canvas.style.cursor = "crosshair";
         // Still stream live hover ratios via existing mouse-move path
         sendUpdate(x, y);
         return;
@@ -325,13 +335,14 @@ canvas.addEventListener("mousedown", e => {
     if (e.button !== 0) return;
     if (e.target.closest && e.target.closest("#panel")) return;
     const name = boxAt(e.clientX, e.clientY);
-    if (!name) return;
 
-    // Select Point mode: report ratios, do not drag
+    // Select Point mode: report ratios (area or full screen), do not drag
     if (selectPointMode) {
         reportPoint(name, e.clientX, e.clientY);
         return;
     }
+
+    if (!name) return;
 
     const b = boxes[name];
     drag = {

@@ -752,9 +752,11 @@ class AreaSelector:
                     break
 
     def on_point_select(self, name, xr, yr):
-        """Called by JS when Select Point mode is on and user clicks an area.
-        Shows ratios in the status bar and closes the selector without the
-        generic 'Area selector closed' message so the ratios remain visible."""
+        """Called by JS when Select Point mode is on and user clicks.
+        Click inside an area → ratios relative to that area box.
+        Click outside any area → full-screen (viewport) ratios 0–1 under the
+        name "screen". Shows ratios in the status bar and closes the selector
+        without the generic 'Area selector closed' message so the ratios remain visible."""
         if not self._open:
             return
 
@@ -766,7 +768,13 @@ class AreaSelector:
 
         xr = max(0.0, min(1.0, xr))
         yr = max(0.0, min(1.0, yr))
-        label = (AREA_CONFIG.get(name) or {}).get("label", name)
+
+        # name may be None / "screen" / unknown when the click missed every box
+        if not name or name == "screen" or name not in AREA_CONFIG:
+            label = "SCREEN"
+        else:
+            label = (AREA_CONFIG.get(name) or {}).get("label", name)
+
         status_msg = f"{label.upper()}  →  X RATIO: {xr:.4f}  Y RATIO: {yr:.4f}"
         # Persist current areas, then close without overwriting the ratio status.
         try:
@@ -1864,13 +1872,48 @@ class Api:
 
             config_path = os.path.join(folder, "config.json")
 
-            with open(config_path, "w") as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=4)
 
             return {"success": True}
 
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def select_import_config(self):
+        try:
+            path = webview.windows[0].create_file_dialog(
+                webview.FileDialog.OPEN,
+                allow_multiple=False,
+                file_types=("JSON files (*.json)",)
+            )
+
+            if not path:
+                return {"success": False, "cancelled": True}
+
+            if isinstance(path, (list, tuple)):
+                path = path[0]
+
+            with open(path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+
+            return {
+                "success": True,
+                "settings": settings,
+                "filename": os.path.basename(path)
+            }
+
+        except json.JSONDecodeError:
+            return {
+                "success": False,
+                "error": "Invalid config file."
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
     def export_config(self, settings):
         try:
             path = webview.windows[0].create_file_dialog(
@@ -2223,7 +2266,7 @@ class Api:
             scale = get_scale_factor()
             x = int(x / scale)
             y = int(y / scale)
-        # Seperate branches for windows and macos mouse events
+        # Seperate branches for Windows and macOS mouse events
         if sys.platform == "win32":
             windll.SetCursorPos(x, y)
             windll.mouse_event(MOUSEEVENTF_MOVE, 0, 1, 0, 0)
@@ -2234,7 +2277,7 @@ class Api:
                     time.sleep(0.03)
         else:
             _move_mouse(x, y)
-            _move_mouse(x + 2, y + 2)
+            _move_mouse(x + 5, y + 5)
             _move_mouse(x, y)
             for i in range(click_count):
                 _mouse_event(button="left", press=True)   # mouse down
@@ -2301,10 +2344,10 @@ class Api:
             time.sleep(min(0.01, remaining))
     # Get values
     def get_areas(self, area_key):
-        # Apply scale factor.  all area values (saved or default) are ratios 0–1.
-        # Returning physical pixels here.  the previous default path returned
-        # Alreadypixel coordinates and then multiplied by screen_* again,
-        # Producing enormous sizes (fullscreen overlay after reset_areas).
+        """Apply scale factor.  All area values (saved or default) are ratios 0–1.
+        Returning physical pixels here.  The previous default path returned
+        Already pixel coordinates and then multiplied by screen_* again,
+        Producing enormous sizes (fullscreen overlay after reset_areas)."""
         scale = get_scale_factor()
         area_data = self.bar_areas.get(area_key)
         if (isinstance(area_data, dict) and area_data.get("width", 0) > 0 and area_data.get("height", 0) > 0):
@@ -5675,4 +5718,4 @@ window = webview.create_window(
     height=700
 )
 window.events.closed += on_closed
-webview.start(gui="edgechromium")
+webview.start()
