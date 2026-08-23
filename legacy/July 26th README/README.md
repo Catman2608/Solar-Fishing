@@ -87,7 +87,7 @@ If building from scratch, install the dependencies manually:
 
 ```bash
 # Core packages
-pip install webview numpy mss pytesseract pynput requests opencv-python
+pip install pywebview numpy mss pytesseract pynput requests opencv-python
 
 # macOS specific (for screen capture on Apple Silicon/M1):
 pip install opencv-python-headless  # Better compatibility for macOS
@@ -99,7 +99,7 @@ pip install opencv-contrib-python-headless
 ### Complete Package List Reference
 | Module | Command | Purpose |
 |--------|---------|---------|
-| `webview` | `pip install webview` | GUI window creation |
+| `webview` | `pip install pywebview` | GUI window creation |
 | `numpy` | `pip install numpy` | Numerical operations, image arrays |
 | `mss` | `pip install mss` | Screenshot capture (multi-screen support) |
 | `pytesseract` | `pip install pytesseract` | OCR engine wrapper for Tesseract |

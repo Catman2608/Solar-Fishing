@@ -60,17 +60,17 @@ Expected output: `Python 3.8+`
 Run this command in order to download the required libraries:
 
 ```bash
-pip install webview numpy mss pytesseract pynput requests opencv-python
+pip install pywebview numpy mss pytesseract pynput requests opencv-python
 ```
 If the command above fails, try using pip3 instead:
 ```bash
-pip3 install webview numpy mss pytesseract pynput requests opencv-python
+pip3 install pywebview numpy mss pytesseract pynput requests opencv-python
 ```
 
 ### Complete Package List Reference
 | Module | Command | Purpose |
 |--------|---------|---------|
-| `webview` | `pip install webview` | GUI window creation |
+| `webview` | `pip install pywebview` | GUI window creation |
 | `numpy` | `pip install numpy` | Numerical operations, image arrays |
 | `mss` | `pip install mss` | Screenshot capture (multi-screen support) |
 | `pytesseract` | `pip install pytesseract` | OCR engine wrapper for Tesseract |
