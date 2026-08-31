@@ -1,0 +1,80 @@
+{
+    "last_config": "Test",
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7",
+    "bar_areas": {
+        "shake": {
+            "x": 0.1041,
+            "y": 0.0925,
+            "width": 0.7917,
+            "height": 0.6963
+        },
+        "fish": {
+            "x": 0.2844,
+            "y": 0.7981,
+            "width": 0.4297,
+            "height": 0.0389
+        },
+        "friend": {
+            "x": 0.0046,
+            "y": 0.8583,
+            "width": 0.0355,
+            "height": 0.0817
+        },
+        "totem": {
+            "x": 0.9504,
+            "y": 0.8305,
+            "width": 0.0234,
+            "height": 0.049
+        },
+        "sovereign": {
+            "x": 0.2844,
+            "y": 0.8184,
+            "width": 0.4297,
+            "height": 0.0185
+        },
+        "lullaby": {
+            "x": 0.4222,
+            "y": 0.7043,
+            "width": 0.1556,
+            "height": 0.136
+        },
+        "chat": {
+            "x": 0.003,
+            "y": 0.0683,
+            "width": 0.2536,
+            "height": 0.3323
+        },
+        "backpack": {
+            "x": 0.3373,
+            "y": 0.6108,
+            "width": 0.3254,
+            "height": 0.2656
+        },
+        "treasure_appraisal": {
+            "x": 0.3343,
+            "y": 0.4156,
+            "width": 0.3385,
+            "height": 0.1629
+        },
+        "appraisal_hotbar": {
+            "x": 0.5529,
+            "y": 0.8905,
+            "width": 0.0373,
+            "height": 0.0619
+        },
+        "enchantment": {
+            "x": 0.3061,
+            "y": 0.3932,
+            "width": 0.3649,
+            "height": 0.1674
+        },
+        "angler_quest": {
+            "x": 0.0139,
+            "y": 0.5006,
+            "width": 0.2316,
+            "height": 0.1276
+        }
+    }
+}
