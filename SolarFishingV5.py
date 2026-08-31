@@ -64,7 +64,7 @@ except:
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
 APP_VERSION = 5.1
-BETA_VERSION = 1
+BETA_VERSION = 2
 DEVELOPER = "Catman2608"
 def load_misc_settings(last_config_path):
     try:

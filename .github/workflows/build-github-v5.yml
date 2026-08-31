@@ -1,0 +1,134 @@
+name: Build Applications And Release
+
+on:
+    workflow_dispatch:
+        inputs:
+            release_title:
+                description: "Release title"
+                required: true
+                type: string
+
+            tag_name:
+                description: "Release tag"
+                required: true
+                type: string
+
+jobs:
+    build-windows:
+        runs-on: windows-latest
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.14"
+
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install pywebview customtkinter numpy mss pytesseract pynput requests opencv-python pyinstaller
+
+            - name: Build EXE with PyInstaller
+              shell: cmd
+              run: |
+                  pyinstaller --onefile --windowed SolarFishingV5.py --name SolarFishingV5 --icon="icon.ico"
+
+            - name: List dist contents
+              run: |
+                  dir dist
+                  dir dist\SolarFishingV5.exe
+
+            - name: Upload EXE artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: Windows-EXE
+                  path: dist/SolarFishingV5.exe
+                  if-no-files-found: error
+
+    build-mac:
+        runs-on: macos-15-intel
+
+        steps:
+          - name: Checkout repo
+            uses: actions/checkout@main
+
+          - name: Set up Python
+            uses: actions/setup-python@main
+            with:
+              python-version: "3.14"
+
+          - name: Install dependencies
+            run: |
+              python -m pip install --upgrade pip
+              pip install pywebview customtkinter numpy mss pytesseract pynput requests opencv-python pyinstaller
+
+          - name: Build with PyInstaller
+            run: |
+              pyinstaller \
+                --onedir \
+                --windowed \
+                --icon="icon.icns" \
+                --strip \
+                --target-architecture=x86_64 \
+                "SolarFishingV5.py"
+
+          - name: Check dist contents
+            run: |
+              ls -lh dist
+              echo "Contents of dist:"
+              ls -la dist/
+              ls -la dist/SolarFishingV5
+
+          - name: Create DMG from .app bundle
+            run: |
+              APP_PATH=$(find dist -name "*.app" -type d | head -n 1)
+              echo "Found app at: $APP_PATH"
+
+              hdiutil create \
+                -volname "SolarFishingV5" \
+                -srcfolder "$APP_PATH" \
+                -ov \
+                -format UDZO \
+                SolarFishingV5.dmg
+
+              echo "DMG created:"
+              ls -lh SolarFishingV5.dmg
+
+          - name: Upload DMG artifact
+            uses: actions/upload-artifact@v4
+            with:
+              name: SolarFishingV5-macOS-Intel
+              path: SolarFishingV5.dmg
+
+    create-release:
+        needs: [build-windows, build-mac]
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write  # Required to create releases
+        steps:
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+
+            - name: List downloaded files
+              run: |
+                  ls -la artifacts/
+                  find artifacts/ -type f
+
+            - name: Create Release
+              id: create_release
+              uses: softprops/action-gh-release@v1
+              with:
+                  name: ${{ inputs.release_title }}
+                  tag_name: ${{ inputs.tag_name }}
+                  draft: false
+                  prerelease: false
+                  generate_release_notes: true
+                  files: |
+                      artifacts/Windows-EXE/SolarFishingV5.exe
+                      artifacts/SolarFishingV5-macOS-Intel/SolarFishingV5.dmg
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
