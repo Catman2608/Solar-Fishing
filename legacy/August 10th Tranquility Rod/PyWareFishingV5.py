@@ -1382,7 +1382,7 @@ class Api:
                     }
             # Hotkeys
             start_key  = data.get("start_key", "F5")
-            change_key = data.get("change_bar_areas_key", "F6")
+            change_key = data.get("area_selector_key", "F6")
             stop_key   = data.get("stop_key", "F7")
         except Exception as e:
             self.set_status(f"Failed to load misc settings: {e}")
@@ -1419,7 +1419,7 @@ class Api:
         data["bar_areas"] = clean_bar_areas
         # Hotkeys
         # data["start_key"] = self.vars["start_key"]
-        # data["change_bar_areas_key"] = self.vars["change_bar_areas_key"]
+        # data["area_selector_key"] = self.vars["area_selector_key"]
         # data["stop_key"] = self.vars["stop_key"]
         with open(path, "w") as f:
             json.dump(data, f, indent=4)
@@ -1737,7 +1737,7 @@ class Api:
 
     def on_key_press(self, key):
         key = self.normalize_key(key)
-        start_key, bar_areas_key, stop_key = self._get_hotkeys()
+        start_key, area_selector_key, stop_key = self._get_hotkeys()
         automation_mode = self.vars["automation_mode"]
         if not automation_mode == "disabled":
             if key == start_key:
@@ -1765,7 +1765,7 @@ class Api:
                     else:
                         self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
                     self.capture_thread.start()
-            elif key == bar_areas_key:
+            elif key == area_selector_key:
                 # Guard to prevent area selector from being opened the second the macro started
                 if self.macro_running == True:
                     return

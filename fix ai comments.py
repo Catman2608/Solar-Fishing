@@ -12,7 +12,7 @@ def remove_blank_lines(input_file, output_file):
             comment_content = stripped[1:].lstrip()
             if comment_content:
                 # Capitalize the first letter of the comment content
-                capitalized_content = comment_content[0:].capitalize()
+                capitalized_content = comment_content[0:].title()
                 # Change a few words to fix spelling
                 capitalized_content = capitalized_content.replace("Ocr", "OCR")
                 capitalized_content = capitalized_content.replace("Macos", "macOS")

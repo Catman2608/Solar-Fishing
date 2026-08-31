@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Solar Fishing V5.01</title>
+    <title>Solar Fishing V5.1</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -10,7 +10,7 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="logo">
-                Solar Fishing V5.01
+                Solar Fishing V5.1
             </div>
             <button class="tab-button active" onclick="switchTab('overview')">
                 Overview
@@ -251,6 +251,13 @@
                         </label>
                     </div>
                     <div class="switch2">
+                        <p>Status Overlay</p>
+                        <label class="switch">
+                            <input id=status_overlay type="checkbox">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="switch2">
                         <p>Bag Spam</p>
                         <label class="switch">
                             <input id=bag_spam type="checkbox">
@@ -285,6 +292,7 @@
                         <select name="fishing_mode" id="fishing_mode">
                         <option value="color">Color</option>
                         <option value="line">Line</option>
+                        <option value="image">Image</option>
                         </select>
                     </div>
                 </div>
@@ -399,7 +407,11 @@
                     </div>
                     <div class="text">
                         <label>Shake Failsafe (attempts)</label>
-                        <input id=shake_failsafe type="text" placeholder="80">
+                        <input id=shake_failsafe type="text" placeholder="120">
+                    </div>
+                    <div class="text">
+                        <label>Animation Delay (seconds)</label>
+                        <input id=animation_delay type="text" placeholder="0.3">
                     </div>
                 </div>
                 <div class="card">
@@ -578,12 +590,8 @@
                     </div>
                     <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
-                        <label>Mirror X (Ratio)</label>
-                        <input id=mirror_ratio type="text" placeholder="0.5">
-                    </div>
-                    <div class="text">
-                        <label>Mirror Y (Ratio)</label>
-                        <input id=mirror_ratio2 type="text" placeholder="0.5">
+                        <label>Mirror (X/Y Screen Ratio separated by ,)</label>
+                        <input id=mirror_ratio type="text" placeholder="0.5, 0.5">
                     </div>
                 </div>
                 <div class="card">
@@ -639,6 +647,14 @@
                             <input id=click_after_minigame type="checkbox">
                             <span class="slider"></span>
                         </label>
+                    </div>
+                    <div class="text">
+                        <label>Click Position (Screen Ratio seperated by ,)</label>
+                        <input id=minigame_click_position type="text" placeholder="0.5, 0.5">
+                    </div>
+                    <div class="text">
+                        <label>Click Amounts</label>
+                        <input id=minigame_click_amounts type="text" placeholder="2">
                     </div>
                     <div class="dropdown">
                         <label for="detection_method">Detection Method:</label>
@@ -709,12 +725,8 @@
                         <input id=appraisal_mutations type="text" placeholder="Hexed, Abyssal">
                     </div>
                     <div class="text">
-                        <label>Click X (Screen Ratio)</label>
-                        <input id=appraisal_click_x type="text" placeholder="0.5">
-                    </div>
-                    <div class="text">
-                        <label>Click Y (Screen Ratio)</label>
-                        <input id=appraisal_click_y type="text" placeholder="0.5">
+                        <label>Click X/Y (Screen Ratio seperated by ,)</label>
+                        <input id=appraisal_click type="text" placeholder="0.5, 0.5">
                     </div>
                 </div>
                 <div class="card">
@@ -727,12 +739,8 @@
                         <input id=minimum_multiplier type="text" placeholder="0.5">
                     </div>
                     <div class="text">
-                        <label>Text X (Screen Ratio)</label>
-                        <input id=treasure_appraisal_ocr_x type="text" placeholder="0.5">
-                    </div>
-                    <div class="text">
-                        <label>Text Y (Screen Ratio)</label>
-                        <input id=treasure_appraisal_ocr_y type="text" placeholder="0.5">
+                        <label>Text X/Y (Screen Ratio seperated by ,)</label>
+                        <input id=treasure_appraisal_ocr type="text" placeholder="0.5, 0.5">
                     </div>
                     <div class="text">
                         <label>Reappraise X (Screen Ratio)</label>

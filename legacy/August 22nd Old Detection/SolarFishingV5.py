@@ -2166,7 +2166,7 @@ class Api:
 
     def on_key_press(self, key):
         key = self.normalize_key(key)
-        start_key, bar_areas_key, stop_key = self._get_hotkeys()
+        start_key, area_selector_key, stop_key = self._get_hotkeys()
         automation_mode = self.vars["automation_mode"]
         if not automation_mode == "disabled":
             if key == start_key:
@@ -2200,7 +2200,7 @@ class Api:
                         else:
                             self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
                         self.capture_thread.start()
-            elif key == bar_areas_key:
+            elif key == area_selector_key:
                 # Guard to prevent area selector from being opened the second the macro started
                 if self.macro_running == True:
                     return
@@ -2560,6 +2560,16 @@ class Api:
         if mode not in (0, 1):
             raise RuntimeError("Invalid detection mode")
 
+        # Convert tolerance to int first, handling string inputs
+        try:
+            tolerance = int(tolerance)
+        except (ValueError, TypeError):
+            tolerance = 0  # or some default value
+
+        # Failsafe: None hex
+        if hex is None:
+            return None, None
+        
         tolerance = int(np.clip(tolerance, 0, 255))
         b, g, r = self._hex_to_bgr(hex)
         target = np.array([b, g, r], dtype=np.int32)
@@ -3549,18 +3559,19 @@ class Api:
                         hunt_cycles = hunt_cycles2 + self.current_cycle
                 if sovereign_recharge == "on":
                     sovereign_img = self.capture_frame[sovereign_top:sovereign_bottom, sovereign_left:sovereign_right]
-                    sovereign_right2 = self.pixel_search(sovereign_img, sovereign_recharge_color, sovereign_recharge_tolerance)
-                    distance = round(abs(sovereign_right2 - sovereign_left) / sovereign_width, 2)
-                    while distance < maximum_percentage:
-                        if distance < minimum_percentage:
-                            self._send_key(rod_slot)
-                            time.sleep(0.1)
-                            self._send_key(relic_slot)
-                            self.click_backpack(enchant_click_x, enchant_click_y)
-                        elif distance > maximum_percentage:
-                            break
+                    sovereign_right2, _ = self.pixel_search(sovereign_img, sovereign_recharge_color, sovereign_recharge_tolerance)
+                    if sovereign_right2 is not None:
+                        distance = round(abs(sovereign_right2 - sovereign_left) / sovereign_width, 2)
+                        while distance < maximum_percentage:
+                            if distance < minimum_percentage:
+                                self._send_key(rod_slot)
+                                time.sleep(0.1)
+                                self._send_key(relic_slot)
+                                self.click_backpack(enchant_click_x, enchant_click_y)
+                            elif distance > maximum_percentage:
+                                break
 
-                        time.sleep(0.01)
+                            time.sleep(0.01)
                 # Update current cycle
                 self.current_cycle = self.current_cycle + 1
                 # Cast
@@ -3602,7 +3613,7 @@ class Api:
                     else:
                         self._execute_shake_click(shake_mode)
                     time.sleep(self.scan_delay)
-                # Minigame — sets self.catch_success  0 at start; flips to 1 if fish ever leaves the bar
+                # Minigame — sets self.Catch_Success = 0 at start; flips to 1 if fish ever leaves the bar
                 self.set_status("Playing Bar Minigame")
                 if fishing_profile == "reverse":
                     self._enter_minigame_dreambreaker()
@@ -3648,6 +3659,7 @@ class Api:
                 self.send_logging(f"Error at line {error_line}: {e}", 0, -1)
             self.macro_running = False
             self.stop_macro(f"Error at line {error_line}: {e}")
+            return
     def _auto_reconnect(self, center_x, center_y):
         reconnect_threshold = int(self.vars["reconnect_threshold"])
         reconnect_wait_time = int(self.vars["reconnect_wait_time"])
@@ -3660,6 +3672,8 @@ class Api:
         mirror_click_y = int(shake_height * mirror_ratio2) + shake_top
         # 1520
         reconnect_threshold = int((reconnect_threshold / 1500) * shake_width)
+        if dxcam is not None:
+            self.capture_frame = self.camera.get_latest_frame()
         img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
         disconnect_x, disconnect_y = self.find_color_cluster(img, "#393b3d", 5, reconnect_threshold)
         reconnect_x, reconnect_y = self.find_color_cluster(img, "#FFFFFF", 8, int(reconnect_threshold / 2))
@@ -4613,7 +4627,10 @@ class Api:
             # print(f"left_x: {left_x}, right_x: {right_x}")
             # print(f"bar_center: {bar_center}, bar_size: {bar_size}")
             # Bag spam & lock cursor
-            bag_spam_cycle += 1
+            try:
+                bag_spam_cycle += 1
+            except:
+                bag_spam_cycle = 0
             if bag_spam_cycle == 5:
                 bag_spam_cycle = 0
                 if bag_spam == "on":
@@ -5097,11 +5114,15 @@ class Api:
                     and last_right_x is not None
                     and interpolation_bar_velocity is not None
                 ):
+                    if mouse_down:
+                        interpolation_bar_velocity2 = interpolation_bar_velocity
+                    else:
+                        interpolation_bar_velocity2 = 0 - interpolation_bar_velocity
                     left_x = last_left_x + (
-                        interpolation_bar_velocity * self.scan_delay
+                        interpolation_bar_velocity2 * self.scan_delay
                     )
                     right_x = last_right_x + (
-                        interpolation_bar_velocity * self.scan_delay
+                        interpolation_bar_velocity2 * self.scan_delay
                     )
                     # print("interpolation_bar_velocity:", interpolation_bar_velocity)
                 else:
@@ -5261,7 +5282,7 @@ class Api:
                                         right_x = single_line
                                         left_x = last_left_x  # Use last position
                                 else:
-                                    # No previous positions  just assign to left bar
+                                    # No previous Positions - Just assign to left bar
                                     left_x = single_line
                                     right_x = fish_x2  # Fallback
                             else:
@@ -5280,12 +5301,12 @@ class Api:
                             max_jump = max(target_left_jump, target_right_jump, left_bar_jump, right_bar_jump)
                             # If movement exceeds threshold percentage of screen width, it might be a teleport
                             if max_jump > TELEPORT_THRESHOLD:
-                                # Potential teleport  check if it's consistent at this new position
+                                # Potential Teleport - Check if it's consistent at this new position
                                 if (potential_teleport_target_left == fish_x and
                                     potential_teleport_target_right == fish_x2 and
                                     potential_teleport_left_bar == left_x and
                                     potential_teleport_right_bar == right_x):
-                                    # Same position detected again  track time
+                                    # Same position detected Again - Track time
                                     if teleport_first_detected_time is None:
                                         teleport_first_detected_time = current_time
                                     # Check if teleport has been consistent long enough
@@ -5516,7 +5537,7 @@ class Api:
                         control_signal = p_term + d_term
                         last_error = error
                 elif current_controller_mode == "predictive":
-                    # Predictive: predictive controller with linear stopping distance and counterthrust
+                    # Predictive: predictive controller with linear stopping distance and Counter-thrust
                     # Init failsafe
                     if color_check_bar_velocity is None:
                         color_check_bar_velocity = 0.0
@@ -5552,7 +5573,7 @@ class Api:
                     # print("color_check_target_velocity: ", round(color_check_target_velocity, 2))
                     # print("relative_velocity: ", round(relative_velocity, 2))
                     # print("stopping_distance: ", round(stopping_distance2, 2))
-                    # Onbar: use stoppingdistance / counterthrust logic
+                    # On-bar: use Stopping-distance / Counter-thrust logic
                     if error < -stopping_distance2:
                         # Bar is left of fish beyond stopping distance → hold to move right
                         control_signal = 30
@@ -5560,7 +5581,7 @@ class Api:
                         # Bar is right of fish beyond stopping distance → release to move left
                         control_signal = -30
                     else:
-                        # Within stopping distance — counterthrust based on relative velocity
+                        # Within stopping distance — Counter-thrust based on relative velocity
                         if relative_velocity > 0:
                             # Bar moving right relative to fish → release (apply left thrust)
                             control_signal = -30
@@ -5568,7 +5589,7 @@ class Api:
                             # Bar moving left relative to fish → hold (apply right thrust)
                             control_signal = 30
             # Mouse state
-            interpolation_bar_velocity = (bar_center - last_valid_bar_center) / time_delta
+            interpolation_bar_velocity = abs((bar_center - last_valid_bar_center) / time_delta)
             # print(f"error: {error}")
             # print(f"control_signal: {control_signal}")
             if control_signal > 0:
@@ -5614,9 +5635,20 @@ class Api:
             and self.capture_thread is not threading.current_thread()
         ):
             self.capture_thread.join()
+        # Fully release DXCamera so a later dxcam.create() does not hit the
+        # "instance already exists ... Delete the old object with `del obj`" warning.
         try:
-            self.camera.stop()
-        except:
+            if self.camera is not None:
+                try:
+                    self.camera.stop()
+                except Exception:
+                    pass
+                try:
+                    del self.camera
+                except Exception:
+                    pass
+                self.camera = None
+        except Exception:
             pass
         if not text == "":
             self.set_status(text)
