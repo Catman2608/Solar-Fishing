@@ -5,7 +5,7 @@ a = Analysis(
     ['SolarFishingV5.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('ui', 'ui'), ('images', 'images'), ('configs', 'configs')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -408,81 +408,103 @@ elif sys.platform.startswith("linux"):
             time.sleep(delay)
             xtest.fake_input(d, X.KeyRelease, keycode)
             d.sync()
-# Config Management
-def get_base_path():
-    # 1. Check If The Application Is Bundled/Frozen
-    if getattr(sys, 'frozen', False):
-        # Detect If It'S A macOS Application Bundle (.App)
-        if sys.platform == 'darwin':
-            if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-                #   Windows/Linux onedir →  <app>/_internal
-                #   macOS .app           →  <app>.app/Contents/Frameworks
-                #   onefile              →  temp extract dir
-                return Path(sys._MEIPASS).resolve(), True
+# Path Management
+def _is_frozen():
+    return bool(getattr(sys, "frozen", False))
 
-        # Detect If It'S A Linux Packaged Environment (Like Appimage)
-        # Linux Appimages Extract To A Mount Point, Keeping Assets Inside The Binary Environment
-        elif sys.platform == "linux":
-            if 'AppRun' in sys.executable:
-                return Path(sys.executable).parent.resolve(), True
+def get_exe_dir():
+    """Directory that contains the running executable (or the .py file in dev)."""
+    if _is_frozen():
+        return Path(sys.executable).parent.resolve()
+    return Path(__file__).parent.resolve()
 
-        # 2. Windows Exe (Onefile) Or Standard Local Folder Deployment
-        # Returns The Directory Containing The Actual .Exe File, Not The Temporary _Meipass Folder
-        else:
-            return Path(sys.executable).parent.resolve(), True
+def get_resource_path():
+    """
+    Packaged assets (ui/, images/, bundled default configs/).
+    Compiled macOS/Linux: PyInstaller onedir --add-data folder (sys._MEIPASS,
+    typically <app>/_internal or .app/Contents/Frameworks).
+    Compiled Windows: directory next to the .exe (unchanged).
+    Dev: project directory.
+    """
+    if _is_frozen():
+        if sys.platform == "win32":
+            return Path(sys.executable).parent.resolve()
+        if hasattr(sys, "_MEIPASS"):
+            return Path(sys._MEIPASS).resolve()
+        return Path(sys.executable).parent.resolve()
+    return Path(__file__).parent.resolve()
 
-    # 3. Running From Raw Source Code (.Py File)
-    else:
-        return Path(__file__).parent.resolve(), False
-# Get Appdata Path
 def get_appdata_path():
-    """Unified base directory for app data."""
-    if getattr(sys, 'frozen', False):
-        # Compiled App → Use User Directory
+    """Writable user data. Compiled → platform AppData; dev → project directory."""
+    if _is_frozen():
         if sys.platform == "darwin":
             return os.path.join(
-
                 os.path.expanduser("~"),
                 "Library", "Application Support",
                 "SolarFishingV5"
             )
         elif sys.platform == "win32":
             return os.path.join(
-
                 os.path.expanduser("~"),
                 "AppData", "Roaming",
                 "SolarFishingV5"
             )
         else:
             return os.path.join(os.path.expanduser("~"), "SolarFishingV5")
-    # Dev Mode → Project Directory
-    return os.path.dirname(os.path.abspath(__file__))
-# Establish The Global Base Path For Solar Fishing V5
-BASE_PATH, IS_COMPILED = get_base_path()
-APPDATA_PATH = get_appdata_path()
-# Make Sure Base Path Exists
-os.makedirs(BASE_PATH, exist_ok=True)
-# Configs Path
-LAST_CONFIG = os.path.join(BASE_PATH, "last_config.json")
-data = load_misc_settings(LAST_CONFIG)
-try:
-    if data["appdata_settings"] == "on":
-        CONFIGS_PATH = os.path.join(APPDATA_PATH, "configs")
+    return str(Path(__file__).parent.resolve())
+
+def find_bundled_configs(resource_path, exe_dir):
+    """Locate the packaged configs folder shipped with the onedir build."""
+    candidates = [
+        os.path.join(resource_path, "configs"),
+        os.path.join(exe_dir, "configs"),
+        os.path.join(exe_dir, "_internal", "configs"),
+    ]
+    for path in candidates:
+        if os.path.isdir(path):
+            return path
+    return candidates[0]
+
+def seed_configs_from_bundle(bundled_configs, configs_path):
+    """If AppData has no configs folder, copy the packaged defaults into it."""
+    if os.path.isdir(configs_path):
+        return
+    if os.path.isdir(bundled_configs):
+        shutil.copytree(bundled_configs, configs_path)
     else:
-        CONFIGS_PATH = os.path.join(BASE_PATH, "configs")
-except:
-    CONFIGS_PATH = os.path.join(BASE_PATH, "configs")
-IMAGES_PATH = os.path.join(BASE_PATH, "images")
-UI_PATH = os.path.join(BASE_PATH, "ui")
+        os.makedirs(configs_path, exist_ok=True)
+
+# Establish Paths For Solar Fishing V5
+RESOURCE_PATH = str(get_resource_path())
+EXE_DIR = str(get_exe_dir())
+IS_COMPILED = _is_frozen()
+APPDATA_PATH = get_appdata_path()
+# Writable Files (Last_Config.Json, Debug Shots, Logs) Live Here.
+# Compiled → Appdata; Dev → Project Directory.
+BASE_PATH = APPDATA_PATH if IS_COMPILED else RESOURCE_PATH
+os.makedirs(BASE_PATH, exist_ok=True)
+IMAGES_PATH = os.path.join(RESOURCE_PATH, "images")
+UI_PATH = os.path.join(RESOURCE_PATH, "ui")
+if IS_COMPILED:
+    CONFIGS_PATH = os.path.join(APPDATA_PATH, "configs")
+    BUNDLED_CONFIGS_PATH = find_bundled_configs(RESOURCE_PATH, EXE_DIR)
+    seed_configs_from_bundle(BUNDLED_CONFIGS_PATH, CONFIGS_PATH)
+else:
+    BUNDLED_CONFIGS_PATH = os.path.join(RESOURCE_PATH, "configs")
+    CONFIGS_PATH = BUNDLED_CONFIGS_PATH
+LAST_CONFIG = os.path.join(BASE_PATH, "last_config.json")
 # File Management
-def open_base_folder():
-    folder = BASE_PATH
+def open_folder(folder):
     if sys.platform == "win32":
         os.startfile(folder)
     elif sys.platform == "darwin":  # Macos
         subprocess.run(["open", folder])
     else:  # Linux
         subprocess.run(["xdg-open", folder])
+
+def open_base_folder():
+    # Writable User Data (Configs, Debug Shots, Logs)
+    open_folder(BASE_PATH)
 # Central Area Definitions.  To Add A New Selectable Area:
 # 1. Add An Entry Below (Key, Color, Label, Default Ratios 0–1).
 # 2. That'S It — Selector Ui, Save/Load, Defaults, And The Show/Hide Menu
@@ -6566,11 +6588,11 @@ def check_setup_guide():
         with open(os.path.join(UI_PATH, "app.js"), "r", encoding="utf-8-sig") as file:
             lines = file.readline().strip()
     except FileNotFoundError:
-        open_folder = messagebox.askyesno("Missing Files", """Your installation is missing the configs, images and UI folder.
+        open_folder_choice = messagebox.askyesno("Missing Files", """Your installation is missing the images or UI folder.
         Please report this bug in the Discord Server.\n
-        Do you want to open the configs folder?""")
-        if open_folder == True:
-            open_base_folder()
+        Do you want to open the install folder?""")
+        if open_folder_choice == True:
+            open_folder(RESOURCE_PATH)
         return False
 
     try:
