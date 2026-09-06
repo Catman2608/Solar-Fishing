@@ -649,10 +649,10 @@ button {
     display: none;
 }
 
-/* Box Grid ─ */
+/* Color Grid ─ */
 .box-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
     margin-top: 15px;
 }
@@ -702,81 +702,6 @@ button {
 .simple-box input:focus {
     border-color: var(--focus-ring);
     box-shadow: 0 0 10px var(--focus-glow);
-}
-
-/* Image Display */
-.game-icon {
-    width: 64px;
-    height: 64px;
-
-    margin: 0 auto 1rem;
-    padding: 6px;
-
-    border-radius: 14px;
-
-    background: linear-gradient(
-        135deg,
-        rgba(250,107,53,.12),
-        rgba(123,97,255,.08)
-    );
-
-    border: 1px solid rgba(255,255,255,.05);
-
-    object-fit: cover;
-
-    transition: transform .25s ease;
-}
-
-/* Credits Grid */
-.credits-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-    margin-top: 1.5rem;
-}
-
-/* Individual Credit */
-.credit-card {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-
-    padding: 1rem;
-
-    border-radius: 14px;
-
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-
-    transition: transform 0.25s ease, background 0.25s ease;
-}
-
-.credit-card:hover {
-    transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.05);
-}
-
-/* Credit Image */
-.credit-card .game-icon {
-    flex-shrink: 0;
-
-    width: 64px;
-    height: 64px;
-
-    margin: 0;
-}
-
-/* Credit Text */
-.credit-info {
-    min-width: 0;
-}
-
-.credit-info h4 {
-    margin: 0 0 0.35rem;
-}
-
-.credit-info p {
-    margin: 0;
 }
 
 /* Config Modal ── */

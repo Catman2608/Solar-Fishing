@@ -6,6 +6,10 @@ from tkinter import messagebox
 # Text Parsing
 import json
 import re
+# Computer Vision
+import cv2
+import numpy as np
+import mss
 # Misc
 import traceback
 import threading
@@ -21,9 +25,6 @@ import shutil
 import math
 import random
 from pathlib import Path
-# Computer Vision
-import cv2
-import numpy as np
 # Capture
 if sys.platform == "win32":
     try:
@@ -32,18 +33,6 @@ if sys.platform == "win32":
         dxcam = None
 else:
     dxcam = None
-try:
-    if dxcam is None:
-        from fastgrab import screenshot
-    else:
-        screenshot = None
-except ImportError:
-    screenshot = None
-try:
-    img = screenshot.Screenshot().capture()
-except:
-    screenshot = None
-import mss
 # Keyboard And Mouse Clicks (Platformspecific)
 from pynput.keyboard import Listener as KeyListener, Key
 from pynput import keyboard, mouse
@@ -413,18 +402,14 @@ def get_base_path():
     # 1. Check If The Application Is Bundled/Frozen
     if getattr(sys, 'frozen', False):
         # Detect If It'S A macOS Application Bundle (.App)
-        if sys.platform == 'darwin':
-            if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-                #   Windows/Linux onedir →  <app>/_internal
-                #   macOS .app           →  <app>.app/Contents/Frameworks
-                #   onefile              →  temp extract dir
-                return Path(sys._MEIPASS).resolve(), True
+        # In macOS Bundles, The Executable Runs Inside Contents/macOS/
+        if sys.platform == 'darwin' and '.app/Contents/MacOS' in sys.executable:
+            return Path(sys.executable).parent.resolve(), True
 
         # Detect If It'S A Linux Packaged Environment (Like Appimage)
         # Linux Appimages Extract To A Mount Point, Keeping Assets Inside The Binary Environment
-        elif sys.platform == "linux":
-            if 'AppRun' in sys.executable:
-                return Path(sys.executable).parent.resolve(), True
+        elif sys.platform.startswith('linux') and 'AppRun' in sys.executable:
+            return Path(sys.executable).parent.resolve(), True
 
         # 2. Windows Exe (Onefile) Or Standard Local Folder Deployment
         # Returns The Directory Containing The Actual .Exe File, Not The Temporary _Meipass Folder
@@ -483,10 +468,12 @@ def open_base_folder():
         subprocess.run(["open", folder])
     else:  # Linux
         subprocess.run(["xdg-open", folder])
+# ─────────────────────────────────────────────────────────────────────────────
 # Central Area Definitions.  To Add A New Selectable Area:
 # 1. Add An Entry Below (Key, Color, Label, Default Ratios 0–1).
 # 2. That'S It — Selector Ui, Save/Load, Defaults, And The Show/Hide Menu
 #      all pick it up automatically.  Use get_areas("your_key") later if needed.
+# ─────────────────────────────────────────────────────────────────────────────
 AREA_CONFIG = {
     "shake": {
         "color": "#df0000",
@@ -509,17 +496,12 @@ AREA_CONFIG = {
         "default": {"x": 0.9504, "y": 0.8305, "width": 0.0234, "height": 0.0490},
     },
     "sovereign": {
-        "color": "#d994ff",
+        "color": "#4200ff",
         "label": "Sovereign Box (Bar)",
         "default": {"x": 0.2844, "y": 0.8184, "width": 0.4297, "height": 0.0185},
     },
-    "noiseform": {
-        "color": "#2a8d4f",
-        "label": "Noiseform Box (Shapes)",
-        "default": {"x": 0.4222, "y": 0.3543, "width": 0.2056, "height": 0.2762},
-    },
     "lullaby": {
-        "color": "#fdeeca",
+        "color": "#126744",
         "label": "Lullaby Box (Above Fish)",
         "default": {"x": 0.4222, "y": 0.7043, "width": 0.1556, "height": 0.1360},
     },
@@ -549,7 +531,7 @@ AREA_CONFIG = {
         "default": {"x": 0.3061, "y": 0.3932, "width": 0.3649, "height": 0.1674},
     },
     "angler_quest": {
-        "color": "#9BFF9B",
+        "color": "#126799",
         "label": "Quest Box (Angler)",
         "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
     },
@@ -1299,10 +1281,6 @@ class FishOverlay:
         if not self._open or not self._overlay_window:
             return
 
-        # Failsafe if shape is None
-        if x1 is None:
-            return
-
         scale = get_scale_factor()
         if scale <= 0:
             scale = 1.0
@@ -1574,8 +1552,6 @@ class Api:
         self.status_right = (300 * scale * self.scale_x_1080)
         self.status_bottom = (200 * scale * self.scale_y_1080)
         self.status_overlay.hide()
-        # Noiseform (Shapes) Warn-Kind State — Port Of DeepFish NoiseWarnKind()
-        self._reset_noiseform_warn_state()
         # Load Settings
         self._load_misc_settings()
     def _refresh_screen_dimensions(self):
@@ -2429,13 +2405,10 @@ class Api:
                         self.camera = dxcam.create(output_color="BGR")
                         self.camera.start()
                     else:
-                        if screenshot is not None:
-                            self.capture_thread = threading.Thread(target=self.capture_loop_fastgrab, daemon=True)
+                        if sys.platform == "darwin":
+                            self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
                         else:
-                            if sys.platform == "darwin":
-                                self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
-                            else:
-                                self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
+                            self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
                         self.capture_thread.start()
             elif key == area_selector_key:
                 # Guard To Prevent Area Selector From Being Opened The Second The Macro Started
@@ -2669,49 +2642,31 @@ class Api:
         Capture a single full-screen frame without touching self.macro_running.
         Used by debug screenshots, eyedropper freeze, and Discord screenshot logging.
         """
-        if screenshot is not None:
-            return screenshot.Screenshot().capture()
+        if sys.platform == "darwin":
+            image = Quartz.CGWindowListCreateImage(
+                Quartz.CGRectInfinite,
+                Quartz.kCGWindowListOptionOnScreenOnly,
+                Quartz.kCGNullWindowID,
+                Quartz.kCGWindowImageDefault
+            )
+            if image is None:
+                return None
+
+            return cgimage_to_srgb_numpy(image)
+
         else:
-            if sys.platform == "darwin":
-                image = Quartz.CGWindowListCreateImage(
-                    Quartz.CGRectInfinite,
-                    Quartz.kCGWindowListOptionOnScreenOnly,
-                    Quartz.kCGNullWindowID,
-                    Quartz.kCGWindowImageDefault
-                )
-                if image is None:
-                    return None
-
-                return cgimage_to_srgb_numpy(image)
-
-            else:
-                scale = get_scale_factor()
-                with MSS() as sct:
-                    monitor = {
-                        "top": 0,
-                        "left": 0,
-                        "width": int(SCREEN_WIDTH * scale),
-                        "height": int(SCREEN_HEIGHT * scale),
-                    }
-                    return np.asarray(sct.grab(monitor))[:, :, :3]
-
-
-    def capture_loop_fastgrab(self):
-        """Continuous capture loop for the macro. Assumes self.macro_running is already True."""
-        if not self.macro_running:
-            return
-
-        self.capture_id = 0
-
-        sct = screenshot.Screenshot()
-
-        while self.macro_running:
-            self.capture_frame = sct.capture()[:, :, :3]
-            self.capture_id += 1
-            time.sleep(self.scan_delay)
+            scale = get_scale_factor()
+            with MSS() as sct:
+                monitor = {
+                    "top": 0,
+                    "left": 0,
+                    "width": int(SCREEN_WIDTH * scale),
+                    "height": int(SCREEN_HEIGHT * scale),
+                }
+                return np.asarray(sct.grab(monitor))[:, :, :3]
 
     def capture_loop_mss(self):
-        """Continuous capture loop for the macro (Windows fallback). Assumes self.macro_running is already True."""
+        """Continuous capture loop for the macro. Assumes self.macro_running is already True."""
         if not self.macro_running:
             return
 
@@ -2729,7 +2684,7 @@ class Api:
                 self.capture_id += 1
                 time.sleep(self.scan_delay)
     def capture_loop_quartz(self):
-        """Continuous capture loop for the macro (macOS fallback). Assumes self.macro_running is already True."""
+        """Continuous capture loop for the macro (macOS). Assumes self.macro_running is already True."""
         if not self.macro_running:
             return
 
@@ -2756,7 +2711,6 @@ class Api:
             self.capture_frame = frame
             self.capture_id += 1
             time.sleep(self.scan_delay)
-
     def process_image_for_ocr(self, img):
         # Convert To Grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -3073,404 +3027,6 @@ class Api:
         except Exception as e:
             # print(f"    Error in line detection: {e}")
             return []
-
-    def _reset_noiseform_warn_state(self):
-        """Reset NoiseWarnKind rolling baselines / rings. Call on init and minigame start."""
-        self._noise_w_base = 0
-        self._noise_w_base_ml = 0
-        self._noise_w_dthr = 6
-        self._noise_dk_ring = [-1] * 32
-        self._noise_ml_ring = [-1] * 32
-        self._noise_d6_ring = [-1] * 32
-        self._noise_dk_idx = 0
-        self._noise_dk_n = 0
-        self._noise_w_gt = 0.0
-        self._noise_w_now = ""
-        self._noise_w_blk = 0
-        self._noise_w_bn = 0
-        self._noise_w_gr = 0
-        self._noise_w_dk = 0
-        self._noise_w_d6 = 0
-        self._noise_w_ml = -1
-        # NoiseGimmickTarget / NoiseZoneScanAll
-        self._noise_z_wx = -1
-        self._noise_z_gx = -1
-        self._noise_z_kx = -1
-        self._noise_z_ok = False
-        self._noise_z_prev_ok = False
-        self._noise_z_scan_t = 0.0
-        self._noise_z_fresh_t = 0.0
-        self._noise_pend_kind = ""
-        self._noise_pend_t = 0.0
-        self._noise_zone_tgt = -1
-        self._noise_zone_t = 0.0
-        self._noise_zone_kind = ""
-        self._noise_z_bd = 0
-        self._noise_z_bb = 0
-        self._noise_z_bl = 0
-        self._noise_z_bg = 0
-
-    def detect_noiseform_color(self, img):
-        """Classify the Noiseform warning flash: WHITE / GREEN / BLACK / "".
-
-        Port of DeepFish ALPHA v1.4 NoiseWarnKind(). `img` is the Noiseform Box
-        crop from capture_frame (BGR). Geometry is computed in screen pixels
-        (center at 50% x, 51.94% y) then mapped into this crop, matching AHK's
-        WindowWidth/Height minus FishBarLeft/NoteTop mapping.
-        """
-        if img is None or img.size == 0 or img.ndim < 2:
-            return ""
-        h, w = img.shape[:2]
-        if h < 80 or w < 100:
-            return ""
-
-        try:
-            noiseform_left, noiseform_top, _, _, _, _ = self.get_areas("noiseform")
-        except Exception:
-            noiseform_left, noiseform_top = 0, 0
-
-        screen_w = max(1, int(getattr(self, "SCREEN_WIDTH", SCREEN_WIDTH) or SCREEN_WIDTH))
-        screen_h = max(1, int(getattr(self, "SCREEN_HEIGHT", SCREEN_HEIGHT) or SCREEN_HEIGHT))
-
-        # AHK: wcx := Round((WindowWidth * 0.500) - FishBarLeft)
-        wcx = int(round((screen_w * 0.500) - noiseform_left))
-        wcy = int(round((screen_h * 0.5194) - noiseform_top))
-        whw = int(round(screen_w * 0.082))
-        wskip = int(round(screen_w * 0.023))
-        whh = int(round(screen_h * 0.052))
-
-        wx0 = max(0, wcx - whw)
-        wx1 = min(w - 1, wcx + whw)
-        wy0 = max(0, wcy - whh)
-        wy1 = min(h - 1, wcy + whh)
-        if wx1 - wx0 < 24 or wy1 - wy0 < 24:
-            return ""
-
-        # Adaptive dark threshold from rolling mean-luminance baseline.
-        # NoiseWML is mean(vl)*100 (0–25500). dthr = clamp(round(base_ml*45/10000), 6, 60).
-        base_ml = int(getattr(self, "_noise_w_base_ml", 0) or 0)
-        if base_ml >= 200:
-            dthr = int(round((base_ml * 45) / 10000.0))
-            dthr = max(6, min(60, dthr))
-        else:
-            dthr = 6
-        self._noise_w_dthr = dthr
-
-        ys = np.arange(wy0, wy1 + 1, 9)
-        xs = np.arange(wx0, wx1 + 1, 9)
-        # Skip the vertical band around screen-center (AHK wskip).
-        xs = xs[np.abs(xs - wcx) > wskip]
-        if ys.size == 0 or xs.size == 0:
-            return ""
-
-        sample = img[np.ix_(ys, xs)]
-        if sample.size == 0:
-            return ""
-
-        bgr = sample.astype(np.int16)
-        b = bgr[..., 0]
-        g = bgr[..., 1]
-        r = bgr[..., 2]
-        brightness = (r + g + b) // 3
-        wn = int(brightness.size)
-        if wn < 30:
-            return ""
-
-        white = (
-            (brightness > 120)
-            & (np.abs(r - g) < 40)
-            & (np.abs(g - b) < 40)
-        )
-        # AHK: white else-if green (mutually exclusive).
-        green = (
-            (~white)
-            & (g > r + 40)
-            & (g > b + 30)
-            & (g > 90)
-        )
-        dark = brightness < 28
-        dark6 = brightness < dthr
-
-        wbn = int(np.count_nonzero(white))
-        wgr = int(np.count_nonzero(green))
-        wdk = int(np.count_nonzero(dark))
-        wd6 = int(np.count_nonzero(dark6))
-        wls = int(np.sum(brightness, dtype=np.int64))
-
-        # Integer percents, same as AHK `(count * 100) // wn`.
-        noise_w_bn = (wbn * 100) // wn
-        noise_w_gr = (wgr * 100) // wn
-        noise_w_dk = (wdk * 100) // wn
-        noise_w_d6 = (wd6 * 100) // wn
-        noise_w_ml = (wls * 100) // wn
-        self._noise_w_bn = noise_w_bn
-        self._noise_w_gr = noise_w_gr
-        self._noise_w_dk = noise_w_dk
-        self._noise_w_d6 = noise_w_d6
-        self._noise_w_ml = noise_w_ml
-
-        now = time.perf_counter()
-        if noise_w_bn > 35:
-            self._noise_w_now = "WHITE"
-            self._noise_w_gt = now
-            return "WHITE"
-        if noise_w_gr > 35:
-            self._noise_w_now = "GREEN"
-            self._noise_w_gt = now
-            return "GREEN"
-
-        # Rolling 32-sample rings used only for BLACK (sudden darken after a flash).
-        dk_idx = int(getattr(self, "_noise_dk_idx", 0) or 0)
-        dk_n = int(getattr(self, "_noise_dk_n", 0) or 0)
-        self._noise_dk_ring[dk_idx] = noise_w_dk
-        self._noise_ml_ring[dk_idx] = noise_w_ml
-        self._noise_d6_ring[dk_idx] = noise_w_d6
-        dk_idx = (dk_idx + 1) % 32
-        if dk_n < 32:
-            dk_n += 1
-        self._noise_dk_idx = dk_idx
-        self._noise_dk_n = dk_n
-
-        past_min = 999
-        past_max_l = -1
-        if dk_n >= 12:
-            for kk in range(3, 10):
-                pri = (dk_idx - kk + 64) % 32
-                pv = self._noise_d6_ring[pri]
-                if pv >= 0 and pv < past_min:
-                    past_min = pv
-                pm = self._noise_ml_ring[pri]
-                if pm > past_max_l:
-                    past_max_l = pm
-
-        gap_t = 9.0
-        last_flash = float(getattr(self, "_noise_w_gt", 0.0) or 0.0)
-        if last_flash > 0:
-            gap_t = now - last_flash
-
-        blk_hit = False
-        if past_min < 999 and past_max_l > 0:
-            if (noise_w_ml * 100) <= (past_max_l * 70) and (noise_w_d6 - past_min) >= 8:
-                blk_hit = True
-
-        if gap_t >= 1.60 and blk_hit:
-            self._noise_w_now = "BLACK"
-            self._noise_w_blk = int(getattr(self, "_noise_w_blk", 0) or 0) + 1
-            return "BLACK"
-
-        self._noise_w_now = ""
-        if self._noise_w_base < 1:
-            self._noise_w_base = noise_w_dk
-        else:
-            self._noise_w_base = ((self._noise_w_base * 24) + noise_w_dk) // 25
-        if self._noise_w_base_ml < 1:
-            self._noise_w_base_ml = noise_w_ml
-        else:
-            self._noise_w_base_ml = ((self._noise_w_base_ml * 24) + noise_w_ml) // 25
-        return ""
-
-    def scan_noiseform_zones(self, fish_img):
-        """Locate WHITE / GREEN / BLACK segments on the fish-bar strip.
-
-        Port of DeepFish ALPHA v1.4 NoiseZoneScanAll(). `fish_img` is the Fish
-        Box crop (BGR), the same strip AHK keeps in pCaptureBits.
-
-        Returns True only when all three zones are found this pass. Zone X
-        values are stored on self as bar-relative pixels (0 = fish_left).
-        """
-        self._noise_z_wx = -1
-        self._noise_z_gx = -1
-        self._noise_z_kx = -1
-        self._noise_z_bd = 0
-        self._noise_z_bb = 0
-        self._noise_z_bl = 0
-        self._noise_z_bg = 0
-        if fish_img is None or fish_img.size == 0 or fish_img.ndim < 2:
-            return False
-        h, w = fish_img.shape[:2]
-        if w < 200 or h < 14:
-            return False
-        zw = int(round(w * 0.12))
-        if zw < 24:
-            return False
-
-        rows = np.arange(3, h - 3, 5)
-        if rows.size < 3:
-            return False
-        strip = fish_img[rows]
-        b = strip[..., 0].astype(np.int32)
-        g = strip[..., 1].astype(np.int32)
-        r = strip[..., 2].astype(np.int32)
-        zl = (r + g + b) // 3
-        zm = np.maximum(r, b)
-        c_l = zl.sum(axis=0, dtype=np.int64)
-        c_g = (g - zm).sum(axis=0, dtype=np.int64)
-        c_b = (zl > 140).sum(axis=0, dtype=np.int64)
-        c_d = np.zeros(w, dtype=np.int64)
-        c_d[1:] = np.abs(zl[:, 1:] - zl[:, :-1]).sum(axis=0, dtype=np.int64)
-
-        nrow = int(rows.size)
-        tot = zw * nrow
-        if tot < 1:
-            return False
-
-        # Prefix sums so each 12%-wide window is O(1), same a += 16 walk as AHK.
-        p_l = np.concatenate(([0], np.cumsum(c_l, dtype=np.int64)))
-        p_g = np.concatenate(([0], np.cumsum(c_g, dtype=np.int64)))
-        p_d = np.concatenate(([0], np.cumsum(c_d, dtype=np.int64)))
-        p_b = np.concatenate(([0], np.cumsum(c_b, dtype=np.int64)))
-
-        r_wa = r_ga = r_ka = -1
-        r_wn = r_gn = r_kn = 0
-        b_wa = b_ga = b_ka = -1
-        b_wn = b_gn = b_kn = 0
-
-        a = 0
-        while a + zw <= w:
-            s_l = int(p_l[a + zw] - p_l[a])
-            s_g = int(p_g[a + zw] - p_g[a])
-            s_d = int(p_d[a + zw] - p_d[a])
-            s_b = int(p_b[a + zw] - p_b[a])
-            m_l = s_l // tot
-            m_g = s_g // tot
-            m_d = s_d // tot
-            m_b = (s_b * 100) // tot
-            if m_d > self._noise_z_bd:
-                self._noise_z_bd = m_d
-                self._noise_z_bl = m_l
-                self._noise_z_bg = m_g
-            if m_l < 60 and m_b > self._noise_z_bb:
-                self._noise_z_bb = m_b
-            is_w = (m_d >= 8 and m_l > 110 and m_g < 45)
-            is_g = (m_d >= 8 and m_l > 40 and m_l < 115 and m_g > 45)
-            is_k = (m_l < 60 and m_b >= 3 and m_d >= 2 and not is_w and not is_g)
-            if is_w:
-                if r_wa < 0:
-                    r_wa = a
-                r_wn += 1
-                if r_wn > b_wn:
-                    b_wn = r_wn
-                    b_wa = r_wa
-            else:
-                r_wa = -1
-                r_wn = 0
-            if is_g:
-                if r_ga < 0:
-                    r_ga = a
-                r_gn += 1
-                if r_gn > b_gn:
-                    b_gn = r_gn
-                    b_ga = r_ga
-            else:
-                r_ga = -1
-                r_gn = 0
-            if is_k:
-                if r_ka < 0:
-                    r_ka = a
-                r_kn += 1
-                if r_kn > b_kn:
-                    b_kn = r_kn
-                    b_ka = r_ka
-            else:
-                r_ka = -1
-                r_kn = 0
-            a += 16
-
-        # Center of the longest run. AHK adds FishBarLeft; we stay bar-relative
-        # so the value can be assigned to fish_x the same way notes use note_x.
-        half = zw // 2
-        if b_wn > 0:
-            self._noise_z_wx = int(round(b_wa + (((b_wn - 1) * 16) // 2) + half))
-        if b_gn > 0:
-            self._noise_z_gx = int(round(b_ga + (((b_gn - 1) * 16) // 2) + half))
-        if b_kn > 0:
-            self._noise_z_kx = int(round(b_ka + (((b_kn - 1) * 16) // 2) + half))
-
-        if self._noise_z_kx >= 0 and self._noise_z_wx >= 0 and abs(self._noise_z_kx - self._noise_z_wx) < zw:
-            self._noise_z_kx = -1
-        if self._noise_z_kx >= 0 and self._noise_z_gx >= 0 and abs(self._noise_z_kx - self._noise_z_gx) < zw:
-            self._noise_z_kx = -1
-        if self._noise_z_wx >= 0 and self._noise_z_gx >= 0 and abs(self._noise_z_wx - self._noise_z_gx) < zw:
-            if b_wn >= b_gn:
-                self._noise_z_gx = -1
-            else:
-                self._noise_z_wx = -1
-        return self._noise_z_wx >= 0 and self._noise_z_gx >= 0 and self._noise_z_kx >= 0
-
-    def detect_noiseform_target(self, noiseform_img, fish_img):
-        """Pick the bar-relative X for the current Noiseform warning.
-
-        Port of DeepFish ALPHA v1.4 NoiseGimmickTarget() / NoteTarget() for
-        Noiseform. Calls detect_noiseform_color (warn flash) then
-        scan_noiseform_zones (bar segments).
-
-        Returns (kind, x) where kind is this frame's WHITE/GREEN/BLACK/"" and
-        x is a locked zone coordinate or None (same role as note_x).
-        """
-        now = time.perf_counter()
-        gk = self.detect_noiseform_color(noiseform_img)
-
-        seq = self._noise_pend_t > 0 and (now - self._noise_pend_t) < 2.0
-        if gk:
-            if gk != "BLACK":
-                self._noise_pend_kind = gk
-                self._noise_pend_t = now
-            elif self._noise_pend_kind == "" or self._noise_pend_kind == "BLACK" or not seq:
-                self._noise_pend_kind = "BLACK"
-                self._noise_pend_t = now
-
-        pend = self._noise_pend_t > 0 and (now - self._noise_pend_t) < 2.20
-        gint = 0.15 if (pend or self._noise_zone_tgt >= 0) else 1.00
-        zlock = self._noise_z_fresh_t > 0 and (now - self._noise_z_fresh_t) < 0.60
-
-        if self._noise_z_scan_t < 1 or (now - self._noise_z_scan_t) >= gint:
-            self._noise_z_scan_t = now
-            zp_w, zp_g, zp_k = self._noise_z_wx, self._noise_z_gx, self._noise_z_kx
-            if self.scan_noiseform_zones(fish_img):
-                self._noise_z_fresh_t = now
-                if zlock:
-                    self._noise_z_wx = zp_w
-                    self._noise_z_gx = zp_g
-                    self._noise_z_kx = zp_k
-            else:
-                self._noise_z_wx = zp_w
-                self._noise_z_gx = zp_g
-                self._noise_z_kx = zp_k
-
-        self._noise_z_prev_ok = self._noise_z_ok
-        self._noise_z_ok = self._noise_z_fresh_t > 0 and (now - self._noise_z_fresh_t) < 0.60
-
-        if self._noise_zone_tgt >= 0:
-            zage = now - self._noise_zone_t
-            zgap = (now - self._noise_z_fresh_t) if self._noise_z_fresh_t > 0 else 99.0
-            if zage < 1.85 and zgap < 1.00:
-                return gk, self._noise_zone_tgt
-            if zage < 4.00 and self._noise_z_ok:
-                return gk, self._noise_zone_tgt
-            self._noise_zone_tgt = -1
-            self._noise_zone_kind = ""
-            self._noise_pend_kind = ""
-            self._noise_pend_t = 0.0
-
-        if not pend or not self._noise_z_ok:
-            return gk, None
-
-        if self._noise_pend_kind == "WHITE":
-            gz = self._noise_z_wx
-        elif self._noise_pend_kind == "GREEN":
-            gz = self._noise_z_gx
-        elif self._noise_pend_kind == "BLACK":
-            gz = self._noise_z_kx
-        else:
-            gz = -1
-        if gz < 0:
-            return gk, None
-
-        self._noise_zone_tgt = gz
-        self._noise_zone_t = now
-        self._noise_zone_kind = self._noise_pend_kind
-        self._noise_pend_t = 0.0
-        return gk, gz
 
     def auto_crop_template(self, template, lower_white=200):
         """
@@ -5235,8 +4791,7 @@ class Api:
             if lock_cursor == "on":
                 mouse_controller.position = (int(fish_x / scale), int(fish_y / scale))
             # Draw
-            if left_x is not None:
-                self.fish_overlay.draw_box(x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green")
+            self.fish_overlay.draw_box(x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green")
             # Controller Output
             self.status_overlay.set_line(1, f"Detection Source: ", detection_source)
             self.status_overlay.set_line(2, f"Last Source: ", last_detection_source)
@@ -5767,11 +5322,46 @@ class Api:
             if mouse_down:
                 self.release_mouse(mouse_state)
                 mouse_down = False
+        # Click Pulse Timing — Each "Tick" Is A Short Hold Followed By A Release,
+        # But The Split Between Them (The Duty Cycle) Is Adjusted Every Call Based
+        # On Where The Fish Is Inside The Bar, So The Bar Continuously Re-centers
+        # On The Fish Instead Of Snapping Between A Full Hold And A Full Release.
+        # Total Length Of One Hold+release Pulse, In Seconds. This Needs To Be
+        # Long Enough That Most Games (Which Typically Only Sample "Is The Mouse
+        # Down" Once Per Rendered Frame, ~16Ms At 60Fps) Can Actually Register
+        # Both The Press And The Release — Too Short And The Click Never Lands
+        # At All, Which Looks Exactly Like The Bar Ignoring The Fish Entirely.
+        CLICK_PERIOD = 0.05
+        # Duty Cycle (Fraction Of The Pulse Spent Holding) Used When The Fish Is
+        # Exactly Centered. Holding Pushes The Bar Right Harder Than Releasing
+        # Lets It Fall Left, So This Needs To Be Well Below 50% To Actually Hover
+        # In Place Rather Than Drift Right.
+        HOVER_DUTY = 0.2
+        def centering_click(norm_error, mouse_state=False):
+            "Pulse the mouse with a duty cycle proportional to how far off-center the fish is (norm_error in [-1, 1]), so the bar keeps re-centering on the fish instead of just snapping to full hold/release."
+            nonlocal mouse_down
+            norm_error = max(-1.0, min(1.0, norm_error))
+            if norm_error >= 0:
+                # Fish Right Of Center — Hold More Than The Hover Baseline, Up To A
+                # Full Hold As The Fish Approaches The Right Edge Of The Bar.
+                duty = HOVER_DUTY + norm_error * (1 - HOVER_DUTY)
+            else:
+                # Fish Left Of Center — Hold Less Than The Hover Baseline, Down To A
+                # Full Release As The Fish Approaches The Left Edge Of The Bar.
+                duty = HOVER_DUTY * (1 + norm_error)
+            hold_duration = CLICK_PERIOD * duty
+            release_duration = CLICK_PERIOD * (1 - duty)
+            self.hold_mouse(mouse_state)
+            if hold_duration > 0:
+                time.sleep(hold_duration)
+            self.release_mouse(mouse_state)
+            if release_duration > 0:
+                time.sleep(release_duration)
+            mouse_down = False
         # Areas
         shake_left, shake_top, shake_right, shake_bottom, _, shake_height = self.get_areas("shake")
         fish_left, fish_top, fish_right, fish_bottom, fish_width, fish_height = self.get_areas("fish")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
-        noiseform_left, noiseform_top, noiseform_right, noiseform_bottom, _, _ = self.get_areas("noiseform")
         # Area Calculations
         note_height = fish_bottom - shake_top
         shake_x = int((shake_left + shake_right) / 2)
@@ -5789,8 +5379,8 @@ class Api:
             else:
                 fish_top_overlay = fish_top - fish_height - fish_height
             overlay_width = fish_right - fish_left
-            overlay_height = int(fish_height / 1.5)
-            self.fish_overlay.resize(
+            overlay_height = fish_height
+            self.fish_overlay.show(
                 fish_left,
                 fish_top_overlay,
                 overlay_width,
@@ -5829,6 +5419,9 @@ class Api:
         bar_ratio_from_side = float(self.vars["bar_ratio_from_side"])
         restart_delay = float(self.vars["restart_delay"])
         self.scan_delay = float(self.vars["minigame_scan_delay"])
+        # Keep The Controller Checking/updating The Fish's Position As Fast As
+        # Possible, Regardless Of The Configured Scan Delay.
+        self.scan_delay = min(self.scan_delay, 0.01)
         controller_mode = self.vars["controller_mode"].lower()
         kp = max(abs(float(self.vars["kp"])), 0.01)
         kd = max(abs(float(self.vars["kd"])), 0.01)
@@ -5878,8 +5471,11 @@ class Api:
         frame_interpolation_cycle = 0
         color_check_bar_velocity = 0.0
         color_check_target_velocity = 0.0
+        # Stuck-edge Latch — Once The Fish Goes Past Either Boundary Of The Bar,
+        # Keep Fully Holding/Releasing (Whichever Matches That Side) Every Frame
+        # Until The Fish Actually Comes Back Onto The Bar. None = Not Stuck.
+        stuck_edge = None
         time.sleep(0.1)
-        self._reset_noiseform_warn_state()
         # Load Templates for Image Search
         try:
             if fishing_mode == "image":
@@ -5920,7 +5516,6 @@ class Api:
                 shake_img = self.capture_frame[shake_top:fish_bottom, fish_left:fish_right]
                 fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-                noiseform_img = self.capture_frame[noiseform_top:noiseform_bottom, noiseform_left:noiseform_right]
             # Reset Per-Frame Detection So A Failed Line Scan Cannot
             # Reuse Stale Coordinates From The Previous Iteration.
             left_x = None
@@ -6262,13 +5857,6 @@ class Api:
                 fish_detected = True
             # Set Status
             self.status_overlay.set_line(2, "Bar Size: ", round(bar_size))
-            # Shapes Detection (Noiseform warn flash + bar-zone target)
-            if fishing_profile == "shapes":
-                noiseform_color, zone_x = self.detect_noiseform_target(noiseform_img, fish_img)
-                if zone_x is not None:
-                    fish_x = zone_x
-                kind_label = noiseform_color or self._noise_zone_kind or "-"
-                self.status_overlay.set_line(3, "Shape: ", kind_label if zone_x is None else f"{kind_label} @ {zone_x}")
             # Note Detection
             if fishing_profile == "notes":
                 note_x, note_y = self.pixel_search(shake_img, pinion_notes_color, pinion_notes_tolerance)
@@ -6319,176 +5907,84 @@ class Api:
             if fish_overlay == "on":
                 if fishing_mode == "color":
                     self.fish_overlay.draw_box(
-                        x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green",
+                        x1=left_x, y1=fish_height*0.15, x2=right_x, y2=fish_height*0.85, color="green",
                         show_bar_center=True
                     )
                     if left_boundary is not None:
                         self.fish_overlay.draw_box(
-                            x1=left_boundary, y1=overlay_height*0.15, x2=left_boundary + 15, y2=overlay_height*0.85, color="lightblue"
+                            x1=left_boundary, y1=fish_height*0.15, x2=left_boundary + 15, y2=fish_height*0.85, color="lightblue"
                         )
                     if right_boundary is not None:
                         self.fish_overlay.draw_box(
-                            x1=right_boundary - 15, y1=overlay_height*0.15, x2=right_boundary, y2=overlay_height*0.85, color="lightblue"
+                            x1=right_boundary - 15, y1=fish_height*0.15, x2=right_boundary, y2=fish_height*0.85, color="lightblue"
                         )
                     if fish_x is not None:
                         self.fish_overlay.draw_box(
-                            x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 15, y2=overlay_height*0.85, color="red"
+                            x1=fish_x, y1=fish_height*0.15, x2=fish_x + 15, y2=fish_height*0.85, color="red"
                         )
                 else:
                     if bar_center > 0 and bar_size > 0 and fish_x > 0:
                         self.fish_overlay.draw_box(
-                            x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green",
+                            x1=left_x, y1=fish_height*0.15, x2=right_x, y2=fish_height*0.85, color="green",
                             show_bar_center=True
                         )
                         self.fish_overlay.draw_box(
-                            x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 15, y2=overlay_height*0.85, color="red",
+                            x1=fish_x, y1=fish_height*0.15, x2=fish_x + 15, y2=fish_height*0.85, color="red",
                         )
                     else:
                         for pos in range(len(line_coords)):
-                            self.fish_overlay.draw_box(x1=line_coords[pos], y1=overlay_height*0.15, x2=line_coords[pos], y2=overlay_height*0.85, color="green")
+                            self.fish_overlay.draw_box(x1=line_coords[pos], y1=fish_height*0.15, x2=line_coords[pos], y2=fish_height*0.85, color="green")
             # Time Delta Is Measured Between Captured Frames.
             time_delta = current_time - last_time
             if time_delta < 0.001:
                 time_delta = 0.001
-            # Reset PID state after switched targets to note
-            if fishing_profile == "notes":
-                if fish_x == note_x:
-                    if last_fish_x != note_x:
-                        last_error = 0
-            elif fishing_profile == "shapes":
-                if fish_x == zone_x:
-                    if last_fish_x != zone_x:
-                        last_error = 0
             # print("(left_x - last_left_x) / time_delta:", (left_x - last_left_x) / self.scan_delay)
             if fish_x is not None:
                 error = fish_x - bar_center
             else:
                 error = 0
                 fish_x = 0
+            # Near-edge Thresholds Used Only To *Release* The Stuck Latch — The Actual
+            # Bar Edges (Not The Looser Outer Boundary) So The Fish Has To Genuinely
+            # Come Back Onto The Bar Instead Of Bouncing In And Out Right At The
+            # Boundary Line.
+            near_left_edge = left_x if left_x is not None else left_boundary
+            near_right_edge = right_x if right_x is not None else right_boundary
             if (fish_x < left_boundary):
+                # Fish Is Too Far Off The Bottom Of The Bar — Release And Stay There
+                # Until The Fish Actually Comes Back Onto The Bar.
                 control_signal = -30
+                stuck_edge = "left"
             elif (fish_x > right_boundary):
+                # Fish Is Too Far Off The Top Of The Bar — Hold And Stay There
+                # Until The Fish Actually Comes Back Onto The Bar.
+                control_signal = 30
+                stuck_edge = "right"
+            elif stuck_edge == "left" and fish_x < near_left_edge:
+                # Still Off The Bottom — Keep Releasing Until The Fish Reaches The
+                # Near Edge Of The Actual Bar, Not Just Back Past The Outer Boundary.
+                control_signal = -30
+            elif stuck_edge == "right" and fish_x > near_right_edge:
+                # Still Off The Top — Keep Holding Until The Fish Reaches The Near
+                # Edge Of The Actual Bar, Not Just Back Past The Outer Boundary.
                 control_signal = 30
             else:
-                if controller_mode == "normal":
-                    # Normal: Traditional Pd Controller
-                    if is_initial_run == True:
-                        control_signal = 0
-                        last_error = error
-                    else:
-                        p_term_multiplier = time_delta / self.scan_delay
-                        p_term = int(error / p_term_multiplier) * kp
-                        d_term = ((error - last_error) / time_delta) * kd
-                        control_signal = p_term + d_term
-                        # print("error - last_error: ", error - last_error)
-                        # print("time_delta: ", time_delta)
-                        # print("p_term: ", p_term)
-                        # print("d_term: ", d_term)
-                        last_error = error
-                elif controller_mode == "steady":
-                    # Steady: Asymmetric Pd Controller With Asymmetric Damping
-                    if is_initial_run == True:
-                        control_signal = 0
-                        last_error = error
-                    else:
-                        p_term_multiplier = time_delta / self.scan_delay
-                        p_term = int(error / p_term_multiplier) * kp
-                        bar_velocity = bar_center - last_bar_center
-                        error_magnitude_decreasing = abs(error) < abs(last_error)
-                        bar_moving_toward_target = (
-                            (bar_velocity > 0 and error > 0)
-                            or (bar_velocity < 0 and error < 0)
-                        )
-                        if note_y_ratio > pinion_note_ratio:
-                            steady_kd_multiplier = 0.5
-                        elif error_magnitude_decreasing and bar_moving_toward_target:
-                            steady_kd_multiplier = 5.0
-                        else:
-                            steady_kd_multiplier = 0.2
-                        d_term = ((error - last_error) / time_delta) * kd * steady_kd_multiplier
-                        control_signal = p_term + d_term
-                        last_error = error
-                elif controller_mode == "predictive":
-                    # Predictive: Predictive Controller With Linear Stopping Distance And Counter-thrust
-                    # Init Failsafe
-                    if color_check_bar_velocity is None:
-                        color_check_bar_velocity = 0.0
-                    if color_check_target_velocity is None:
-                        color_check_target_velocity = 0.0
-                    # Missing Data Failsafe
-                    if fish_x is None or bar_center is None:
-                        control_signal = -30
-                    # Calculate Velocities
-                    if last_bar_center is not None and last_fish_x is not None:
-                        if time_delta > 0:
-                            raw_bar_velocity = (bar_center - last_bar_center) / time_delta
-                            # If The Center Is Unchanged But The Overlay Edges Moved
-                            # (Resize / One-Edge Fill), Use Average Edge Velocity.
-                            if (
-                                raw_bar_velocity == 0
-                                and last_left_x is not None
-                                and last_right_x is not None
-                                and left_x is not None
-                                and right_x is not None
-                            ):
-                                edge_velocity = (
-                                    (left_x - last_left_x) + (right_x - last_right_x)
-                                ) / (2.0 * time_delta)
-                                if edge_velocity != 0:
-                                    raw_bar_velocity = edge_velocity
-                            raw_target_velocity = (fish_x - last_fish_x) / time_delta
-                            color_check_bar_velocity = (velocity_smoothing * raw_bar_velocity + 
-                                                        (1 - velocity_smoothing) * color_check_bar_velocity)
-                            color_check_target_velocity = (velocity_smoothing * raw_target_velocity + 
-                                                            (1 - velocity_smoothing) * color_check_target_velocity)
-                    # Calculate Error And Relative Velocity First
-                    try:
-                        relative_velocity = float(color_check_bar_velocity - color_check_target_velocity)
-                    except:
-                        color_check_bar_velocity = 0
-                        color_check_target_velocity = 0
-                        control_signal = -30
-                    # Nan Guard After Variables Are Defined
-                    if not np.isfinite(relative_velocity):
-                        control_signal = -30
-                    # Calculate Stopping Distance Based On Relative Velocity
-                    stopping_distance2 = abs(relative_velocity) * stopping_distance
-                    # Debug
-                    # print("raw_bar_velocity: ", round(raw_bar_velocity, 2), "raw_target_velocity: ", round(raw_target_velocity, 2))
-                    # print("time_delta: ", round(time_delta, 2))
-                    # print("color_check_bar_velocity: ", round(color_check_bar_velocity, 2))
-                    # print("color_check_target_velocity: ", round(color_check_target_velocity, 2))
-                    # print("relative_velocity: ", round(relative_velocity, 2))
-                    # print("stopping_distance: ", round(stopping_distance2, 2))
-                    if left_x <= fish_x <= right_x:
-                        # On-bar: Use Stopping-distance / Counter-thrust Logic
-                        if error > stopping_distance2:
-                            # Bar Is Left Of Fish Beyond Stopping Distance → Hold To Move Right
-                            self.status_overlay.set_line(3, "Tracking:", "> (Chase)")
-                            control_signal = 30
-                        elif error < -stopping_distance2:
-                            # Bar Is Right Of Fish Beyond Stopping Distance → Release To Move Left
-                            self.status_overlay.set_line(3, "Tracking:", "< (Chase)")
-                            control_signal = -30
-                        else:
-                            # Within Stopping Distance — Counter-thrust Based On Relative Velocity
-                            if relative_velocity > 0:
-                                # Bar Moving Right Relative To Fish → Release (Apply Left Thrust)
-                                self.status_overlay.set_line(3, "Tracking:", "< (Relative)")
-                                control_signal = -30
-                            else:
-                                # Bar Moving Left Relative To Fish → Hold (Apply Right Thrust)
-                                self.status_overlay.set_line(3, "Tracking:", "> (Relative)")
-                                control_signal = 30
-                    else:
-                        control_signal = kp * error + kd * relative_velocity
-                        self.status_overlay.set_line(3, "Tracking:", "> (PD)" if control_signal > 0 else "< (PD)")
-                else:
-                    control_signal = error
+                # Fish Has Reached The Near Edge Of The Bar (Or Was Never Stuck) —
+                # Continuously Re-center On It By Adjusting The Click Duty Cycle
+                # Based On How Far Off-center (And Which Direction) It Is.
+                stuck_edge = None
+                half_bar = (bar_size / 2.0) if bar_size else (fish_width / 2.0)
+                norm_error = (error / half_bar) if half_bar else 0.0
+                control_signal = None
+                centering_click(norm_error)
+                last_error = error
             # Mouse State
             # print(f"error: {error}")
             # print(f"control_signal: {control_signal}")
-            if control_signal > 0:
+            if control_signal is None:
+                # Already Handled Above (Duty-cycled Via Centering_click()).
+                pass
+            elif control_signal > 0:
                 hold_mouse()
             else:
                 release_mouse()

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Solar Fishing V5.1</title>
+    <title>Solar Fishing V5.01</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -10,7 +10,7 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="logo">
-                Solar Fishing V5.1
+                Solar Fishing V5.01
             </div>
             <button class="tab-button active" onclick="switchTab('overview')">
                 Overview
@@ -24,13 +24,11 @@
             <button class="tab-button" onclick="switchTab('other_utilities')">
                 Other Utilities
             </button>
-            <button class="tab-button" onclick="switchTab('about')">
-                About
-            </button>
             <div class="config-section">
                 <p>Active Configuration</p>
                 <select id="disabled" onchange="switchConfig(this.value)"></select>
-                <button onclick="openConfigManager()"> Manage </button>
+                <button onclick="openSupportTab()"> Support </button>
+                <button onclick="openAboutTab()"> About </button>
             </div>
         </div>
         <div class="main-area">
@@ -88,9 +86,10 @@
                             <option value="dual">Dual (Bellona)</option>
                             <option value="lanes">4 Lanes (Tranquility)</option>
                             <option value="metronome">Metronome (Lullaby)</option>
-                            <option value="shapes">Shapes (Noiseform)</option>
                         </select>
                     </div>
+
+                    <button onclick="openConfigManager()">Manage Configs</button>
                 </div>
                 <div class="card">
                     <h3>Hotkeys</h3>
@@ -252,13 +251,6 @@
                         </label>
                     </div>
                     <div class="switch2">
-                        <p>Status Overlay</p>
-                        <label class="switch">
-                            <input id=status_overlay type="checkbox">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="switch2">
                         <p>Bag Spam</p>
                         <label class="switch">
                             <input id=bag_spam type="checkbox">
@@ -293,7 +285,6 @@
                         <select name="fishing_mode" id="fishing_mode">
                         <option value="color">Color</option>
                         <option value="line">Line</option>
-                        <option value="image">Image</option>
                         </select>
                     </div>
                 </div>
@@ -408,11 +399,7 @@
                     </div>
                     <div class="text">
                         <label>Shake Failsafe (attempts)</label>
-                        <input id=shake_failsafe type="text" placeholder="120">
-                    </div>
-                    <div class="text">
-                        <label>Animation Delay (seconds)</label>
-                        <input id=animation_delay type="text" placeholder="0.3">
+                        <input id=shake_failsafe type="text" placeholder="80">
                     </div>
                 </div>
                 <div class="card">
@@ -591,8 +578,12 @@
                     </div>
                     <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
-                        <label>Mirror (X/Y Screen Ratio separated by ,)</label>
-                        <input id=mirror_ratio type="text" placeholder="0.5, 0.5">
+                        <label>Mirror X (Ratio)</label>
+                        <input id=mirror_ratio type="text" placeholder="0.5">
+                    </div>
+                    <div class="text">
+                        <label>Mirror Y (Ratio)</label>
+                        <input id=mirror_ratio2 type="text" placeholder="0.5">
                     </div>
                 </div>
                 <div class="card">
@@ -648,14 +639,6 @@
                             <input id=click_after_minigame type="checkbox">
                             <span class="slider"></span>
                         </label>
-                    </div>
-                    <div class="text">
-                        <label>Click Position (Screen Ratio seperated by ,)</label>
-                        <input id=minigame_click_position type="text" placeholder="0.5, 0.5">
-                    </div>
-                    <div class="text">
-                        <label>Click Amounts</label>
-                        <input id=minigame_click_amounts type="text" placeholder="2">
                     </div>
                     <div class="dropdown">
                         <label for="detection_method">Detection Method:</label>
@@ -726,8 +709,12 @@
                         <input id=appraisal_mutations type="text" placeholder="Hexed, Abyssal">
                     </div>
                     <div class="text">
-                        <label>Click X/Y (Screen Ratio seperated by ,)</label>
-                        <input id=appraisal_click type="text" placeholder="0.5, 0.5">
+                        <label>Click X (Screen Ratio)</label>
+                        <input id=appraisal_click_x type="text" placeholder="0.5">
+                    </div>
+                    <div class="text">
+                        <label>Click Y (Screen Ratio)</label>
+                        <input id=appraisal_click_y type="text" placeholder="0.5">
                     </div>
                 </div>
                 <div class="card">
@@ -740,8 +727,12 @@
                         <input id=minimum_multiplier type="text" placeholder="0.5">
                     </div>
                     <div class="text">
-                        <label>Text X/Y (Screen Ratio seperated by ,)</label>
-                        <input id=treasure_appraisal_ocr type="text" placeholder="0.5, 0.5">
+                        <label>Text X (Screen Ratio)</label>
+                        <input id=treasure_appraisal_ocr_x type="text" placeholder="0.5">
+                    </div>
+                    <div class="text">
+                        <label>Text Y (Screen Ratio)</label>
+                        <input id=treasure_appraisal_ocr_y type="text" placeholder="0.5">
                     </div>
                     <div class="text">
                         <label>Reappraise X (Screen Ratio)</label>
@@ -801,79 +792,6 @@
                     </div>
                 </div>
             </div>
-            <!-- About Tab -->
-            <div id="about" class="tab-content">
-                <div class="card">
-                    <h3>About This Macro</h3>
-                    <div class="description">
-                        <p>Credits and acknowledgements for Solar Fishing.</p>
-                    </div>
-
-                    <div class="credits-grid">
-
-                        <div class="credit-card">
-                            <img src="Catman.png" class="game-icon">
-                            <div class="credit-info">
-                                <h4>Catman2608</h4>
-                                <p>Main Developer of the macro</p>
-                            </div>
-                        </div>
-
-                        <div class="credit-card">
-                            <img src="AsphaltCake.png" class="game-icon">
-                            <div class="credit-info">
-                                <h4>Asphalt Cake</h4>
-                                <p>Used Line Mode Logic and Arrow Estimation Code</p>
-                            </div>
-                        </div>
-
-                        <div class="credit-card">
-                            <img src="Yato.png" class="game-icon">
-                            <div class="credit-info">
-                                <h4>Yato</h4>
-                                <p>Used Noiseform Minigame Tracking Code</p>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <h3>IMPORTANT DISCLAIMER</h3>
-                    <p>
-                        Any person claiming to be part of this project or its development, other than the people above<br>
-                        is most likely lying. Be cautious of fake contributors or impersonators.
-                    </p>
-                </div>
-                <div class="card">
-                    <h3>External Links</h3>
-                    <div class="description">
-                        <p>Links related to Solar Fishing and its development.</p>
-                    </div>
-                    <p>Project</p>
-                    <button onclick="openLink('https://catman2608.github.io/PyWare-Backend/')">
-                        Official Website
-                    </button>
-                    <button onclick="openLink('https://discord.gg/aMZY8yrF8r')">
-                        Discord Community
-                    </button>
-                    <p>Documentation</p>
-                    <button onclick="openLink('https://docs.google.com/document/d/1ZTDFi4jwSnJE1jq3bT1yNnnX3V-ohEOvXNOm6P1dPNU/edit?tab=t.0')">
-                        Settings Guide
-                    </button>
-                    <button onclick="openLink('https://docs.google.com/document/d/1WwWWMR-eN-R-GO42IioToHpWTgiXkLoiNE_4NeE-GsU/edit?tab=t.0')">
-                        Upcoming Features
-                    </button>
-                    <p>Credit</p>
-                    <button onclick="openLink('https://www.youtube.com/@HexaTitanGaming')">
-                        Catman's YouTube Channel
-                    </button>
-                    <button onclick="openLink('https://www.youtube.com/@AsphaltCake')">
-                        Asphalt Cake's YouTube Channel
-                    </button>
-                    <button onclick="openLink('https://www.youtube.com/@yato')">
-                        Yato's YouTube Channel
-                    </button>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -929,6 +847,56 @@
                     Reset Areas
                 </button>
             </div>
+        </div>
+    </div>
+    <!-- Support Modal -->
+    <div id="support-modal-overlay" class="modal-overlay">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2>Community Support</h2>
+                <button
+                    class="modal-close"
+                    onclick="closeSupportTab()">
+                    ×
+                </button>
+            </div>
+            <div class="modal-content">
+                <button onclick="openLink('https://www.youtube.com/@HexaTitanGaming')">
+                    YouTube Channel
+                </button>
+                <button onclick="openLink('https://discord.gg/aMZY8yrF8r')">
+                    Discord Community
+                </button>
+                <button onclick="openLink('https://catman2608.github.io/PyWare-Backend/')">
+                    Official Website
+                </button>
+                <button onclick="openLink('https://docs.google.com/document/d/1WwWWMR-eN-R-GO42IioToHpWTgiXkLoiNE_4NeE-GsU/edit?tab=t.0')">
+                    Upcoming Features
+                </button>
+                <button onclick="openLink('https://docs.google.com/document/d/1ZTDFi4jwSnJE1jq3bT1yNnnX3V-ohEOvXNOm6P1dPNU/edit?tab=t.0')">
+                    Settings Guide
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- About Modal -->
+    <div id="about-modal-overlay" class="modal-overlay">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2>About Solar Fishing</h2>
+                <button
+                    class="modal-close"
+                    onclick="closeAboutTab()">
+                    ×
+                </button>
+            </div>
+            <p>
+                Solar Fishing is developed and maintained by Catman2608.
+            </p>
+            <p>
+                Any person claiming to be part of this project or its development, other than Catman2608
+                is most likely lying. Be cautious of fake contributors or impersonators.
+            </p>
         </div>
     </div>
 </body>

@@ -89,8 +89,7 @@ function switchTab(tabId) {
             overview: "Overview",
             automation: "Automation",
             fishing_tools: "Fishing Tools",
-            other_utilities: "Other Utilities",
-            about: "About"
+            other_utilities: "Other Utilities"
         };
         breadcrumbTitle.textContent = titleMap[tabId] || "Settings";
     }
@@ -533,6 +532,34 @@ async function openLink(link) {
             `Could not open link`
         );
     }
+}
+function openAboutTab() {
+    document
+        .getElementById(
+            "about-modal-overlay"
+        )
+        .classList.add("active");
+}
+function closeAboutTab() {
+    document
+        .getElementById(
+            "about-modal-overlay"
+        )
+        .classList.remove("active");
+}
+function openSupportTab() {
+    document
+        .getElementById(
+            "support-modal-overlay"
+        )
+        .classList.add("active");
+}
+function closeSupportTab() {
+    document
+        .getElementById(
+            "support-modal-overlay"
+        )
+        .classList.remove("active");
 }
 function openConfigManager() {
     document
