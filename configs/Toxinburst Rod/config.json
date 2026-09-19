@@ -39,7 +39,7 @@
     "friends_tolerance": "5",
     "auto_zoom": "off",
     "auto_refresh": "on",
-    "fish_overlay": "on",
+    "fish_overlay": "off",
     "status_overlay": "off",
     "bag_spam": "on",
     "lock_cursor": "on",
@@ -67,7 +67,7 @@
     "cast_duration": "0.5",
     "delay_after_casting": "0.5",
     "shake_scan_delay": "0.12",
-    "shake_failsafe": "80",
+    "shake_failsafe": "120",
     "minigame_scan_delay": "0.01",
     "restart_delay": "1.5",
     "bar_ratio_from_side": "0.5",
@@ -96,7 +96,7 @@
     "auto_reconnect": "off",
     "reconnect_threshold": "30",
     "reconnect_wait_time": "20",
-    "mirror_ratio": "0.5",
+    "mirror_ratio": "0.5, 0.5",
     "hunt_detect": "off",
     "hunt_fishes": "Megalodon, Kraken",
     "hunt_cycles": "20",
@@ -128,5 +128,7 @@
     "angler_click_x": "0.5",
     "angler_click_y": "0.5",
     "backpack_x": "0.5",
-    "backpack_y": "0.5"
+    "backpack_y": "0.5",
+    "animation_delay": "0.3",
+    "minigame_click_amounts": "2"
 }

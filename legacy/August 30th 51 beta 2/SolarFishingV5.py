@@ -3339,7 +3339,7 @@ class Api:
         treasure_click_right = treasure_right - int(treasure_width / 5)
         treasure_click_y_multiplier = int(treasure_height / 7.25)
         # Settings
-        treasure_appraisal_ocr = self.vars["treasure_appraisal_ocr_x"].split(",").replace(" ", "")
+        treasure_appraisal_ocr = self.vars["treasure_appraisal_ocr_x"].replace(" ", "").split(",")
         try:
             treasure_appraisal_ocr_x = float(treasure_appraisal_ocr[0])
             treasure_appraisal_ocr_y = float(treasure_appraisal_ocr[1])
