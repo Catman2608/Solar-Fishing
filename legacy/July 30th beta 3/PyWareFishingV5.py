@@ -1691,34 +1691,6 @@ class Api:
             return
 
         self.set_status(f"Saved debug screenshots ({', '.join(saved)})")
-    # Eyedropper
-    def start_eyedropper(self, color_key=None):
-        """Open the color picker overlay.
-
-        color_key (optional): settings field name to write the result into
-        (e.g. 'fish_color', 'shake_color'). The main UI is also notified via
-        onColorPicked / setPickedColor and by updating matching input elements.
-        """
-        if not hasattr(self, "eyedropper") or self.eyedropper is None:
-            self.eyedropper = Eyedropper(self)
-
-        # Toggle off if already open
-        if self.eyedropper.is_open():
-            self.eyedropper.hide()
-            return None
-
-        self.eyedropper.show(color_key=color_key)
-        return None
-
-    def get_last_picked_color(self):
-        """Return (and clear) the most recently picked eyedropper color.
-        The main UI can poll this after start_eyedropper if it does not
-        implement onColorPicked / setPickedColor callbacks."""
-        if not hasattr(self, "eyedropper") or self.eyedropper is None:
-            return None
-        color = self.eyedropper.last_picked_color
-        self.eyedropper.last_picked_color = None
-        return color
 
     # Hotkeys
     def _get_hotkeys(self):

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Solar Fishing V5.1</title>
+    <title>Solar Fishing V5.11</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -10,7 +10,7 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="logo">
-                Solar Fishing V5.1
+                Solar Fishing V5.11
             </div>
             <button class="tab-button active" onclick="switchTab('overview')">
                 Overview
@@ -538,7 +538,7 @@
                 <div class="card">
                     <h3>Auto Totem</h3>
                     <div class="description"> 
-                        <p>Automatically equip and activate supported totems.</p>
+                        <p>Not recommended to use this feature in a public server as there is a risk of getting banned.</p>
                     </div>
                     <div class="switch2">
                         <p>Auto Totem</p>
@@ -619,7 +619,7 @@
                 <div class="card">
                     <h3>Auto Sovereign Recharge</h3>
                     <div class="description"> 
-                        <p>Automatically recharge the Sovereign Relic when needed. (Percentage in ratio between 0 and 1)</p>
+                        <p>Configure Gamepass Enchant Positions in Other Utilities, ratio in 0-1 as decimals.</p>
                     </div>
                     <div class="switch2">
                         <p>Sovereign Recharge</p>
@@ -682,31 +682,7 @@
                     </div>
                     <div class="text">
                         <label>Tesseract Path (Appraisal, Enchant, Angler)</label>
-                        <input id=tesseract_path type="text" placeholder="/opt/homebrew/bin/tesseract">
-                    </div>
-                    <div class="text">
-                        <label>Delay After E (Enchant, Angler)</label>
-                        <input id=e_delay type="text" placeholder="0.5">
-                    </div>
-                    <div class="text">
-                        <label>Delay After Click (Appraisal, Enchant, Angler)</label>
-                        <input id=click_delay type="text" placeholder="1">
-                    </div>
-                    <div class="text">
-                        <label>Delay After Click 2 (Enchant, Angler, Treasure Appraisal)</label>
-                        <input id=click_delay2 type="text" placeholder="0.5">
-                    </div>
-                    <div class="text">
-                        <label>Restart Delay (Angler, Treasure Appraisal)</label>
-                        <input id=utility_restart_delay type="text" placeholder="100">
-                    </div>
-                    <div class="text">
-                        <label>Confirm X (Ratio)</label>
-                        <input id=backpack_confirm_x type="text" placeholder="0.5">
-                    </div>
-                    <div class="text">
-                        <label>Confirm Y (Ratio)</label>
-                        <input id=backpack_confirm_y type="text" placeholder="0.5">
+                        <input id=tesseract_path type="text" placeholder="C:\Program Files\Tesseract-OCR\tesseract.exe">
                     </div>
                 </div>
                 <div class="card">
@@ -722,12 +698,26 @@
                         </select>
                     </div>
                     <div class="text">
-                        <label>Mutations (Split by ,)</label>
-                        <input id=appraisal_mutations type="text" placeholder="Hexed, Abyssal">
+                        <label>Normal Click X/Y (Screen Ratio seperated by ,)</label>
+                        <input id=normal_appraisal_click type="text" placeholder="0.5, 0.5">
                     </div>
                     <div class="text">
-                        <label>Click X/Y (Screen Ratio seperated by ,)</label>
-                        <input id=appraisal_click type="text" placeholder="0.5, 0.5">
+                        <label>Gamepass Click X/Y 1 (Screen Ratio seperated by ,)</label>
+                        <input id=gamepass_appraisal_click type="text" placeholder="0.5, 0.5">
+                    </div>
+                    <div class="text">
+                        <label>Gamepass Click X/Y 2 (Screen Ratio seperated by ,)</label>
+                        <input id=gamepass_appraisal_click_2 type="text" placeholder="0.5, 0.5">
+                    </div>
+                    <div class="arrow">&darr;</div> <!-- Arrows -->
+                    <div class="text">
+                        <label>Delay After Appraisal</label>
+                        <input id=appraisal_delay type="text" placeholder="0.5">
+                    </div>
+                    <div class="arrow">&darr;</div> <!-- Arrows -->
+                    <div class="text">
+                        <label>Mutations (Split by ,)</label>
+                        <input id=appraisal_mutations type="text" placeholder="Hexed, Abyssal">
                     </div>
                 </div>
                 <div class="card">
@@ -741,15 +731,11 @@
                     </div>
                     <div class="text">
                         <label>Text X/Y (Screen Ratio seperated by ,)</label>
-                        <input id=treasure_appraisal_ocr type="text" placeholder="0.5, 0.5">
+                        <input id=treasure_appraisal_text type="text" placeholder="0.5, 0.5">
                     </div>
                     <div class="text">
-                        <label>Reappraise X (Screen Ratio)</label>
-                        <input id=treasure_appraisal_reappraise_x type="text" placeholder="0.5">
-                    </div>
-                    <div class="text">
-                        <label>Reappraise X (Screen Ratio)</label>
-                        <input id=treasure_appraisal_reappraise_y type="text" placeholder="0.5">
+                        <label>Reappraise X/Y (Screen Ratio seperated by ,)</label>
+                        <input id=treasure_appraisal_click type="text" placeholder="0.5, 0.5">
                     </div>
                 </div>
                 <div class="card">
@@ -766,16 +752,35 @@
                         </select>
                     </div>
                     <div class="text">
+                        <label>E Delay</label>
+                        <input id=enchantment_e_delay type="text" placeholder="0.4">
+                    </div>
+                    <div class="arrow">&darr;</div> <!-- Arrows -->
+                    <div class="text">
+                        <label>Click Position</label>
+                        <input id=enchantment_click_position type="text" placeholder="0.5, 0.5">
+                    </div>
+                    <div class="text">
+                        <label>Click Position 2 (Gamepass)</label>
+                        <input id=enchantment_click_position2 type="text" placeholder="0.5, 0.5">
+                    </div>
+                    <div class="arrow">&darr;</div> <!-- Arrows -->
+                    <div class="text">
+                        <label>Click Delay</label>
+                        <input id=enchantment_click_delay type="text" placeholder="2">
+                    </div>
+                    <div class="text">
+                        <label>Click Delay 2</label>
+                        <input id=enchantment_click_delay2 type="text" placeholder="2">
+                    </div>
+                    <div class="arrow">&darr;</div> <!-- Arrows -->
+                    <div class="text">
                         <label>Enchantments (Split by ,)</label>
                         <input id=enchant_enchants type="text" placeholder="Steady, Momentum">
                     </div>
                     <div class="text">
-                        <label>Click X (Screen Ratio)</label>
-                        <input id=enchant_click_x type="text" placeholder="0.5">
-                    </div>
-                    <div class="text">
-                        <label>Click Y (Screen Ratio)</label>
-                        <input id=enchant_click_y type="text" placeholder="0.5">
+                        <label>Click Delay 3</label>
+                        <input id=enchantment_click_delay3 type="text" placeholder="6">
                     </div>
                 </div>
                 <div class="card">
@@ -784,20 +789,23 @@
                         <p>Automate interactions with the Angler NPC and related tasks.</p>
                     </div>
                     <div class="text">
-                        <label>Dialogue Click X (Screen Ratio)</label>
-                        <input id=angler_click_x type="text" placeholder="0.5">
+                        <label>E Delay</label>
+                        <input id=angler_e_delay type="text" placeholder="1.5">
                     </div>
+                    <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
-                        <label>Dialogue Click Y (Screen Ratio)</label>
-                        <input id=angler_click_y type="text" placeholder="0.5">
+                        <label>Accept Quest Click Position</label>
+                        <input id=angler_click_position type="text" placeholder="0.5, 0.5">
                     </div>
+                    <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
-                        <label>Backpack X (Screen Ratio)</label>
-                        <input id=backpack_x type="text" placeholder="0.5">
+                        <label>Backpack Search Click Position</label>
+                        <input id=angler_click_position2 type="text" placeholder="0.5, 0.5">
                     </div>
+                    <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
-                        <label>Backpack Y (Screen Ratio)</label>
-                        <input id=backpack_y type="text" placeholder="0.5">
+                        <label>Angler Cooldown</label>
+                        <input id=angler_cooldown type="text" placeholder="130">
                     </div>
                 </div>
             </div>

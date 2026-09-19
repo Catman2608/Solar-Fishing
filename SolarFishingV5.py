@@ -32,19 +32,8 @@ if sys.platform == "win32":
         dxcam = None
 else:
     dxcam = None
-try:
-    if dxcam is None:
-        from fastgrab import screenshot
-    else:
-        screenshot = None
-except ImportError:
-    screenshot = None
-try:
-    img = screenshot.Screenshot().capture()
-except:
-    screenshot = None
 import mss
-# Keyboard And Mouse Clicks (Platformspecific)
+# Keyboard And Mouse Clicks (Platform-specific)
 from pynput.keyboard import Listener as KeyListener, Key
 from pynput import keyboard, mouse
 from pynput.keyboard import Controller as KeyboardController
@@ -59,23 +48,20 @@ elif sys.platform == "darwin":
 elif sys.platform == "linux":
     from Xlib import X, XK, display as Xdisplay
     from Xlib.ext import xtest
-# OCR (With Fallback If User Didn'T Install Tesseract)
+# Check For OCR
 try:
     import pytesseract
-    if sys.platform == "win32":
-        possible = shutil.which("tesseract")
-        if possible:
-            pytesseract.pytesseract.tesseract_cmd = possible
-    else:
-        pytesseract.pytesseract.tesseract_cmd = "/opt/homebrew/bin/tesseract"
-except:
+    possible = shutil.which("tesseract")
+    if possible:
+        pytesseract.pytesseract.tesseract_cmd = possible
+except (ImportError, OSError):
     pytesseract = None
 # Define Platform-Specific Constants
 # All Platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
-APP_VERSION = 5.1
-BETA_VERSION = 2
+APP_VERSION = 5.11
+BETA_VERSION = 0
 DEVELOPER = "Catman2608"
 def load_misc_settings(last_config_path):
     try:
@@ -96,21 +82,71 @@ def get_macos_menu_offset():
 
     except Exception:
         return 0
-
 if sys.platform == "darwin":
+    import Quartz
     _QUARTZ_SRGB_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(
         Quartz.kCGColorSpaceSRGB
     )
+    # Cache display P3 color space (what MSS typically returns on modern Macs)
+    _QUARTZ_P3_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(
+        Quartz.kCGColorSpaceDisplayP3
+    )
 else:
     _QUARTZ_SRGB_COLOR_SPACE = None
+    _QUARTZ_P3_COLOR_SPACE = None
+
+def mss_to_srgb_numpy(image, source_is_p3=True):
+    """
+    Convert an untagged raw MSS/Fastgrab frame buffer from Display P3 to sRGB
+    using macOS native ColorSync engine for identical Quartz output.
+    """
+    if image is None or getattr(image, "ndim", 0) != 3 or image.shape[2] not in (3, 4):
+        return image
+
+    if sys.platform != "darwin" or not source_is_p3:
+        bgr = image[:, :, :3]
+        return bgr if bgr.flags["C_CONTIGUOUS"] else np.ascontiguousarray(bgr)
+
+    height, width = image.shape[:2]
+    
+    # 1. Ensure input buffer is BGRA (4 channels required by CGDataProvider)
+    if image.shape[2] == 3:
+        bgra = np.empty((height, width, 4), dtype=np.uint8)
+        bgra[:, :, :3] = image
+        bgra[:, :, 3] = 255
+    else:
+        bgra = image
+
+    # 2. Wrap raw NumPy buffer in CGImage tagged as Display P3
+    bytes_per_row = width * 4
+    provider = Quartz.CGDataProviderCreateWithData(None, bgra.tobytes(), len(bgra.tobytes()), None)
+    
+    src_cg_image = Quartz.CGImageCreate(
+        width, height, 8, 32, bytes_per_row,
+        _QUARTZ_P3_COLOR_SPACE,
+        Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little, # BGRA
+        provider, None, False, Quartz.kCGRenderingIntentDefault
+    )
+
+    # 3. Draw into an sRGB context (CoreGraphics handles exact ColorSync transformation)
+    out_raw = np.empty((height, width, 4), dtype=np.uint8)
+    context = Quartz.CGBitmapContextCreate(
+        out_raw, width, height, 8, bytes_per_row,
+        _QUARTZ_SRGB_COLOR_SPACE,
+        Quartz.kCGImageAlphaPremultipliedLast | Quartz.kCGBitmapByteOrder32Big
+    )
+    
+    Quartz.CGContextDrawImage(context, Quartz.CGRectMake(0, 0, width, height), src_cg_image)
+
+    # 4. Extract BGR uint8 result matching Quartz/MSS consumers
+    return np.ascontiguousarray(out_raw[:, :, :3][:, :, ::-1])
+
 def cgimage_to_srgb_numpy(image):
     if sys.platform == "darwin":
         width = Quartz.CGImageGetWidth(image)
         height = Quartz.CGImageGetHeight(image)
         bytes_per_row = width * 4
-        # Allocate The Destination Buffer Once Per Frame.
         raw = np.empty((height, width, 4), dtype=np.uint8)
-        # Reuse The Cached Srgb Color Space.
         context = Quartz.CGBitmapContextCreate(
             raw,
             width,
@@ -119,7 +155,7 @@ def cgimage_to_srgb_numpy(image):
             bytes_per_row,
             _QUARTZ_SRGB_COLOR_SPACE,
             Quartz.kCGImageAlphaPremultipliedLast |
-            Quartz.kCGBitmapByteOrder32Big
+            Quartz.kCGBitmapByteOrder32Big,
         )
         if context is None:
             return None
@@ -127,9 +163,8 @@ def cgimage_to_srgb_numpy(image):
         Quartz.CGContextDrawImage(
             context,
             Quartz.CGRectMake(0, 0, width, height),
-            image
+            image,
         )
-        # Return A Bgr View Without Making Another Fullframe Allocation.
         return raw[:, :, :3][:, :, ::-1]
 
     return image
@@ -578,6 +613,91 @@ AREA_CONFIG = {
 }
 # Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
+
+def get_tesseract_path(configured_path=None):
+    """
+    Return a valid Tesseract path for the current operating system.
+
+    If an imported config contains a Tesseract path from another OS,
+    automatically fall back to the current OS's Tesseract installation.
+    """
+
+    # 1. Try the path stored in the config first
+    if configured_path:
+        try:
+            configured_path = str(configured_path).strip().strip('"')
+
+            if Path(configured_path).is_file():
+                return configured_path
+
+        except (OSError, ValueError, TypeError):
+            pass
+
+    # 2. Check if Tesseract is already available in PATH
+    detected = shutil.which("tesseract")
+
+    if detected:
+        return detected
+
+    # 3. Check common paths for the CURRENT operating system
+    if sys.platform == "win32":
+        possible_paths = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        ]
+
+    elif sys.platform == "darwin":
+        possible_paths = [
+            "/opt/homebrew/bin/tesseract",   # Apple Silicon Homebrew
+            "/usr/local/bin/tesseract",      # Intel Homebrew
+        ]
+
+    else:
+        # Linux
+        possible_paths = [
+            "/usr/bin/tesseract",
+            "/usr/local/bin/tesseract",
+        ]
+
+    for path in possible_paths:
+        if Path(path).is_file():
+            return path
+
+    # Nothing found
+    return None
+
+def _schedule_webview_destroy(win, after=None, delay=0.05):
+    """Destroy a pywebview window after the current JS/GUI call returns.
+
+    Calling Window.destroy() from that window's js_api deadlocks pywebview
+    (the bridge waits for destroy; destroy waits for the bridge). The stall
+    freezes every other window too. Tear windows down from a short-lived
+    thread instead.
+    """
+    if win is None:
+        if after:
+            try:
+                after()
+            except Exception:
+                pass
+        return
+
+    def _destroy():
+        if delay:
+            time.sleep(delay)
+        try:
+            win.destroy()
+        except Exception:
+            pass
+        if after:
+            try:
+                after()
+            except Exception:
+                pass
+
+    threading.Thread(target=_destroy, daemon=True).start()
+
+
 class AreaSelector:
     """
     Fullscreen transparent overlay implemented as a second pywebview window.
@@ -830,11 +950,9 @@ class AreaSelector:
         except Exception:
             pass
 
-        if self.area_window:
-            try:
-                self.area_window.destroy()
-            except Exception:
-                pass
+        win = self.area_window
+        self.area_window = None
+        _schedule_webview_destroy(win)
 
     def _pixels_to_ratios(self, box, menu_offset=0):
         """Convert JS canvas-pixel boxes back to full-screen ratios.
@@ -897,11 +1015,9 @@ class AreaSelector:
         self.parent_app.save_misc_settings()
         self._open = False
         self.parent_app.set_status("Area selector closed")
-        if self.area_window:
-            try:
-                self.area_window.destroy()
-            except Exception:
-                pass
+        win = self.area_window
+        self.area_window = None
+        _schedule_webview_destroy(win)
 
     def get_screenshot_data(self):
         """Return the data-URL of the frozen (menu-bar-cropped) screenshot."""
@@ -923,6 +1039,11 @@ class AreaSelector:
     def close(self):
         if self.is_open():
             self.save_areas(self.get_areas())
+        elif self.area_window:
+            win = self.area_window
+            self.area_window = None
+            self._open = False
+            _schedule_webview_destroy(win)
 # Eyedropper Class
 class Eyedropper:
     """
@@ -1065,16 +1186,23 @@ class Eyedropper:
         return self._open and self.eyedropper_window is not None
 
     def hide(self):
-        """Destroys the current window instance completely.
-        Clear _open first to avoid concurrent evaluate_js on a disposed WebView2."""
-        if self.eyedropper_window and self._open:
+        """Destroy the overlay without freezing the GUI.
+
+        pywebview deadlocks if destroy() runs on the same window whose JS
+        bridge is still inside pick_color() / close_eyedropper(). That also
+        stalls the main window ("not responding"). Clear flags immediately,
+        then destroy on a short-lived thread so the JS call can return first.
+        """
+        win = self.eyedropper_window
+        if not win or not self._open:
             self._open = False
             self._visible = False
-            try:
-                self.eyedropper_window.destroy()
-            except Exception:
-                pass
-            self._on_closed()
+            return
+
+        self._open = False
+        self._visible = False
+        self.eyedropper_window = None
+        _schedule_webview_destroy(win, after=self._on_closed)
     def close(self):
         """Alias used by shutdown / toggle paths."""
         self.hide()
@@ -1280,15 +1408,19 @@ class FishOverlay:
         Clear _open BEFORE destroy so concurrent minigame threads that still
         call clear()/draw_box()/_eval skip the disposed WebView2 and avoid
         ObjectDisposedException (logged by pywebview as 'Error occurred in script').
+        Destroy is scheduled off the caller thread so a stop/hotkey/shutdown
+        path cannot deadlock pywebview the way Eyedropper/AreaSelector did.
         """
-        if self._overlay_window and self._open:
+        win = self._overlay_window
+        if not win or not self._open:
             self._open = False
             self._visible = False
-            try:
-                self._overlay_window.destroy()
-            except Exception:
-                pass
-            self._on_closed()
+            return
+
+        self._open = False
+        self._visible = False
+        self._overlay_window = None
+        _schedule_webview_destroy(win, after=self._on_closed)
     def resize(self, left, top, width, height, already_logical=False):
         """Resizes and moves the window dynamically if it exists.
         By default arguments are physical pixels (same as show()).
@@ -1440,16 +1572,19 @@ class StatusOverlay:
     def hide(self):
         """
         Destroys the current window instance completely.
+        Scheduled so hide() from stop_macro / main-window close cannot
+        deadlock the pywebview GUI thread.
         """
-        if self._overlay_window and self._open:
+        win = self._overlay_window
+        if not win or not self._open:
             self._open = False
             self._visible = False
-            try:
-                self._overlay_window.destroy()
-            except Exception:
-                pass
+            return
 
-            self._on_closed()
+        self._open = False
+        self._visible = False
+        self._overlay_window = None
+        _schedule_webview_destroy(win, after=self._on_closed)
     def resize(self, left, top, width, height, already_logical=False):
         """
         Resizes and moves the window dynamically.
@@ -2451,13 +2586,10 @@ class Api:
                         self.camera = dxcam.create(output_color="BGR")
                         self.camera.start()
                     else:
-                        if screenshot is not None:
-                            self.capture_thread = threading.Thread(target=self.capture_loop_fastgrab, daemon=True)
+                        if sys.platform == "darwin":
+                            self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
                         else:
-                            if sys.platform == "darwin":
-                                self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
-                            else:
-                                self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
+                            self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
                         self.capture_thread.start()
             elif key == area_selector_key:
                 # Guard To Prevent Area Selector From Being Opened The Second The Macro Started
@@ -2514,7 +2646,7 @@ class Api:
         elif sys.platform == "darwin":
             _mouse_event(button="right" if mouse else "left", press=False)
         else:
-            # Linux  Now Uses The Unified X11 Implementation
+            # Linux - Now Uses The Unified X11 Implementation
             _mouse_event(button="right" if mouse else "left", press=False)
     # Click At
     def _click_at(self, x, y, click_count=1):
@@ -2691,46 +2823,28 @@ class Api:
         Capture a single full-screen frame without touching self.macro_running.
         Used by debug screenshots, eyedropper freeze, and Discord screenshot logging.
         """
-        if screenshot is not None:
-            return screenshot.Screenshot().capture()
+        if sys.platform == "darwin":
+            image = Quartz.CGWindowListCreateImage(
+                Quartz.CGRectInfinite,
+                Quartz.kCGWindowListOptionOnScreenOnly,
+                Quartz.kCGNullWindowID,
+                Quartz.kCGWindowImageDefault
+            )
+            if image is None:
+                return None
+
+            return cgimage_to_srgb_numpy(image)
+
         else:
-            if sys.platform == "darwin":
-                image = Quartz.CGWindowListCreateImage(
-                    Quartz.CGRectInfinite,
-                    Quartz.kCGWindowListOptionOnScreenOnly,
-                    Quartz.kCGNullWindowID,
-                    Quartz.kCGWindowImageDefault
-                )
-                if image is None:
-                    return None
-
-                return cgimage_to_srgb_numpy(image)
-
-            else:
-                scale = get_scale_factor()
-                with MSS() as sct:
-                    monitor = {
-                        "top": 0,
-                        "left": 0,
-                        "width": int(SCREEN_WIDTH * scale),
-                        "height": int(SCREEN_HEIGHT * scale),
-                    }
-                    return np.asarray(sct.grab(monitor))[:, :, :3]
-
-
-    def capture_loop_fastgrab(self):
-        """Continuous capture loop for the macro. Assumes self.macro_running is already True."""
-        if not self.macro_running:
-            return
-
-        self.capture_id = 0
-
-        sct = screenshot.Screenshot()
-
-        while self.macro_running:
-            self.capture_frame = sct.capture()[:, :, :3]
-            self.capture_id += 1
-            time.sleep(self.scan_delay)
+            scale = get_scale_factor()
+            with MSS() as sct:
+                monitor = {
+                    "top": 0,
+                    "left": 0,
+                    "width": int(SCREEN_WIDTH * scale),
+                    "height": int(SCREEN_HEIGHT * scale),
+                }
+                return np.asarray(sct.grab(monitor))[:, :, :3]
 
     def capture_loop_mss(self):
         """Continuous capture loop for the macro (Windows fallback). Assumes self.macro_running is already True."""
@@ -2809,28 +2923,7 @@ class Api:
                 return None
 
         return None
-
-    def click_backpack(self, x, y):
-        # Areas
-        backpack_left, backpack_top, backpack_right, backpack_bottom, backpack_width, backpack_height = self.get_areas("backpack")
-        # User Settings
-        backpack_key = str(self.vars["backpack_key"])
-        # Click Positions
-        backpack_confirm_x = (float(self.vars["backpack_confirm_x"]) * backpack_width) + backpack_left
-        backpack_confirm_y = (float(self.vars["backpack_confirm_y"]) * backpack_height) + backpack_top
-        click_x = (float(self.vars[x]) * backpack_width) + backpack_left
-        click_y = (float(self.vars[y]) * backpack_height) + backpack_top
-        # Action
-        self._send_key(backpack_key)
-        time.sleep(0.3)
-        self._click_at(click_x, click_y)
-        time.sleep(0.3)
-        self._click_at(backpack_confirm_x, backpack_confirm_y)
-        time.sleep(0.3)
-        self._send_key(backpack_key)
-        time.sleep(0.3)
-        return
-
+    
     def pixel_search(self, frame, hex, tolerance, mode=0):
         """
         Searches for the first or last pixel based on mode.
@@ -3700,8 +3793,13 @@ class Api:
     def start_appraisal(self):
         # Validate Tesseract
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3723,34 +3821,64 @@ class Api:
         appraisal_mode = self.vars["appraisal_mode"].lower()
         appraisal_mutations = self.vars["appraisal_mutations"]
         appraisal_mutations_list = appraisal_mutations.split(",")
-        # Positions
-        raw_appraisal_ratio = self.vars["appraisal_click"]
-        appraisal_ratio = raw_appraisal_ratio.replace(" ", "").split(",")
-        try:
-            appraisal_x_ratio = float(appraisal_ratio[0])
-            appraisal_y_ratio = float(appraisal_ratio[1])
-        except:
-            pass
+        # Delays
+        appraisal_delay = float(self.vars["appraisal_delay"])
+        # Configure appraisal delay
+        if appraisal_mode == "normal":
+            # Normal Appraisal
+            raw_normal_appraisal_ratio = self.vars["normal_appraisal_click"]
+            normal_appraisal_ratio = raw_normal_appraisal_ratio.replace(" ", "").split(",")
+            try:
+                appraisal_x_ratio = float(normal_appraisal_ratio[0])
+                appraisal_y_ratio = float(normal_appraisal_ratio[1])
+            except:
+                pass
+        else:
+            # Gamepass Appraisal
+            raw_gamepass_appraisal_ratio = self.vars["gamepass_appraisal_click"]
+            gamepass_appraisal_ratio = raw_gamepass_appraisal_ratio.replace(" ", "").split(",")
+            try:
+                appraisal_x_ratio = float(gamepass_appraisal_ratio[0])
+                appraisal_y_ratio = float(gamepass_appraisal_ratio[1])
+            except:
+                pass
+            # Gamepass Appraisal 2
+            raw_gamepass_appraisal_ratio2 = self.vars["gamepass_appraisal_click2"]
+            gamepass_appraisal_ratio2 = raw_gamepass_appraisal_ratio2.replace(" ", "").split(",")
+            try:
+                appraisal_x_ratio2 = float(gamepass_appraisal_ratio2[0])
+                appraisal_y_ratio2 = float(gamepass_appraisal_ratio2[1])
+            except:
+                pass
         appraisal_x = int(SCREEN_WIDTH * appraisal_x_ratio)
         appraisal_y = int(SCREEN_HEIGHT * appraisal_y_ratio)
-        click_delay = float(self.vars["click_delay"])
+        appraisal_x2 = int(SCREEN_WIDTH * appraisal_x_ratio2)
+        appraisal_y2 = int(SCREEN_HEIGHT * appraisal_y_ratio2)
         # Other Calculations
         logging_cycle = int(self.vars["logging_cycle"])
         logging_mode = self.vars["logging_mode"].lower()
         attempts = 0.0
         # Main Loop
         time.sleep(0.1)
-        self._send_key("e", 0.05)
+        if appraisal_mode == "normal":
+            self._send_key("e", 0.05)
         try:
             while self.macro_running:
                 attempts = attempts + 1
                 # Click
                 if appraisal_mode == "normal":
-                    time.sleep(click_delay)
+                    time.sleep(appraisal_delay)
                     self._click_at(appraisal_x, appraisal_y)
                 else:
-                    self.click_backpack(appraisal_x, appraisal_y)
-                # Detection
+                    self._click_at(appraisal_x, appraisal_y)
+                    time.sleep(appraisal_delay)
+                    self._click_at(appraisal_x2, appraisal_y2)
+                    time.sleep(appraisal_delay)
+                    time.sleep(appraisal_delay)
+                # Check If Dxcam Is Available
+                if dxcam is not None:
+                    self.capture_frame = self.camera.get_latest_frame()
+                    self.capture_id = self.capture_id + 1
                 fish = self.capture_frame[hotbar_top:hotbar_bottom, hotbar_left:hotbar_right]
                 processed_img = self.process_image_for_ocr(fish)
                 text = pytesseract.image_to_string(processed_img, config="--psm 7")
@@ -3783,8 +3911,13 @@ class Api:
     def start_treasure_appraisal(self):
         # Validate Tesseract
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3808,22 +3941,24 @@ class Api:
         treasure_click_right = treasure_right - int(treasure_width / 5)
         treasure_click_y_multiplier = int(treasure_height / 7.25)
         # Settings
-        treasure_appraisal_ocr = self.vars["treasure_appraisal_ocr_x"].split(",").replace(" ", "")
+        treasure_appraisal_text = self.vars["treasure_appraisal_text"].replace(" ", "").split(",")
         try:
-            treasure_appraisal_ocr_x = float(treasure_appraisal_ocr[0])
-            treasure_appraisal_ocr_y = float(treasure_appraisal_ocr[1])
+            treasure_appraisal_text_x = float(treasure_appraisal_text[0]) * SCREEN_WIDTH
+            treasure_appraisal_text_y = float(treasure_appraisal_text[1]) * SCREEN_HEIGHT
         except:
             pass
-        treasure_appraisal_reappraise_x = float(self.vars["treasure_appraisal_reappraise_x"])
-        treasure_appraisal_reappraise_y = float(self.vars["treasure_appraisal_reappraise_y"])
-        reappraise_x_screen = int(treasure_appraisal_reappraise_x * SCREEN_WIDTH)
-        reappraise_y_screen = int(treasure_appraisal_reappraise_y * SCREEN_HEIGHT)
+        treasure_appraisal_click = self.vars["treasure_appraisal_click"].replace(" ", "").split(",")
+        try:
+            treasure_appraisal_click_x = float(treasure_appraisal_click[0]) * SCREEN_WIDTH
+            treasure_appraisal_click_y = float(treasure_appraisal_click[1]) * SCREEN_HEIGHT
+        except:
+            pass
         ocr_width = int((treasure_width / 357) * 80) # Scaled at 720p
         ocr_height = int((treasure_height / 459) * 15) # Scaled at 720p
-        ocr_left = treasure_appraisal_ocr_x - int(ocr_width / 2)
-        ocr_top = treasure_appraisal_ocr_y - int(ocr_height / 2)
-        ocr_right = treasure_appraisal_ocr_x + int(ocr_width / 2)
-        ocr_bottom = treasure_appraisal_ocr_y + int(ocr_height / 2)
+        ocr_left = treasure_appraisal_text_x - int(ocr_width / 2)
+        ocr_top = treasure_appraisal_text_y - int(ocr_height / 2)
+        ocr_right = treasure_appraisal_text_x + int(ocr_width / 2)
+        ocr_bottom = treasure_appraisal_text_y + int(ocr_height / 2)
         minimum_multiplier = float(self.vars["minimum_multiplier"])
         logging_mode = self.vars["logging_mode"].lower()
         # Cache Values (Failsafe)
@@ -3845,7 +3980,10 @@ class Api:
                     self._click_at(current_click_x, current_click_y)
                     time.sleep(0.5)
                 time.sleep(2)
-                # Check For OCR
+                # Check If Dxcam Is Available
+                if dxcam is not None:
+                    self.capture_frame = self.camera.get_latest_frame()
+                    self.capture_id = self.capture_id + 1
                 ocr_image = self.capture_frame[ocr_top:ocr_bottom, ocr_left:ocr_right]
                 processed_img = self.process_image_for_ocr(ocr_image)
                 text = pytesseract.image_to_string(processed_img, config="--psm 7")
@@ -3857,7 +3995,7 @@ class Api:
                         self.set_status("Treasure Appraisal: extracted_value < minimum_multiplier")
                 else:
                     self.set_status("Treasure Appraisal: extracted_value == None")
-                self._click_at(reappraise_x_screen, reappraise_y_screen)
+                self._click_at(treasure_appraisal_click_x, treasure_appraisal_click_y)
                 if self.macro_running == False:
                     self.stop_macro("")
                 if round(attempts) == attempts and logging_mode != "disabled":
@@ -3884,8 +4022,13 @@ class Api:
     def start_enchantment(self):
         # Validate Tesseract
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3908,14 +4051,22 @@ class Api:
         enchant_enchants = self.vars["enchant_enchants"]
         enchant_enchants_list = enchant_enchants.split(",")
         # Positions
-        enchantment_x_ratio = float(self.vars["enchant_click_x"])
-        enchantment_y_ratio = float(self.vars["enchant_click_y"])
-        enchantment_x = int(SCREEN_WIDTH * enchantment_x_ratio)
-        enchantment_y = int(SCREEN_HEIGHT * enchantment_y_ratio)
-        # Delays
-        e_delay = float(self.vars["e_delay"])
-        click_delay = float(self.vars["click_delay"])
-        click_delay2 = float(self.vars["click_delay2"])
+        enchantment_e_delay = float(self.vars["enchantment_e_delay"])
+        enchantment_click_delay = float(self.vars["enchantment_click_delay"])
+        enchantment_click_delay2 = float(self.vars["enchantment_click_delay2"])
+        enchantment_click_delay3 = float(self.vars["enchantment_click_delay3"])
+        enchantment_click_position = self.vars["enchantment_click_position"].replace(" ", "").split(",")
+        try:
+            enchantment_click_position_x = float(enchantment_click_position[0]) * SCREEN_WIDTH
+            enchantment_click_position_y = float(enchantment_click_position[1]) * SCREEN_HEIGHT
+        except:
+            pass
+        enchantment_click_position2 = self.vars["enchantment_click_position2"].replace(" ", "").split(",")
+        try:
+            enchantment_click_position_x2 = float(enchantment_click_position2[0]) * SCREEN_WIDTH
+            enchantment_click_position_y2 = float(enchantment_click_position2[1]) * SCREEN_HEIGHT
+        except:
+            pass
         # Other Calculations
         logging_cycle = int(self.vars["logging_cycle"])
         logging_mode = self.vars["logging_mode"].lower()
@@ -3924,15 +4075,20 @@ class Api:
         try:
             while self.macro_running:
                 time.sleep(0.1)
-                if enchantment_mode == "gamepass":
+                if enchantment_mode == "normal":
                     self._send_key("e")
-                    time.sleep(e_delay)
-                    self._click_at(enchantment_x, enchantment_y)
-                    time.sleep(click_delay)
+                    time.sleep(enchantment_e_delay)
+                    self._click_at(enchantment_click_position_x, enchantment_click_position_y)
+                    time.sleep(enchantment_click_delay)
                 else:
-                    self.click_backpack(enchantment_x_ratio, enchantment_y_ratio)
-                time.sleep(3)
-                # Detection
+                    self._click_at(enchantment_click_position_x, enchantment_click_position_y)
+                    time.sleep(enchantment_click_delay)
+                    self._click_at(enchantment_click_position_x2, enchantment_click_position_y2)
+                    time.sleep(enchantment_click_delay2)
+                # Check If Dxcam Is Available
+                if dxcam is not None:
+                    self.capture_frame = self.camera.get_latest_frame()
+                    self.capture_id = self.capture_id + 1
                 text = self.capture_frame[enchantment_top:enchantment_bottom, enchantment_left:enchantment_right]
                 gray = self.process_image_for_ocr(text)
                 text = pytesseract.image_to_string(gray, config="--psm 7")
@@ -3941,7 +4097,7 @@ class Api:
                     # print("Text:", text.lower().rstrip(",").replace(" ", ""))
                     if enchant_enchants_list[match].lower().rstrip(",").replace(" ", "") in text.lower().rstrip(",").replace(" ", ""):
                         self.stop_macro("Enchantment finished")
-                time.sleep(click_delay2)
+                time.sleep(enchantment_click_delay3)
                 if self.macro_running == False:
                     self.stop_macro("")
                 if round(attempts) == attempts and logging_mode != "disabled":
@@ -3969,8 +4125,13 @@ class Api:
     def start_angler(self):
         # Validate Tesseract
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3986,35 +4147,37 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Angler error: {e}")
             return
+        # Areas
         backpack_left, backpack_top, _, _, backpack_width, backpack_height = self.get_areas("backpack")
         quest_left, quest_top, quest_right, quest_bottom, _, _ = self.get_areas("angler_quest")
         backpack_slot = str(self.vars["backpack_slot"])
-        utility_restart_delay = int(self.vars["utility_restart_delay"])
-        # Angler Key
-        angler_x_ratio = float(self.vars["angler_click_x"])
-        angler_y_ratio = float(self.vars["angler_click_y"])
-        angler_click_x = int(SCREEN_WIDTH * angler_x_ratio)
-        angler_click_y = int(SCREEN_HEIGHT * angler_y_ratio)
-        # Backpack Key
-        backpack_x_ratio = self.vars["backpack_x"]
-        backpack_y_ratio = self.vars["backpack_y"]
-        backpack_x = int(SCREEN_WIDTH * backpack_x_ratio)
-        backpack_y = int(SCREEN_HEIGHT * backpack_y_ratio)
-        # Check For Utilities
-        self._check_logging_trigger(-1)
+        # Delays
+        angler_cooldown = int(self.vars["angler_cooldown"])
+        angler_e_delay = float(self.vars["angler_e_delay"])
+        angler_click_position = self.vars["angler_click_position"].replace(" ", "").split(",")
+        try:
+            angler_click_position_x = float(angler_click_position[0]) * SCREEN_WIDTH
+            angler_click_position_y = float(angler_click_position[1]) * SCREEN_HEIGHT
+        except:
+            pass
+        angler_click_position2 = self.vars["angler_click_position2"].replace(" ", "").split(",")
+        try:
+            angler_click_position_x2 = float(angler_click_position2[0]) * SCREEN_WIDTH
+            angler_click_position_y2 = float(angler_click_position2[1]) * SCREEN_HEIGHT
+        except:
+            pass
         # Main Loop
         try:
             while self.macro_running:
                 time.sleep(0.1)
                 # Step 1: Click E → Open Quest Dialogue
                 self._send_key("e")
-                time.sleep(1.5)
+                time.sleep(angler_e_delay)
                 # Click At Angler Area (Accept Quest)
-                self._click_at(angler_click_x, angler_click_y)
+                self._click_at(angler_click_position_x, angler_click_position_y)
                 # Step 2: OCR Quest Area — Get Required Fish Text
                 time.sleep(3)
-                img = self._grab_screen_full()
-                quest = img[quest_top:quest_bottom, quest_left:quest_right]
+                quest = self.capture_frame[quest_top:quest_bottom, quest_left:quest_right]
                 gray = cv2.cvtColor(quest, cv2.COLOR_BGR2GRAY)
                 gray = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
                 gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
@@ -4028,22 +4191,25 @@ class Api:
                 self.set_status(f"Quest fish: {required_fish}")
                 if not required_fish:
                     self.set_status("Could not read fish name")
-                    time.sleep(utility_restart_delay)
+                    time.sleep(angler_cooldown)
                     continue
 
                 # Step 3: Open Backpack
                 self._send_key(backpack_slot)
                 time.sleep(0.5)
                 # Step 4: Click Search Bar + Type Fish Name
-                self._click_at(backpack_x, backpack_y)
+                self._click_at(angler_click_position_x2, angler_click_position_y2)
                 time.sleep(0.5)
                 # Type Fish Name
                 for char in required_fish:
                     self._send_key(char)
                 time.sleep(1.5)
                 # Step 5: Locate Quest_Text In Quest Area Via OCR And Click It
-                img = self._grab_screen_full()
-                quest_region = img[quest_top:quest_bottom, quest_left:quest_right]
+                # Check If Dxcam Is Available
+                if dxcam is not None:
+                    self.capture_frame = self.camera.get_latest_frame()
+                    self.capture_id = self.capture_id + 1
+                quest_region = self.capture_frame[quest_top:quest_bottom, quest_left:quest_right]
                 gray_q = cv2.cvtColor(quest_region, cv2.COLOR_BGR2GRAY)
                 gray_q = cv2.resize(gray_q, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
                 gray_q = cv2.threshold(gray_q, 150, 255, cv2.THRESH_BINARY)[1]
@@ -4089,10 +4255,10 @@ class Api:
                 # Step 7: Click E → Finish Quest (Pixel Search Or Ratio)
                 self._send_key("e")
                 time.sleep(1.2)
-                # Click At Angler Area
-                self._click_at(angler_click_x, angler_click_y)
+                # Click At Angler Area To Exit Quest
+                self._click_at(angler_click_position_x, angler_click_position_y)
                 # Step 8: Cooldown
-                time.sleep(utility_restart_delay)
+                time.sleep(angler_cooldown)
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
@@ -4160,11 +4326,23 @@ class Api:
             auto_refresh = self.vars["auto_refresh"]
             auto_totem = self.vars["auto_totem"]
             fish_overlay = self.vars["fish_overlay"]
-            enchant_click_x = float(self.vars["enchant_click_x"])
-            enchant_click_y = float(self.vars["enchant_click_y"])
             minigame_click_position = self.vars["minigame_click_position"]
             animation_delay = float(self.vars["animation_delay"])
             minigame_click_amounts = int(float(self.vars["minigame_click_amounts"]))
+            enchantment_click_position = self.vars["enchantment_click_position"].replace(" ", "").split(",")
+            try:
+                enchantment_click_position_x = float(enchantment_click_position[0]) * SCREEN_WIDTH
+                enchantment_click_position_y = float(enchantment_click_position[1]) * SCREEN_HEIGHT
+            except:
+                pass
+            enchantment_click_position2 = self.vars["enchantment_click_position2"].replace(" ", "").split(",")
+            try:
+                enchantment_click_position_x2 = float(enchantment_click_position2[0]) * SCREEN_WIDTH
+                enchantment_click_position_y2 = float(enchantment_click_position2[1]) * SCREEN_HEIGHT
+            except:
+                pass
+            enchantment_click_delay = float(self.vars["enchantment_click_delay"])
+            enchantment_click_delay2 = float(self.vars["enchantment_click_delay2"])
             # 6. Optimized Opencv Template Matching Setup
             try:
                 sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
@@ -4212,8 +4390,8 @@ class Api:
                 self.status_overlay.show(self.status_left, self.status_top, self.status_right, self.status_bottom)
             else:
                 self.status_overlay.hide()
-        except:
-            pass
+        except KeyError as e:
+            self.stop_macro("Config Error: ", e)
         # Main Loop (With Bug Reports)
         try:
             while self.macro_running:
@@ -4279,7 +4457,10 @@ class Api:
                                 self._send_key(rod_slot)
                                 time.sleep(0.1)
                                 self._send_key(relic_slot)
-                                self.click_backpack(enchant_click_x, enchant_click_y)
+                                self._click_at(enchantment_click_position_x, enchantment_click_position_y)
+                                time.sleep(enchantment_click_delay)
+                                self._click_at(enchantment_click_position_x2, enchantment_click_position_y2)
+                                time.sleep(enchantment_click_delay2)
                             elif distance > maximum_percentage:
                                 break
 
@@ -4435,8 +4616,13 @@ class Api:
     def hunt_detect(self, current_hunt):
         "current_hunt: Does nothing"
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
         except:
             return
 
@@ -5884,6 +6070,7 @@ class Api:
         note_x = 0
         note_y_ratio = 0
         time_delta = 0
+        mouse_delay_counter = 0
         # Failsafe & Previous Frame Tracking (History)
         last_capture_id = 0
         last_fish_x = fish_center_x_relative
@@ -5921,19 +6108,8 @@ class Api:
                 self.capture_id = last_capture_id + 1
             # Get Image From Self.Capture_Frame
             if self.capture_id == last_capture_id:
-                frame_interpolation_cycle += self.scan_delay
-                if frame_interpolation_cycle > self.scan_delay * 3:
-                    frame_interpolation_cycle = 0
-                    interpolation_bar_velocity = abs(last_bar_velocity * self.scan_delay * 3)
-                    if mouse_down:
-                        left_x = left_x + interpolation_bar_velocity
-                        right_x = right_x + interpolation_bar_velocity
-                    else:
-                        left_x = left_x - interpolation_bar_velocity
-                        right_x = right_x - interpolation_bar_velocity
-                else:
-                    time.sleep(self.scan_delay)
-                    continue
+                time.sleep(self.scan_delay)
+                continue
             elif self.capture_frame is None:
                 time.sleep(self.scan_delay)
                 continue
@@ -5986,7 +6162,6 @@ class Api:
                     elif last_right_x is not None:
                         right_x = last_right_x
                     bar_detected = True
-                    self.status_overlay.set_line(1, "Detection Source: ", "Left+Cache")
                 elif right_x is not None and (last_left_x is not None or last_bar_size):
                     # Only The Right Edge Was Found — Fill The Missing Left.
                     if last_bar_size:
@@ -5994,7 +6169,6 @@ class Api:
                     elif last_left_x is not None:
                         left_x = last_left_x
                     bar_detected = True
-                    self.status_overlay.set_line(1, "Detection Source: ", "Right+Cache")
                 else:
                     # Try Arrow
                     bar_detected = False
@@ -6283,7 +6457,12 @@ class Api:
                 fish_x = last_fish_x
                 fish_detected = True
             # Set Status
-            self.status_overlay.set_line(2, "Bar Size: ", round(bar_size))
+            try:
+                bar_velocity2 = round(bar_center - last_bar_center, 2)
+                self.status_overlay.set_line(2, "Bar Velocity: ", bar_velocity2)
+            except:
+                bar_velocity2 = 0
+                self.status_overlay.set_line(2, "", "")
             # Shapes Detection (Noiseform warn flash + bar-zone target)
             if fishing_profile == "shapes":
                 noiseform_color, zone_x = self.detect_noiseform_target(noiseform_img, fish_img)
@@ -6638,14 +6817,24 @@ if setup_state == False:
     sys.exit(0)
 # Main Window
 def on_closed():
-    api.fish_overlay.hide()
-    api.status_overlay.hide()
-    api.eyedropper.hide()
+    # Tear down child overlays so webview.start() can return. Overlay hide()
+    # methods must not block the GUI thread (eyedropper schedules destroy).
+    for closer in (
+        api.fish_overlay.hide,
+        api.status_overlay.hide,
+        api.eyedropper.hide,
+        api.area_selector.hide,
+    ):
+        try:
+            closer()
+        except Exception:
+            pass
 api = Api()
 window = webview.create_window(
     f"Solar Fishing V{APP_VERSION}",
     os.path.join(UI_PATH, "index.html"),
     js_api=api,
+    text_select=True,
     width=1000,
     height=700
 )
