@@ -32,19 +32,8 @@ if sys.platform == "win32":
         dxcam = None
 else:
     dxcam = None
-try:
-    if dxcam is None:
-        from fastgrab import screenshot
-    else:
-        screenshot = None
-except ImportError:
-    screenshot = None
-try:
-    img = screenshot.Screenshot().capture()
-except:
-    screenshot = None
 import mss
-# Keyboard And Mouse Clicks (Platformspecific)
+# Keyboard And Mouse Clicks (Platform-specific)
 from pynput.keyboard import Listener as KeyListener, Key
 from pynput import keyboard, mouse
 from pynput.keyboard import Controller as KeyboardController
@@ -59,23 +48,20 @@ elif sys.platform == "darwin":
 elif sys.platform == "linux":
     from Xlib import X, XK, display as Xdisplay
     from Xlib.ext import xtest
-# OCR (With Fallback If User Didn'T Install Tesseract)
+# Check For OCR
 try:
     import pytesseract
-    if sys.platform == "win32":
-        possible = shutil.which("tesseract")
-        if possible:
-            pytesseract.pytesseract.tesseract_cmd = possible
-    else:
-        pytesseract.pytesseract.tesseract_cmd = "/opt/homebrew/bin/tesseract"
-except:
+    possible = shutil.which("tesseract")
+    if possible:
+        pytesseract.pytesseract.tesseract_cmd = possible
+except (ImportError, OSError):
     pytesseract = None
 # Define Platform-Specific Constants
 # All Platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
-APP_VERSION = 5.1
-BETA_VERSION = 2
+APP_VERSION = 5.11
+BETA_VERSION = 0
 DEVELOPER = "Catman2608"
 def load_misc_settings(last_config_path):
     try:
@@ -96,21 +82,71 @@ def get_macos_menu_offset():
 
     except Exception:
         return 0
-
 if sys.platform == "darwin":
+    import Quartz
     _QUARTZ_SRGB_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(
         Quartz.kCGColorSpaceSRGB
     )
+    # Cache display P3 color space (what MSS typically returns on modern Macs)
+    _QUARTZ_P3_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(
+        Quartz.kCGColorSpaceDisplayP3
+    )
 else:
     _QUARTZ_SRGB_COLOR_SPACE = None
+    _QUARTZ_P3_COLOR_SPACE = None
+
+def mss_to_srgb_numpy(image, source_is_p3=True):
+    """
+    Convert an untagged raw MSS/Fastgrab frame buffer from Display P3 to sRGB
+    using macOS native ColorSync engine for identical Quartz output.
+    """
+    if image is None or getattr(image, "ndim", 0) != 3 or image.shape[2] not in (3, 4):
+        return image
+
+    if sys.platform != "darwin" or not source_is_p3:
+        bgr = image[:, :, :3]
+        return bgr if bgr.flags["C_CONTIGUOUS"] else np.ascontiguousarray(bgr)
+
+    height, width = image.shape[:2]
+    
+    # 1. Ensure input buffer is BGRA (4 channels required by CGDataProvider)
+    if image.shape[2] == 3:
+        bgra = np.empty((height, width, 4), dtype=np.uint8)
+        bgra[:, :, :3] = image
+        bgra[:, :, 3] = 255
+    else:
+        bgra = image
+
+    # 2. Wrap raw NumPy buffer in CGImage tagged as Display P3
+    bytes_per_row = width * 4
+    provider = Quartz.CGDataProviderCreateWithData(None, bgra.tobytes(), len(bgra.tobytes()), None)
+    
+    src_cg_image = Quartz.CGImageCreate(
+        width, height, 8, 32, bytes_per_row,
+        _QUARTZ_P3_COLOR_SPACE,
+        Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little, # BGRA
+        provider, None, False, Quartz.kCGRenderingIntentDefault
+    )
+
+    # 3. Draw into an sRGB context (CoreGraphics handles exact ColorSync transformation)
+    out_raw = np.empty((height, width, 4), dtype=np.uint8)
+    context = Quartz.CGBitmapContextCreate(
+        out_raw, width, height, 8, bytes_per_row,
+        _QUARTZ_SRGB_COLOR_SPACE,
+        Quartz.kCGImageAlphaPremultipliedLast | Quartz.kCGBitmapByteOrder32Big
+    )
+    
+    Quartz.CGContextDrawImage(context, Quartz.CGRectMake(0, 0, width, height), src_cg_image)
+
+    # 4. Extract BGR uint8 result matching Quartz/MSS consumers
+    return np.ascontiguousarray(out_raw[:, :, :3][:, :, ::-1])
+
 def cgimage_to_srgb_numpy(image):
     if sys.platform == "darwin":
         width = Quartz.CGImageGetWidth(image)
         height = Quartz.CGImageGetHeight(image)
         bytes_per_row = width * 4
-        # Allocate The Destination Buffer Once Per Frame.
         raw = np.empty((height, width, 4), dtype=np.uint8)
-        # Reuse The Cached Srgb Color Space.
         context = Quartz.CGBitmapContextCreate(
             raw,
             width,
@@ -119,7 +155,7 @@ def cgimage_to_srgb_numpy(image):
             bytes_per_row,
             _QUARTZ_SRGB_COLOR_SPACE,
             Quartz.kCGImageAlphaPremultipliedLast |
-            Quartz.kCGBitmapByteOrder32Big
+            Quartz.kCGBitmapByteOrder32Big,
         )
         if context is None:
             return None
@@ -127,9 +163,8 @@ def cgimage_to_srgb_numpy(image):
         Quartz.CGContextDrawImage(
             context,
             Quartz.CGRectMake(0, 0, width, height),
-            image
+            image,
         )
-        # Return A Bgr View Without Making Another Fullframe Allocation.
         return raw[:, :, :3][:, :, ::-1]
 
     return image
@@ -408,81 +443,103 @@ elif sys.platform.startswith("linux"):
             time.sleep(delay)
             xtest.fake_input(d, X.KeyRelease, keycode)
             d.sync()
-# Config Management
-def get_base_path():
-    # 1. Check If The Application Is Bundled/Frozen
-    if getattr(sys, 'frozen', False):
-        # Detect If It'S A macOS Application Bundle (.App)
-        if sys.platform == 'darwin':
-            if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-                #   Windows/Linux onedir →  <app>/_internal
-                #   macOS .app           →  <app>.app/Contents/Frameworks
-                #   onefile              →  temp extract dir
-                return Path(sys._MEIPASS).resolve(), True
+# Path Management
+def _is_frozen():
+    return bool(getattr(sys, "frozen", False))
 
-        # Detect If It'S A Linux Packaged Environment (Like Appimage)
-        # Linux Appimages Extract To A Mount Point, Keeping Assets Inside The Binary Environment
-        elif sys.platform == "linux":
-            if 'AppRun' in sys.executable:
-                return Path(sys.executable).parent.resolve(), True
+def get_exe_dir():
+    """Directory that contains the running executable (or the .py file in dev)."""
+    if _is_frozen():
+        return Path(sys.executable).parent.resolve()
+    return Path(__file__).parent.resolve()
 
-        # 2. Windows Exe (Onefile) Or Standard Local Folder Deployment
-        # Returns The Directory Containing The Actual .Exe File, Not The Temporary _Meipass Folder
-        else:
-            return Path(sys.executable).parent.resolve(), True
+def get_resource_path():
+    """
+    Packaged assets (ui/, images/, bundled default configs/).
+    Compiled macOS/Linux: PyInstaller onedir --add-data folder (sys._MEIPASS,
+    typically <app>/_internal or .app/Contents/Frameworks).
+    Compiled Windows: directory next to the .exe (unchanged).
+    Dev: project directory.
+    """
+    if _is_frozen():
+        if sys.platform == "win32":
+            return Path(sys.executable).parent.resolve()
+        if hasattr(sys, "_MEIPASS"):
+            return Path(sys._MEIPASS).resolve()
+        return Path(sys.executable).parent.resolve()
+    return Path(__file__).parent.resolve()
 
-    # 3. Running From Raw Source Code (.Py File)
-    else:
-        return Path(__file__).parent.resolve(), False
-# Get Appdata Path
 def get_appdata_path():
-    """Unified base directory for app data."""
-    if getattr(sys, 'frozen', False):
-        # Compiled App → Use User Directory
+    """Writable user data. Compiled → platform AppData; dev → project directory."""
+    if _is_frozen():
         if sys.platform == "darwin":
             return os.path.join(
-
                 os.path.expanduser("~"),
                 "Library", "Application Support",
                 "SolarFishingV5"
             )
         elif sys.platform == "win32":
             return os.path.join(
-
                 os.path.expanduser("~"),
                 "AppData", "Roaming",
                 "SolarFishingV5"
             )
         else:
             return os.path.join(os.path.expanduser("~"), "SolarFishingV5")
-    # Dev Mode → Project Directory
-    return os.path.dirname(os.path.abspath(__file__))
-# Establish The Global Base Path For Solar Fishing V5
-BASE_PATH, IS_COMPILED = get_base_path()
-APPDATA_PATH = get_appdata_path()
-# Make Sure Base Path Exists
-os.makedirs(BASE_PATH, exist_ok=True)
-# Configs Path
-LAST_CONFIG = os.path.join(BASE_PATH, "last_config.json")
-data = load_misc_settings(LAST_CONFIG)
-try:
-    if data["appdata_settings"] == "on":
-        CONFIGS_PATH = os.path.join(APPDATA_PATH, "configs")
+    return str(Path(__file__).parent.resolve())
+
+def find_bundled_configs(resource_path, exe_dir):
+    """Locate the packaged configs folder shipped with the onedir build."""
+    candidates = [
+        os.path.join(resource_path, "configs"),
+        os.path.join(exe_dir, "configs"),
+        os.path.join(exe_dir, "_internal", "configs"),
+    ]
+    for path in candidates:
+        if os.path.isdir(path):
+            return path
+    return candidates[0]
+
+def seed_configs_from_bundle(bundled_configs, configs_path):
+    """If AppData has no configs folder, copy the packaged defaults into it."""
+    if os.path.isdir(configs_path):
+        return
+    if os.path.isdir(bundled_configs):
+        shutil.copytree(bundled_configs, configs_path)
     else:
-        CONFIGS_PATH = os.path.join(BASE_PATH, "configs")
-except:
-    CONFIGS_PATH = os.path.join(BASE_PATH, "configs")
-IMAGES_PATH = os.path.join(BASE_PATH, "images")
-UI_PATH = os.path.join(BASE_PATH, "ui")
+        os.makedirs(configs_path, exist_ok=True)
+
+# Establish Paths For Solar Fishing V5
+RESOURCE_PATH = str(get_resource_path())
+EXE_DIR = str(get_exe_dir())
+IS_COMPILED = _is_frozen()
+APPDATA_PATH = get_appdata_path()
+# Writable Files (Last_Config.Json, Debug Shots, Logs) Live Here.
+# Compiled → Appdata; Dev → Project Directory.
+BASE_PATH = APPDATA_PATH if IS_COMPILED else RESOURCE_PATH
+os.makedirs(BASE_PATH, exist_ok=True)
+IMAGES_PATH = os.path.join(RESOURCE_PATH, "images")
+UI_PATH = os.path.join(RESOURCE_PATH, "ui")
+if IS_COMPILED:
+    CONFIGS_PATH = os.path.join(APPDATA_PATH, "configs")
+    BUNDLED_CONFIGS_PATH = find_bundled_configs(RESOURCE_PATH, EXE_DIR)
+    seed_configs_from_bundle(BUNDLED_CONFIGS_PATH, CONFIGS_PATH)
+else:
+    BUNDLED_CONFIGS_PATH = os.path.join(RESOURCE_PATH, "configs")
+    CONFIGS_PATH = BUNDLED_CONFIGS_PATH
+LAST_CONFIG = os.path.join(BASE_PATH, "last_config.json")
 # File Management
-def open_base_folder():
-    folder = BASE_PATH
+def open_folder(folder):
     if sys.platform == "win32":
         os.startfile(folder)
     elif sys.platform == "darwin":  # Macos
         subprocess.run(["open", folder])
     else:  # Linux
         subprocess.run(["xdg-open", folder])
+
+def open_base_folder():
+    # Writable User Data (Configs, Debug Shots, Logs)
+    open_folder(BASE_PATH)
 # Central Area Definitions.  To Add A New Selectable Area:
 # 1. Add An Entry Below (Key, Color, Label, Default Ratios 0–1).
 # 2. That'S It — Selector Ui, Save/Load, Defaults, And The Show/Hide Menu
@@ -556,6 +613,91 @@ AREA_CONFIG = {
 }
 # Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
+
+def get_tesseract_path(configured_path=None):
+    """
+    Return a valid Tesseract path for the current operating system.
+
+    If an imported config contains a Tesseract path from another OS,
+    automatically fall back to the current OS's Tesseract installation.
+    """
+
+    # 1. Try the path stored in the config first
+    if configured_path:
+        try:
+            configured_path = str(configured_path).strip().strip('"')
+
+            if Path(configured_path).is_file():
+                return configured_path
+
+        except (OSError, ValueError, TypeError):
+            pass
+
+    # 2. Check if Tesseract is already available in PATH
+    detected = shutil.which("tesseract")
+
+    if detected:
+        return detected
+
+    # 3. Check common paths for the CURRENT operating system
+    if sys.platform == "win32":
+        possible_paths = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        ]
+
+    elif sys.platform == "darwin":
+        possible_paths = [
+            "/opt/homebrew/bin/tesseract",   # Apple Silicon Homebrew
+            "/usr/local/bin/tesseract",      # Intel Homebrew
+        ]
+
+    else:
+        # Linux
+        possible_paths = [
+            "/usr/bin/tesseract",
+            "/usr/local/bin/tesseract",
+        ]
+
+    for path in possible_paths:
+        if Path(path).is_file():
+            return path
+
+    # Nothing found
+    return None
+
+def _schedule_webview_destroy(win, after=None, delay=0.05):
+    """Destroy a pywebview window after the current JS/GUI call returns.
+
+    Calling Window.destroy() from that window's js_api deadlocks pywebview
+    (the bridge waits for destroy; destroy waits for the bridge). The stall
+    freezes every other window too. Tear windows down from a short-lived
+    thread instead.
+    """
+    if win is None:
+        if after:
+            try:
+                after()
+            except Exception:
+                pass
+        return
+
+    def _destroy():
+        if delay:
+            time.sleep(delay)
+        try:
+            win.destroy()
+        except Exception:
+            pass
+        if after:
+            try:
+                after()
+            except Exception:
+                pass
+
+    threading.Thread(target=_destroy, daemon=True).start()
+
+
 class AreaSelector:
     """
     Fullscreen transparent overlay implemented as a second pywebview window.
@@ -808,11 +950,9 @@ class AreaSelector:
         except Exception:
             pass
 
-        if self.area_window:
-            try:
-                self.area_window.destroy()
-            except Exception:
-                pass
+        win = self.area_window
+        self.area_window = None
+        _schedule_webview_destroy(win)
 
     def _pixels_to_ratios(self, box, menu_offset=0):
         """Convert JS canvas-pixel boxes back to full-screen ratios.
@@ -875,11 +1015,9 @@ class AreaSelector:
         self.parent_app.save_misc_settings()
         self._open = False
         self.parent_app.set_status("Area selector closed")
-        if self.area_window:
-            try:
-                self.area_window.destroy()
-            except Exception:
-                pass
+        win = self.area_window
+        self.area_window = None
+        _schedule_webview_destroy(win)
 
     def get_screenshot_data(self):
         """Return the data-URL of the frozen (menu-bar-cropped) screenshot."""
@@ -901,6 +1039,11 @@ class AreaSelector:
     def close(self):
         if self.is_open():
             self.save_areas(self.get_areas())
+        elif self.area_window:
+            win = self.area_window
+            self.area_window = None
+            self._open = False
+            _schedule_webview_destroy(win)
 # Eyedropper Class
 class Eyedropper:
     """
@@ -1043,16 +1186,23 @@ class Eyedropper:
         return self._open and self.eyedropper_window is not None
 
     def hide(self):
-        """Destroys the current window instance completely.
-        Clear _open first to avoid concurrent evaluate_js on a disposed WebView2."""
-        if self.eyedropper_window and self._open:
+        """Destroy the overlay without freezing the GUI.
+
+        pywebview deadlocks if destroy() runs on the same window whose JS
+        bridge is still inside pick_color() / close_eyedropper(). That also
+        stalls the main window ("not responding"). Clear flags immediately,
+        then destroy on a short-lived thread so the JS call can return first.
+        """
+        win = self.eyedropper_window
+        if not win or not self._open:
             self._open = False
             self._visible = False
-            try:
-                self.eyedropper_window.destroy()
-            except Exception:
-                pass
-            self._on_closed()
+            return
+
+        self._open = False
+        self._visible = False
+        self.eyedropper_window = None
+        _schedule_webview_destroy(win, after=self._on_closed)
     def close(self):
         """Alias used by shutdown / toggle paths."""
         self.hide()
@@ -1258,15 +1408,19 @@ class FishOverlay:
         Clear _open BEFORE destroy so concurrent minigame threads that still
         call clear()/draw_box()/_eval skip the disposed WebView2 and avoid
         ObjectDisposedException (logged by pywebview as 'Error occurred in script').
+        Destroy is scheduled off the caller thread so a stop/hotkey/shutdown
+        path cannot deadlock pywebview the way Eyedropper/AreaSelector did.
         """
-        if self._overlay_window and self._open:
+        win = self._overlay_window
+        if not win or not self._open:
             self._open = False
             self._visible = False
-            try:
-                self._overlay_window.destroy()
-            except Exception:
-                pass
-            self._on_closed()
+            return
+
+        self._open = False
+        self._visible = False
+        self._overlay_window = None
+        _schedule_webview_destroy(win, after=self._on_closed)
     def resize(self, left, top, width, height, already_logical=False):
         """Resizes and moves the window dynamically if it exists.
         By default arguments are physical pixels (same as show()).
@@ -1418,16 +1572,19 @@ class StatusOverlay:
     def hide(self):
         """
         Destroys the current window instance completely.
+        Scheduled so hide() from stop_macro / main-window close cannot
+        deadlock the pywebview GUI thread.
         """
-        if self._overlay_window and self._open:
+        win = self._overlay_window
+        if not win or not self._open:
             self._open = False
             self._visible = False
-            try:
-                self._overlay_window.destroy()
-            except Exception:
-                pass
+            return
 
-            self._on_closed()
+        self._open = False
+        self._visible = False
+        self._overlay_window = None
+        _schedule_webview_destroy(win, after=self._on_closed)
     def resize(self, left, top, width, height, already_logical=False):
         """
         Resizes and moves the window dynamically.
@@ -2429,13 +2586,10 @@ class Api:
                         self.camera = dxcam.create(output_color="BGR")
                         self.camera.start()
                     else:
-                        if screenshot is not None:
-                            self.capture_thread = threading.Thread(target=self.capture_loop_fastgrab, daemon=True)
+                        if sys.platform == "darwin":
+                            self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
                         else:
-                            if sys.platform == "darwin":
-                                self.capture_thread = threading.Thread(target=self.capture_loop_quartz, daemon=True)
-                            else:
-                                self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
+                            self.capture_thread = threading.Thread(target=self.capture_loop_mss, daemon=True)
                         self.capture_thread.start()
             elif key == area_selector_key:
                 # Guard To Prevent Area Selector From Being Opened The Second The Macro Started
@@ -2492,7 +2646,7 @@ class Api:
         elif sys.platform == "darwin":
             _mouse_event(button="right" if mouse else "left", press=False)
         else:
-            # Linux  Now Uses The Unified X11 Implementation
+            # Linux - Now Uses The Unified X11 Implementation
             _mouse_event(button="right" if mouse else "left", press=False)
     # Click At
     def _click_at(self, x, y, click_count=1):
@@ -2669,46 +2823,28 @@ class Api:
         Capture a single full-screen frame without touching self.macro_running.
         Used by debug screenshots, eyedropper freeze, and Discord screenshot logging.
         """
-        if screenshot is not None:
-            return screenshot.Screenshot().capture()
+        if sys.platform == "darwin":
+            image = Quartz.CGWindowListCreateImage(
+                Quartz.CGRectInfinite,
+                Quartz.kCGWindowListOptionOnScreenOnly,
+                Quartz.kCGNullWindowID,
+                Quartz.kCGWindowImageDefault
+            )
+            if image is None:
+                return None
+
+            return cgimage_to_srgb_numpy(image)
+
         else:
-            if sys.platform == "darwin":
-                image = Quartz.CGWindowListCreateImage(
-                    Quartz.CGRectInfinite,
-                    Quartz.kCGWindowListOptionOnScreenOnly,
-                    Quartz.kCGNullWindowID,
-                    Quartz.kCGWindowImageDefault
-                )
-                if image is None:
-                    return None
-
-                return cgimage_to_srgb_numpy(image)
-
-            else:
-                scale = get_scale_factor()
-                with MSS() as sct:
-                    monitor = {
-                        "top": 0,
-                        "left": 0,
-                        "width": int(SCREEN_WIDTH * scale),
-                        "height": int(SCREEN_HEIGHT * scale),
-                    }
-                    return np.asarray(sct.grab(monitor))[:, :, :3]
-
-
-    def capture_loop_fastgrab(self):
-        """Continuous capture loop for the macro. Assumes self.macro_running is already True."""
-        if not self.macro_running:
-            return
-
-        self.capture_id = 0
-
-        sct = screenshot.Screenshot()
-
-        while self.macro_running:
-            self.capture_frame = sct.capture()[:, :, :3]
-            self.capture_id += 1
-            time.sleep(self.scan_delay)
+            scale = get_scale_factor()
+            with MSS() as sct:
+                monitor = {
+                    "top": 0,
+                    "left": 0,
+                    "width": int(SCREEN_WIDTH * scale),
+                    "height": int(SCREEN_HEIGHT * scale),
+                }
+                return np.asarray(sct.grab(monitor))[:, :, :3]
 
     def capture_loop_mss(self):
         """Continuous capture loop for the macro (Windows fallback). Assumes self.macro_running is already True."""
@@ -2787,28 +2923,7 @@ class Api:
                 return None
 
         return None
-
-    def click_backpack(self, x, y):
-        # Areas
-        backpack_left, backpack_top, backpack_right, backpack_bottom, backpack_width, backpack_height = self.get_areas("backpack")
-        # User Settings
-        backpack_key = str(self.vars["backpack_key"])
-        # Click Positions
-        backpack_confirm_x = (float(self.vars["backpack_confirm_x"]) * backpack_width) + backpack_left
-        backpack_confirm_y = (float(self.vars["backpack_confirm_y"]) * backpack_height) + backpack_top
-        click_x = (float(self.vars[x]) * backpack_width) + backpack_left
-        click_y = (float(self.vars[y]) * backpack_height) + backpack_top
-        # Action
-        self._send_key(backpack_key)
-        time.sleep(0.3)
-        self._click_at(click_x, click_y)
-        time.sleep(0.3)
-        self._click_at(backpack_confirm_x, backpack_confirm_y)
-        time.sleep(0.3)
-        self._send_key(backpack_key)
-        time.sleep(0.3)
-        return
-
+    
     def pixel_search(self, frame, hex, tolerance, mode=0):
         """
         Searches for the first or last pixel based on mode.
@@ -3110,164 +3225,125 @@ class Api:
         self._noise_z_bl = 0
         self._noise_z_bg = 0
 
-    def detect_noiseform_color(self, img):
+    def _normalize_noiseform_pixels(self, pixels):
+        """
+        Accept a BGR line (N, 3) or image (H, W, 3) and return a view
+        of the first three channels. Used by the Noiseform color masks.
+        """
+        pixels = np.asarray(pixels)
+        if pixels.ndim == 3 and pixels.shape[-1] >= 3:
+            return pixels[..., :3]
+        if pixels.ndim == 2 and pixels.shape[-1] >= 3:
+            return pixels[..., :3]
+        raise ValueError(
+            "Noiseform pixels must be a BGR line (N, 3) or image (H, W, 3), "
+            f"got shape {getattr(pixels, 'shape', None)}"
+        )
+
+    def _noiseform_first_xy(self, mask):
+        """Return the first matching (x, y), or (None, None) if empty."""
+        coords = np.argwhere(mask)
+        if coords.size == 0:
+            return None, None
+        if coords.shape[1] == 1:
+            return int(coords[0, 0]), 0
+        y, x = coords[0]
+        return int(x), int(y)
+
+    def _detect_noiseform_white(self, pixels, white_hex, tolerance=0):
+        """
+        Detect the first Noiseform white pixel.
+
+        Same V1-style threshold as `_find_bar_edges` left_mask:
+        every BGR channel must be >= (white_bgr - tolerance).
+        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
+
+        Returns (x, y) or (None, None).
+        """
+        if pixels is None or getattr(pixels, "size", 0) == 0 or white_hex is None:
+            return None, None
+
+        white_bgr = np.array(
+            self._hex_to_bgr(white_hex),
+            dtype=np.int16
+        )
+
+        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
+        tol = int(np.clip(tolerance, 0, 255))
+        mask = np.all(pixels >= (white_bgr - tol), axis=-1)
+        return self._noiseform_first_xy(mask)
+
+    def _detect_noiseform_black(self, pixels, black_hex, tolerance=0):
+        """
+        Detect the first Noiseform black pixel.
+
+        Opposite mask of `_detect_noiseform_white` / `_find_bar_edges`:
+        every BGR channel must be <= (black_bgr + tolerance).
+        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
+
+        Returns (x, y) or (None, None).
+        """
+        if pixels is None or getattr(pixels, "size", 0) == 0 or black_hex is None:
+            return None, None
+
+        black_bgr = np.array(
+            self._hex_to_bgr(black_hex),
+            dtype=np.int16
+        )
+
+        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
+        tol = int(np.clip(tolerance, 0, 255))
+        mask = np.all(pixels <= (black_bgr + tol), axis=-1)
+        return self._noiseform_first_xy(mask)
+
+    def _detect_noiseform_green(self, pixels, min_green=40, dominance=10):
+        """
+        Detect the first green-dominant Noiseform pixel.
+
+        A pixel is green-dominant when its green channel is strong
+        enough and exceeds both red and blue by `dominance`.
+        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
+
+        Returns (x, y) or (None, None).
+        """
+        if pixels is None or getattr(pixels, "size", 0) == 0:
+            return None, None
+
+        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
+        b = pixels[..., 0]
+        g = pixels[..., 1]
+        r = pixels[..., 2]
+        mask = (
+            (g >= int(min_green)) &
+            (g >= r + int(dominance)) &
+            (g >= b + int(dominance))
+        )
+        return self._noiseform_first_xy(mask)
+
+    def detect_noiseform_color(self, noiseform_img):
         """Classify the Noiseform warning flash: WHITE / GREEN / BLACK / "".
 
-        Port of DeepFish ALPHA v1.4 NoiseWarnKind(). `img` is the Noiseform Box
+        DeepFish ALPHA v1.4 NoiseWarnKind() is used as reference. `noiseform_img` is the Noiseform Box
         crop from capture_frame (BGR). Geometry is computed in screen pixels
         (center at 50% x, 51.94% y) then mapped into this crop, matching AHK's
         WindowWidth/Height minus FishBarLeft/NoteTop mapping.
         """
-        if img is None or img.size == 0 or img.ndim < 2:
-            return ""
-        h, w = img.shape[:2]
-        if h < 80 or w < 100:
-            return ""
-
-        try:
-            noiseform_left, noiseform_top, _, _, _, _ = self.get_areas("noiseform")
-        except Exception:
-            noiseform_left, noiseform_top = 0, 0
-
-        screen_w = max(1, int(getattr(self, "SCREEN_WIDTH", SCREEN_WIDTH) or SCREEN_WIDTH))
-        screen_h = max(1, int(getattr(self, "SCREEN_HEIGHT", SCREEN_HEIGHT) or SCREEN_HEIGHT))
-
-        # AHK: wcx := Round((WindowWidth * 0.500) - FishBarLeft)
-        wcx = int(round((screen_w * 0.500) - noiseform_left))
-        wcy = int(round((screen_h * 0.5194) - noiseform_top))
-        whw = int(round(screen_w * 0.082))
-        wskip = int(round(screen_w * 0.023))
-        whh = int(round(screen_h * 0.052))
-
-        wx0 = max(0, wcx - whw)
-        wx1 = min(w - 1, wcx + whw)
-        wy0 = max(0, wcy - whh)
-        wy1 = min(h - 1, wcy + whh)
-        if wx1 - wx0 < 24 or wy1 - wy0 < 24:
-            return ""
-
-        # Adaptive dark threshold from rolling mean-luminance baseline.
-        # NoiseWML is mean(vl)*100 (0–25500). dthr = clamp(round(base_ml*45/10000), 6, 60).
-        base_ml = int(getattr(self, "_noise_w_base_ml", 0) or 0)
-        if base_ml >= 200:
-            dthr = int(round((base_ml * 45) / 10000.0))
-            dthr = max(6, min(60, dthr))
-        else:
-            dthr = 6
-        self._noise_w_dthr = dthr
-
-        ys = np.arange(wy0, wy1 + 1, 9)
-        xs = np.arange(wx0, wx1 + 1, 9)
-        # Skip the vertical band around screen-center (AHK wskip).
-        xs = xs[np.abs(xs - wcx) > wskip]
-        if ys.size == 0 or xs.size == 0:
-            return ""
-
-        sample = img[np.ix_(ys, xs)]
-        if sample.size == 0:
-            return ""
-
-        bgr = sample.astype(np.int16)
-        b = bgr[..., 0]
-        g = bgr[..., 1]
-        r = bgr[..., 2]
-        brightness = (r + g + b) // 3
-        wn = int(brightness.size)
-        if wn < 30:
-            return ""
-
-        white = (
-            (brightness > 120)
-            & (np.abs(r - g) < 40)
-            & (np.abs(g - b) < 40)
-        )
-        # AHK: white else-if green (mutually exclusive).
-        green = (
-            (~white)
-            & (g > r + 40)
-            & (g > b + 30)
-            & (g > 90)
-        )
-        dark = brightness < 28
-        dark6 = brightness < dthr
-
-        wbn = int(np.count_nonzero(white))
-        wgr = int(np.count_nonzero(green))
-        wdk = int(np.count_nonzero(dark))
-        wd6 = int(np.count_nonzero(dark6))
-        wls = int(np.sum(brightness, dtype=np.int64))
-
-        # Integer percents, same as AHK `(count * 100) // wn`.
-        noise_w_bn = (wbn * 100) // wn
-        noise_w_gr = (wgr * 100) // wn
-        noise_w_dk = (wdk * 100) // wn
-        noise_w_d6 = (wd6 * 100) // wn
-        noise_w_ml = (wls * 100) // wn
-        self._noise_w_bn = noise_w_bn
-        self._noise_w_gr = noise_w_gr
-        self._noise_w_dk = noise_w_dk
-        self._noise_w_d6 = noise_w_d6
-        self._noise_w_ml = noise_w_ml
-
-        now = time.perf_counter()
-        if noise_w_bn > 35:
-            self._noise_w_now = "WHITE"
-            self._noise_w_gt = now
-            return "WHITE"
-        if noise_w_gr > 35:
-            self._noise_w_now = "GREEN"
-            self._noise_w_gt = now
-            return "GREEN"
-
-        # Rolling 32-sample rings used only for BLACK (sudden darken after a flash).
-        dk_idx = int(getattr(self, "_noise_dk_idx", 0) or 0)
-        dk_n = int(getattr(self, "_noise_dk_n", 0) or 0)
-        self._noise_dk_ring[dk_idx] = noise_w_dk
-        self._noise_ml_ring[dk_idx] = noise_w_ml
-        self._noise_d6_ring[dk_idx] = noise_w_d6
-        dk_idx = (dk_idx + 1) % 32
-        if dk_n < 32:
-            dk_n += 1
-        self._noise_dk_idx = dk_idx
-        self._noise_dk_n = dk_n
-
-        past_min = 999
-        past_max_l = -1
-        if dk_n >= 12:
-            for kk in range(3, 10):
-                pri = (dk_idx - kk + 64) % 32
-                pv = self._noise_d6_ring[pri]
-                if pv >= 0 and pv < past_min:
-                    past_min = pv
-                pm = self._noise_ml_ring[pri]
-                if pm > past_max_l:
-                    past_max_l = pm
-
-        gap_t = 9.0
-        last_flash = float(getattr(self, "_noise_w_gt", 0.0) or 0.0)
-        if last_flash > 0:
-            gap_t = now - last_flash
-
-        blk_hit = False
-        if past_min < 999 and past_max_l > 0:
-            if (noise_w_ml * 100) <= (past_max_l * 70) and (noise_w_d6 - past_min) >= 8:
-                blk_hit = True
-
-        if gap_t >= 1.60 and blk_hit:
-            self._noise_w_now = "BLACK"
-            self._noise_w_blk = int(getattr(self, "_noise_w_blk", 0) or 0) + 1
-            return "BLACK"
-
-        self._noise_w_now = ""
-        if self._noise_w_base < 1:
-            self._noise_w_base = noise_w_dk
-        else:
-            self._noise_w_base = ((self._noise_w_base * 24) + noise_w_dk) // 25
-        if self._noise_w_base_ml < 1:
-            self._noise_w_base_ml = noise_w_ml
-        else:
-            self._noise_w_base_ml = ((self._noise_w_base_ml * 24) + noise_w_ml) // 25
-        return ""
+        # Get values 
+        noiseform_white_color = self.vars["noiseform_white_color"]
+        noiseform_black_color = self.vars["noiseform_black_color"]
+        noiseform_white_color2 = f"#{noiseform_white_color}{noiseform_white_color}{noiseform_white_color}"
+        noiseform_black_color2 = f"#{noiseform_black_color}{noiseform_black_color}{noiseform_black_color}"
+        # Detect colors
+        white_x, white_y = self._detect_noiseform_white(noiseform_img, noiseform_white_color2, 5)
+        if white_x is not None:
+            return "white", white_x
+        black_x, black_y = self._detect_noiseform_black(noiseform_img, noiseform_black_color2, 5)
+        if black_x is not None:
+            return "black", black_x
+        green_x, green_y = self._detect_noiseform_green(noiseform_img, 40, 10)
+        if green_x is not None:
+            return "green", green_x
+        return None, None
 
     def scan_noiseform_zones(self, fish_img):
         """Locate WHITE / GREEN / BLACK segments on the fish-bar strip.
@@ -3396,81 +3472,6 @@ class Api:
             else:
                 self.noiseform_white_x = -1
         return self.noiseform_white_x >= 0 and self.noiseform_green_x >= 0 and self.noiseform_black_x >= 0
-
-    def detect_noiseform_target(self, noiseform_img, fish_img):
-        """Pick the bar-relative X for the current Noiseform warning.
-
-        Port of DeepFish ALPHA v1.4 NoiseGimmickTarget() / NoteTarget() for
-        Noiseform. Calls detect_noiseform_color (warn flash) then
-        scan_noiseform_zones (bar segments).
-
-        Returns (kind, x) where kind is this frame's WHITE/GREEN/BLACK/"" and
-        x is a locked zone coordinate or None (same role as note_x).
-        """
-        now = time.perf_counter()
-        gk = self.detect_noiseform_color(noiseform_img)
-
-        seq = self._noise_pend_t > 0 and (now - self._noise_pend_t) < 2.0
-        if gk:
-            if gk != "BLACK":
-                self._noise_pend_kind = gk
-                self._noise_pend_t = now
-            elif self._noise_pend_kind == "" or self._noise_pend_kind == "BLACK" or not seq:
-                self._noise_pend_kind = "BLACK"
-                self._noise_pend_t = now
-
-        pend = self._noise_pend_t > 0 and (now - self._noise_pend_t) < 2.20
-        gint = 0.15 if (pend or self._noise_zone_tgt >= 0) else 1.00
-        zlock = self._noise_z_fresh_t > 0 and (now - self._noise_z_fresh_t) < 0.60
-
-        if self._noise_z_scan_t < 1 or (now - self._noise_z_scan_t) >= gint:
-            self._noise_z_scan_t = now
-            zp_w, zp_g, zp_k = self.noiseform_white_x, self.noiseform_green_x, self.noiseform_black_x
-            if self.scan_noiseform_zones(fish_img):
-                self._noise_z_fresh_t = now
-                if zlock:
-                    self.noiseform_white_x = zp_w
-                    self.noiseform_green_x = zp_g
-                    self.noiseform_black_x = zp_k
-            else:
-                self.noiseform_white_x = zp_w
-                self.noiseform_green_x = zp_g
-                self.noiseform_black_x = zp_k
-
-        self._noise_z_prev_ok = self._noise_z_ok
-        self._noise_z_ok = self._noise_z_fresh_t > 0 and (now - self._noise_z_fresh_t) < 0.60
-
-        if self._noise_zone_tgt >= 0:
-            zage = now - self._noise_zone_t
-            zgap = (now - self._noise_z_fresh_t) if self._noise_z_fresh_t > 0 else 99.0
-            if zage < 1.85 and zgap < 1.00:
-                return gk, self._noise_zone_tgt
-            if zage < 4.00 and self._noise_z_ok:
-                return gk, self._noise_zone_tgt
-            self._noise_zone_tgt = -1
-            self._noise_zone_kind = ""
-            self._noise_pend_kind = ""
-            self._noise_pend_t = 0.0
-
-        if not pend or not self._noise_z_ok:
-            return gk, None
-
-        if self._noise_pend_kind == "WHITE":
-            gz = self.noiseform_white_x
-        elif self._noise_pend_kind == "GREEN":
-            gz = self.noiseform_green_x
-        elif self._noise_pend_kind == "BLACK":
-            gz = self.noiseform_black_x
-        else:
-            gz = -1
-        if gz < 0:
-            return gk, None
-
-        self._noise_zone_tgt = gz
-        self._noise_zone_t = now
-        self._noise_zone_kind = self._noise_pend_kind
-        self._noise_pend_t = 0.0
-        return gk, gz
 
     def auto_crop_template(self, template, lower_white=200):
         """
@@ -3678,8 +3679,13 @@ class Api:
     def start_appraisal(self):
         # Validate Tesseract
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3701,33 +3707,60 @@ class Api:
         appraisal_mode = self.vars["appraisal_mode"].lower()
         appraisal_mutations = self.vars["appraisal_mutations"]
         appraisal_mutations_list = appraisal_mutations.split(",")
-        # Positions
-        raw_appraisal_ratio = self.vars["appraisal_click"]
-        appraisal_ratio = raw_appraisal_ratio.replace(" ", "").split(",")
-        try:
-            appraisal_x_ratio = float(appraisal_ratio[0])
-            appraisal_y_ratio = float(appraisal_ratio[1])
-        except:
-            pass
+        # Delays
+        appraisal_delay = float(self.vars["appraisal_delay"])
+        # Configure appraisal delay
+        if appraisal_mode == "normal":
+            # Normal Appraisal
+            raw_normal_appraisal_ratio = self.vars["normal_appraisal_click"]
+            normal_appraisal_ratio = raw_normal_appraisal_ratio.replace(" ", "").split(",")
+            try:
+                appraisal_x_ratio = float(normal_appraisal_ratio[0])
+                appraisal_y_ratio = float(normal_appraisal_ratio[1])
+            except:
+                pass
+        else:
+            # Gamepass Appraisal
+            raw_gamepass_appraisal_ratio = self.vars["gamepass_appraisal_click"]
+            gamepass_appraisal_ratio = raw_gamepass_appraisal_ratio.replace(" ", "").split(",")
+            try:
+                appraisal_x_ratio = float(gamepass_appraisal_ratio[0])
+                appraisal_y_ratio = float(gamepass_appraisal_ratio[1])
+            except:
+                pass
+            # Gamepass Appraisal 2
+            raw_gamepass_appraisal_ratio2 = self.vars["gamepass_appraisal_click2"]
+            gamepass_appraisal_ratio2 = raw_gamepass_appraisal_ratio2.replace(" ", "").split(",")
+            try:
+                appraisal_x_ratio2 = float(gamepass_appraisal_ratio2[0])
+                appraisal_y_ratio2 = float(gamepass_appraisal_ratio2[1])
+            except:
+                pass
         appraisal_x = int(SCREEN_WIDTH * appraisal_x_ratio)
         appraisal_y = int(SCREEN_HEIGHT * appraisal_y_ratio)
-        click_delay = float(self.vars["click_delay"])
+        appraisal_x2 = int(SCREEN_WIDTH * appraisal_x_ratio2)
+        appraisal_y2 = int(SCREEN_HEIGHT * appraisal_y_ratio2)
         # Other Calculations
         logging_cycle = int(self.vars["logging_cycle"])
         logging_mode = self.vars["logging_mode"].lower()
         attempts = 0.0
         # Main Loop
         time.sleep(0.1)
-        self._send_key("e", 0.05)
+        if appraisal_mode == "normal":
+            self._send_key("e", 0.05)
         try:
             while self.macro_running:
                 attempts = attempts + 1
                 # Click
                 if appraisal_mode == "normal":
-                    time.sleep(click_delay)
+                    time.sleep(appraisal_delay)
                     self._click_at(appraisal_x, appraisal_y)
                 else:
-                    self.click_backpack(appraisal_x, appraisal_y)
+                    self._click_at(appraisal_x, appraisal_y)
+                    time.sleep(appraisal_delay)
+                    self._click_at(appraisal_x2, appraisal_y2)
+                    time.sleep(appraisal_delay)
+                    time.sleep(appraisal_delay)
                 # Check If Dxcam Is Available
                 if dxcam is not None:
                     self.capture_frame = self.camera.get_latest_frame()
@@ -3764,8 +3797,13 @@ class Api:
     def start_treasure_appraisal(self):
         # Validate Tesseract
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3789,22 +3827,24 @@ class Api:
         treasure_click_right = treasure_right - int(treasure_width / 5)
         treasure_click_y_multiplier = int(treasure_height / 7.25)
         # Settings
-        treasure_appraisal_ocr = self.vars["treasure_appraisal_ocr_x"].replace(" ", "").split(",")
+        treasure_appraisal_text = self.vars["treasure_appraisal_text"].replace(" ", "").split(",")
         try:
-            treasure_appraisal_ocr_x = float(treasure_appraisal_ocr[0])
-            treasure_appraisal_ocr_y = float(treasure_appraisal_ocr[1])
+            treasure_appraisal_text_x = float(treasure_appraisal_text[0]) * SCREEN_WIDTH
+            treasure_appraisal_text_y = float(treasure_appraisal_text[1]) * SCREEN_HEIGHT
         except:
             pass
-        treasure_appraisal_reappraise_x = float(self.vars["treasure_appraisal_reappraise_x"])
-        treasure_appraisal_reappraise_y = float(self.vars["treasure_appraisal_reappraise_y"])
-        reappraise_x_screen = int(treasure_appraisal_reappraise_x * SCREEN_WIDTH)
-        reappraise_y_screen = int(treasure_appraisal_reappraise_y * SCREEN_HEIGHT)
+        treasure_appraisal_click = self.vars["treasure_appraisal_click"].replace(" ", "").split(",")
+        try:
+            treasure_appraisal_click_x = float(treasure_appraisal_click[0]) * SCREEN_WIDTH
+            treasure_appraisal_click_y = float(treasure_appraisal_click[1]) * SCREEN_HEIGHT
+        except:
+            pass
         ocr_width = int((treasure_width / 357) * 80) # Scaled at 720p
         ocr_height = int((treasure_height / 459) * 15) # Scaled at 720p
-        ocr_left = treasure_appraisal_ocr_x - int(ocr_width / 2)
-        ocr_top = treasure_appraisal_ocr_y - int(ocr_height / 2)
-        ocr_right = treasure_appraisal_ocr_x + int(ocr_width / 2)
-        ocr_bottom = treasure_appraisal_ocr_y + int(ocr_height / 2)
+        ocr_left = treasure_appraisal_text_x - int(ocr_width / 2)
+        ocr_top = treasure_appraisal_text_y - int(ocr_height / 2)
+        ocr_right = treasure_appraisal_text_x + int(ocr_width / 2)
+        ocr_bottom = treasure_appraisal_text_y + int(ocr_height / 2)
         minimum_multiplier = float(self.vars["minimum_multiplier"])
         logging_mode = self.vars["logging_mode"].lower()
         # Cache Values (Failsafe)
@@ -3826,7 +3866,10 @@ class Api:
                     self._click_at(current_click_x, current_click_y)
                     time.sleep(0.5)
                 time.sleep(2)
-                # Check For OCR
+                # Check If Dxcam Is Available
+                if dxcam is not None:
+                    self.capture_frame = self.camera.get_latest_frame()
+                    self.capture_id = self.capture_id + 1
                 ocr_image = self.capture_frame[ocr_top:ocr_bottom, ocr_left:ocr_right]
                 processed_img = self.process_image_for_ocr(ocr_image)
                 text = pytesseract.image_to_string(processed_img, config="--psm 7")
@@ -3838,7 +3881,7 @@ class Api:
                         self.set_status("Treasure Appraisal: extracted_value < minimum_multiplier")
                 else:
                     self.set_status("Treasure Appraisal: extracted_value == None")
-                self._click_at(reappraise_x_screen, reappraise_y_screen)
+                self._click_at(treasure_appraisal_click_x, treasure_appraisal_click_y)
                 if self.macro_running == False:
                     self.stop_macro("")
                 if round(attempts) == attempts and logging_mode != "disabled":
@@ -3865,8 +3908,13 @@ class Api:
     def start_enchantment(self):
         # Validate Tesseract
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3889,14 +3937,22 @@ class Api:
         enchant_enchants = self.vars["enchant_enchants"]
         enchant_enchants_list = enchant_enchants.split(",")
         # Positions
-        enchantment_x_ratio = float(self.vars["enchant_click_x"])
-        enchantment_y_ratio = float(self.vars["enchant_click_y"])
-        enchantment_x = int(SCREEN_WIDTH * enchantment_x_ratio)
-        enchantment_y = int(SCREEN_HEIGHT * enchantment_y_ratio)
-        # Delays
-        e_delay = float(self.vars["e_delay"])
-        click_delay = float(self.vars["click_delay"])
-        click_delay2 = float(self.vars["click_delay2"])
+        enchantment_e_delay = float(self.vars["enchantment_e_delay"])
+        enchantment_click_delay = float(self.vars["enchantment_click_delay"])
+        enchantment_click_delay2 = float(self.vars["enchantment_click_delay2"])
+        enchantment_click_delay3 = float(self.vars["enchantment_click_delay3"])
+        enchantment_click_position = self.vars["enchantment_click_position"].replace(" ", "").split(",")
+        try:
+            enchantment_click_position_x = float(enchantment_click_position[0]) * SCREEN_WIDTH
+            enchantment_click_position_y = float(enchantment_click_position[1]) * SCREEN_HEIGHT
+        except:
+            pass
+        enchantment_click_position2 = self.vars["enchantment_click_position2"].replace(" ", "").split(",")
+        try:
+            enchantment_click_position_x2 = float(enchantment_click_position2[0]) * SCREEN_WIDTH
+            enchantment_click_position_y2 = float(enchantment_click_position2[1]) * SCREEN_HEIGHT
+        except:
+            pass
         # Other Calculations
         logging_cycle = int(self.vars["logging_cycle"])
         logging_mode = self.vars["logging_mode"].lower()
@@ -3905,15 +3961,20 @@ class Api:
         try:
             while self.macro_running:
                 time.sleep(0.1)
-                if enchantment_mode == "gamepass":
+                if enchantment_mode == "normal":
                     self._send_key("e")
-                    time.sleep(e_delay)
-                    self._click_at(enchantment_x, enchantment_y)
-                    time.sleep(click_delay)
+                    time.sleep(enchantment_e_delay)
+                    self._click_at(enchantment_click_position_x, enchantment_click_position_y)
+                    time.sleep(enchantment_click_delay)
                 else:
-                    self.click_backpack(enchantment_x_ratio, enchantment_y_ratio)
-                time.sleep(3)
-                # Detection
+                    self._click_at(enchantment_click_position_x, enchantment_click_position_y)
+                    time.sleep(enchantment_click_delay)
+                    self._click_at(enchantment_click_position_x2, enchantment_click_position_y2)
+                    time.sleep(enchantment_click_delay2)
+                # Check If Dxcam Is Available
+                if dxcam is not None:
+                    self.capture_frame = self.camera.get_latest_frame()
+                    self.capture_id = self.capture_id + 1
                 text = self.capture_frame[enchantment_top:enchantment_bottom, enchantment_left:enchantment_right]
                 gray = self.process_image_for_ocr(text)
                 text = pytesseract.image_to_string(gray, config="--psm 7")
@@ -3922,7 +3983,7 @@ class Api:
                     # print("Text:", text.lower().rstrip(",").replace(" ", ""))
                     if enchant_enchants_list[match].lower().rstrip(",").replace(" ", "") in text.lower().rstrip(",").replace(" ", ""):
                         self.stop_macro("Enchantment finished")
-                time.sleep(click_delay2)
+                time.sleep(enchantment_click_delay3)
                 if self.macro_running == False:
                     self.stop_macro("")
                 if round(attempts) == attempts and logging_mode != "disabled":
@@ -3950,8 +4011,13 @@ class Api:
     def start_angler(self):
         # Validate Tesseract
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3967,35 +4033,37 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Angler error: {e}")
             return
+        # Areas
         backpack_left, backpack_top, _, _, backpack_width, backpack_height = self.get_areas("backpack")
         quest_left, quest_top, quest_right, quest_bottom, _, _ = self.get_areas("angler_quest")
         backpack_slot = str(self.vars["backpack_slot"])
-        utility_restart_delay = int(self.vars["utility_restart_delay"])
-        # Angler Key
-        angler_x_ratio = float(self.vars["angler_click_x"])
-        angler_y_ratio = float(self.vars["angler_click_y"])
-        angler_click_x = int(SCREEN_WIDTH * angler_x_ratio)
-        angler_click_y = int(SCREEN_HEIGHT * angler_y_ratio)
-        # Backpack Key
-        backpack_x_ratio = self.vars["backpack_x"]
-        backpack_y_ratio = self.vars["backpack_y"]
-        backpack_x = int(SCREEN_WIDTH * backpack_x_ratio)
-        backpack_y = int(SCREEN_HEIGHT * backpack_y_ratio)
-        # Check For Utilities
-        self._check_logging_trigger(-1)
+        # Delays
+        angler_cooldown = int(self.vars["angler_cooldown"])
+        angler_e_delay = float(self.vars["angler_e_delay"])
+        angler_click_position = self.vars["angler_click_position"].replace(" ", "").split(",")
+        try:
+            angler_click_position_x = float(angler_click_position[0]) * SCREEN_WIDTH
+            angler_click_position_y = float(angler_click_position[1]) * SCREEN_HEIGHT
+        except:
+            pass
+        angler_click_position2 = self.vars["angler_click_position2"].replace(" ", "").split(",")
+        try:
+            angler_click_position_x2 = float(angler_click_position2[0]) * SCREEN_WIDTH
+            angler_click_position_y2 = float(angler_click_position2[1]) * SCREEN_HEIGHT
+        except:
+            pass
         # Main Loop
         try:
             while self.macro_running:
                 time.sleep(0.1)
                 # Step 1: Click E → Open Quest Dialogue
                 self._send_key("e")
-                time.sleep(1.5)
+                time.sleep(angler_e_delay)
                 # Click At Angler Area (Accept Quest)
-                self._click_at(angler_click_x, angler_click_y)
+                self._click_at(angler_click_position_x, angler_click_position_y)
                 # Step 2: OCR Quest Area — Get Required Fish Text
                 time.sleep(3)
-                img = self._grab_screen_full()
-                quest = img[quest_top:quest_bottom, quest_left:quest_right]
+                quest = self.capture_frame[quest_top:quest_bottom, quest_left:quest_right]
                 gray = cv2.cvtColor(quest, cv2.COLOR_BGR2GRAY)
                 gray = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
                 gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
@@ -4009,22 +4077,25 @@ class Api:
                 self.set_status(f"Quest fish: {required_fish}")
                 if not required_fish:
                     self.set_status("Could not read fish name")
-                    time.sleep(utility_restart_delay)
+                    time.sleep(angler_cooldown)
                     continue
 
                 # Step 3: Open Backpack
                 self._send_key(backpack_slot)
                 time.sleep(0.5)
                 # Step 4: Click Search Bar + Type Fish Name
-                self._click_at(backpack_x, backpack_y)
+                self._click_at(angler_click_position_x2, angler_click_position_y2)
                 time.sleep(0.5)
                 # Type Fish Name
                 for char in required_fish:
                     self._send_key(char)
                 time.sleep(1.5)
                 # Step 5: Locate Quest_Text In Quest Area Via OCR And Click It
-                img = self._grab_screen_full()
-                quest_region = img[quest_top:quest_bottom, quest_left:quest_right]
+                # Check If Dxcam Is Available
+                if dxcam is not None:
+                    self.capture_frame = self.camera.get_latest_frame()
+                    self.capture_id = self.capture_id + 1
+                quest_region = self.capture_frame[quest_top:quest_bottom, quest_left:quest_right]
                 gray_q = cv2.cvtColor(quest_region, cv2.COLOR_BGR2GRAY)
                 gray_q = cv2.resize(gray_q, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
                 gray_q = cv2.threshold(gray_q, 150, 255, cv2.THRESH_BINARY)[1]
@@ -4070,10 +4141,10 @@ class Api:
                 # Step 7: Click E → Finish Quest (Pixel Search Or Ratio)
                 self._send_key("e")
                 time.sleep(1.2)
-                # Click At Angler Area
-                self._click_at(angler_click_x, angler_click_y)
+                # Click At Angler Area To Exit Quest
+                self._click_at(angler_click_position_x, angler_click_position_y)
                 # Step 8: Cooldown
-                time.sleep(utility_restart_delay)
+                time.sleep(angler_cooldown)
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
@@ -4141,11 +4212,23 @@ class Api:
             auto_refresh = self.vars["auto_refresh"]
             auto_totem = self.vars["auto_totem"]
             fish_overlay = self.vars["fish_overlay"]
-            enchant_click_x = float(self.vars["enchant_click_x"])
-            enchant_click_y = float(self.vars["enchant_click_y"])
             minigame_click_position = self.vars["minigame_click_position"]
             animation_delay = float(self.vars["animation_delay"])
             minigame_click_amounts = int(float(self.vars["minigame_click_amounts"]))
+            enchantment_click_position = self.vars["enchantment_click_position"].replace(" ", "").split(",")
+            try:
+                enchantment_click_position_x = float(enchantment_click_position[0]) * SCREEN_WIDTH
+                enchantment_click_position_y = float(enchantment_click_position[1]) * SCREEN_HEIGHT
+            except:
+                pass
+            enchantment_click_position2 = self.vars["enchantment_click_position2"].replace(" ", "").split(",")
+            try:
+                enchantment_click_position_x2 = float(enchantment_click_position2[0]) * SCREEN_WIDTH
+                enchantment_click_position_y2 = float(enchantment_click_position2[1]) * SCREEN_HEIGHT
+            except:
+                pass
+            enchantment_click_delay = float(self.vars["enchantment_click_delay"])
+            enchantment_click_delay2 = float(self.vars["enchantment_click_delay2"])
             # 6. Optimized Opencv Template Matching Setup
             try:
                 sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
@@ -4193,8 +4276,8 @@ class Api:
                 self.status_overlay.show(self.status_left, self.status_top, self.status_right, self.status_bottom)
             else:
                 self.status_overlay.hide()
-        except:
-            pass
+        except KeyError as e:
+            self.stop_macro("Config Error: ", e)
         # Main Loop (With Bug Reports)
         try:
             while self.macro_running:
@@ -4260,7 +4343,10 @@ class Api:
                                 self._send_key(rod_slot)
                                 time.sleep(0.1)
                                 self._send_key(relic_slot)
-                                self.click_backpack(enchant_click_x, enchant_click_y)
+                                self._click_at(enchantment_click_position_x, enchantment_click_position_y)
+                                time.sleep(enchantment_click_delay)
+                                self._click_at(enchantment_click_position_x2, enchantment_click_position_y2)
+                                time.sleep(enchantment_click_delay2)
                             elif distance > maximum_percentage:
                                 break
 
@@ -4416,8 +4502,13 @@ class Api:
     def hunt_detect(self, current_hunt):
         "current_hunt: Does nothing"
         try:
-            tesseract_path = self.vars["tesseract_path"]
-            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_path
+                # Repair the imported config in memory
+                self.vars["tesseract_path"] = tesseract_path
+            else:
+                raise RuntimeError("⚠️ Tesseract could not be found.")
         except:
             return
 
@@ -5865,6 +5956,7 @@ class Api:
         note_x = 0
         note_y_ratio = 0
         time_delta = 0
+        mouse_delay_counter = 0
         # Failsafe & Previous Frame Tracking (History)
         last_capture_id = 0
         last_fish_x = fish_center_x_relative
@@ -5874,15 +5966,26 @@ class Api:
         last_bar_center = fish_center_x_relative
         last_bar_size = 0
         last_error = 0
-        last_bar_velocity = fish_width
         # Velocities & Mechanics
         right_bar_cycle = 0
         bag_spam_cycle = 0
-        frame_interpolation_cycle = 0
         color_check_bar_velocity = 0.0
         color_check_target_velocity = 0.0
-        time.sleep(0.1)
+        noiseform_start_timer = time.perf_counter()
+        noiseform_current_timer = time.perf_counter()
+        noiseform_color, noiseform_position = None, None
+        noiseform_timer = 0.5
+        last_noiseform_color = None
+        # Shapes: wait → lock Noiseform flash color → hold matching fish-bar zone.
+        zone_x = None
+        shapes_flash_color = None
+        shapes_flash_seen_at = None
+        shapes_minigame_start = time.perf_counter()
+        shapes_wait_seconds = 2.0
+        shapes_flash_seconds = 1.0
+        # Noiseform (Shapes) Warn-Kind State — Port Of DeepFish NoiseWarnKind()
         self._reset_noiseform_warn_state()
+        time.sleep(0.1)
         # Load Templates for Image Search
         try:
             if fishing_mode == "image":
@@ -5902,19 +6005,8 @@ class Api:
                 self.capture_id = last_capture_id + 1
             # Get Image From Self.Capture_Frame
             if self.capture_id == last_capture_id:
-                frame_interpolation_cycle += self.scan_delay
-                if frame_interpolation_cycle > self.scan_delay * 3:
-                    frame_interpolation_cycle = 0
-                    interpolation_bar_velocity = abs(last_bar_velocity * self.scan_delay * 3)
-                    if mouse_down:
-                        left_x = left_x + interpolation_bar_velocity
-                        right_x = right_x + interpolation_bar_velocity
-                    else:
-                        left_x = left_x - interpolation_bar_velocity
-                        right_x = right_x - interpolation_bar_velocity
-                else:
-                    time.sleep(self.scan_delay)
-                    continue
+                time.sleep(self.scan_delay)
+                continue
             elif self.capture_frame is None:
                 time.sleep(self.scan_delay)
                 continue
@@ -5967,7 +6059,6 @@ class Api:
                     elif last_right_x is not None:
                         right_x = last_right_x
                     bar_detected = True
-                    self.status_overlay.set_line(1, "Detection Source: ", "Left+Cache")
                 elif right_x is not None and (last_left_x is not None or last_bar_size):
                     # Only The Right Edge Was Found — Fill The Missing Left.
                     if last_bar_size:
@@ -5975,7 +6066,6 @@ class Api:
                     elif last_left_x is not None:
                         left_x = last_left_x
                     bar_detected = True
-                    self.status_overlay.set_line(1, "Detection Source: ", "Right+Cache")
                 else:
                     # Try Arrow
                     bar_detected = False
@@ -6264,14 +6354,74 @@ class Api:
                 fish_x = last_fish_x
                 fish_detected = True
             # Set Status
-            self.status_overlay.set_line(2, "Bar Size: ", round(bar_size))
+            try:
+                bar_velocity2 = round(bar_center - last_bar_center, 2)
+                self.status_overlay.set_line(2, "Bar Velocity: ", bar_velocity2)
+            except:
+                bar_velocity2 = 0
+                self.status_overlay.set_line(2, "", "")
             # Shapes Detection (Noiseform warn flash + bar-zone target)
+            # Sequence: wait a few seconds → color flashes ~1s on Noiseform →
+            # three zones appear on the fish bar → steer to the matching zone.
             if fishing_profile == "shapes":
-                noiseform_color, zone_x = self.detect_noiseform_target(noiseform_img, fish_img)
-                if zone_x is not None:
-                    fish_x = zone_x
-                kind_label = noiseform_color or self._noise_zone_kind or "-"
-                self.status_overlay.set_line(3, "Shape: ", kind_label if zone_x is None else f"{kind_label} @ {zone_x}")
+                noiseform_current_timer = time.perf_counter()
+                wait_elapsed = noiseform_current_timer - shapes_minigame_start
+                if wait_elapsed < shapes_wait_seconds:
+                    self.status_overlay.set_line(
+                        3, "Shapes Wait: ", f"{round(shapes_wait_seconds - wait_elapsed, 2)}s"
+                    )
+                else:
+                    if noiseform_current_timer - noiseform_start_timer >= noiseform_timer:
+                        noiseform_color, noiseform_position = self.detect_noiseform_color(noiseform_img)
+                        noiseform_start_timer = noiseform_current_timer
+                        if noiseform_color is not None:
+                            last_noiseform_color = noiseform_color
+                            noiseform_timer = 0.1
+                            if shapes_flash_color is None:
+                                shapes_flash_color = noiseform_color
+                                shapes_flash_seen_at = noiseform_current_timer
+                        else:
+                            noiseform_timer = 0.5
+                    flash_age = (
+                        (noiseform_current_timer - shapes_flash_seen_at)
+                        if shapes_flash_seen_at is not None else 0.0
+                    )
+                    still_flashing = (
+                        shapes_flash_color is not None
+                        and noiseform_color is not None
+                        and flash_age < shapes_flash_seconds
+                    )
+                    if shapes_flash_color is None:
+                        self.status_overlay.set_line(3, "Watching Flash: ", "")
+                    elif still_flashing:
+                        self.status_overlay.set_line(
+                            3, "Flash: ", f"{shapes_flash_color} ({noiseform_position})"
+                        )
+                    else:
+                        # Flash ended or its 1s window elapsed — read the bar zones.
+                        # Use the locked flash color, not the live reading (which is
+                        # None once the flash is gone). Keep the last good zone_x
+                        # if this pass misses a segment.
+                        self.scan_noiseform_zones(fish_img)
+                        if shapes_flash_color == "green":
+                            found_x = self.noiseform_green_x
+                        elif shapes_flash_color == "black":
+                            found_x = self.noiseform_black_x
+                        else:
+                            found_x = self.noiseform_white_x
+                        if found_x is not None and found_x >= 0:
+                            zone_x = found_x
+                            self.status_overlay.set_line(
+                                3, "Zone: ", f"{shapes_flash_color} @ {zone_x}"
+                            )
+                        elif zone_x is not None:
+                            self.status_overlay.set_line(
+                                3, "Zone: ", f"{shapes_flash_color} @ {zone_x}"
+                            )
+                        else:
+                            self.status_overlay.set_line(
+                                3, "Scanning Zones: ", str(shapes_flash_color)
+                            )
             # Note Detection
             if fishing_profile == "notes":
                 note_x, note_y = self.pixel_search(shake_img, pinion_notes_color, pinion_notes_tolerance)
@@ -6287,6 +6437,9 @@ class Api:
             else:
                 # print("Note Tracking Disabled")
                 note_y_ratio = 0.0
+            if fishing_profile == "shapes":
+                if zone_x is not None:
+                    fish_x = zone_x
             if fishing_profile == "notes":
                 # Catch Fails If The Note Ratio Becomes 1 And The Bar Can'T Catch It; Stays Success Only If Note Ratio Is Less Than 0.9
                 if note_y_ratio > 0.9:
@@ -6359,7 +6512,7 @@ class Api:
                     if last_fish_x != note_x:
                         last_error = 0
             elif fishing_profile == "shapes":
-                if fish_x == zone_x:
+                if zone_x is not None and fish_x == zone_x:
                     if last_fish_x != zone_x:
                         last_error = 0
             # print("(left_x - last_left_x) / time_delta:", (left_x - last_left_x) / self.scan_delay)
@@ -6496,17 +6649,19 @@ class Api:
             else:
                 release_mouse()
             # Update Cache
-            try:
-                last_bar_velocity = (bar_center - last_bar_center) / time_delta
-            except:
-                last_bar_velocity = fish_width
             if bar_detected == True:
                 last_left_x = left_x
                 last_right_x = right_x
                 last_bar_center = bar_center
                 last_bar_size = bar_size
             if fish_detected == True:
-                if not fish_x == note_x:
+                following_note = fishing_profile == "notes" and fish_x == note_x
+                following_zone = (
+                    fishing_profile == "shapes"
+                    and zone_x is not None
+                    and fish_x == zone_x
+                )
+                if not following_note and not following_zone:
                     last_fish_x = fish_x
             last_time = current_time
             # Cleanup
@@ -6569,11 +6724,11 @@ def check_setup_guide():
         with open(os.path.join(UI_PATH, "app.js"), "r", encoding="utf-8-sig") as file:
             lines = file.readline().strip()
     except FileNotFoundError:
-        open_folder = messagebox.askyesno("Missing Files", """Your installation is missing the configs, images and UI folder.
+        open_folder_choice = messagebox.askyesno("Missing Files", """Your installation is missing the images or UI folder.
         Please report this bug in the Discord Server.\n
-        Do you want to open the configs folder?""")
-        if open_folder == True:
-            open_base_folder()
+        Do you want to open the install folder?""")
+        if open_folder_choice == True:
+            open_folder(RESOURCE_PATH)
         return False
 
     try:
@@ -6619,14 +6774,24 @@ if setup_state == False:
     sys.exit(0)
 # Main Window
 def on_closed():
-    api.fish_overlay.hide()
-    api.status_overlay.hide()
-    api.eyedropper.hide()
+    # Tear down child overlays so webview.start() can return. Overlay hide()
+    # methods must not block the GUI thread (eyedropper schedules destroy).
+    for closer in (
+        api.fish_overlay.hide,
+        api.status_overlay.hide,
+        api.eyedropper.hide,
+        api.area_selector.hide,
+    ):
+        try:
+            closer()
+        except Exception:
+            pass
 api = Api()
 window = webview.create_window(
     f"Solar Fishing V{APP_VERSION}",
     os.path.join(UI_PATH, "index.html"),
     js_api=api,
+    text_select=True,
     width=1000,
     height=700
 )

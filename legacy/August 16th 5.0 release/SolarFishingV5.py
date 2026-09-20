@@ -4447,10 +4447,10 @@ class Api:
                 time.sleep(self.scan_delay)
                 continue
 
-            # ---------------------------------------------------------
+            
             # INITIAL RUN
             # Find the Lullaby area and save the initial color masks.
-            # ---------------------------------------------------------
+            
             if is_initial_run:
                 lullaby_img = self.capture_frame[
                     lullaby_top:lullaby_bottom,
@@ -4522,10 +4522,10 @@ class Api:
                 # Switch to the smaller region after initialization.
                 # -----------------------------------------------------
                 is_initial_run = False
-            # ---------------------------------------------------------
+            
             # SUBSEQUENT RUNS
             # Only capture/process the smaller Lullaby region.
-            # ---------------------------------------------------------
+            
             else:
                 lullaby_img2 = self.capture_frame[
                     lullaby_top + lullaby_area_y1:
