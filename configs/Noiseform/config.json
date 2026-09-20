@@ -130,5 +130,7 @@
     "angler_e_delay": "1.5",
     "angler_click_position": "0.5, 0.5",
     "angler_click_position2": "0.5, 0.5",
-    "angler_cooldown": "130"
+    "angler_cooldown": "130",
+    "noiseform_white_color": "F1",
+    "noiseform_black_color": "15"
 }

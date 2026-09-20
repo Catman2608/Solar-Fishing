@@ -3093,9 +3093,9 @@ class Api:
         self._noise_w_d6 = 0
         self._noise_w_ml = -1
         # NoiseGimmickTarget / NoiseZoneScanAll
-        self._noise_z_wx = -1
-        self._noise_z_gx = -1
-        self._noise_z_kx = -1
+        self.noiseform_white_x = -1
+        self.noiseform_green_x = -1
+        self.noiseform_black_x = -1
         self._noise_z_ok = False
         self._noise_z_prev_ok = False
         self._noise_z_scan_t = 0.0
@@ -3278,9 +3278,9 @@ class Api:
         Returns True only when all three zones are found this pass. Zone X
         values are stored on self as bar-relative pixels (0 = fish_left).
         """
-        self._noise_z_wx = -1
-        self._noise_z_gx = -1
-        self._noise_z_kx = -1
+        self.noiseform_white_x = -1
+        self.noiseform_green_x = -1
+        self.noiseform_black_x = -1
         self._noise_z_bd = 0
         self._noise_z_bb = 0
         self._noise_z_bl = 0
@@ -3380,22 +3380,22 @@ class Api:
         # so the value can be assigned to fish_x the same way notes use note_x.
         half = zw // 2
         if b_wn > 0:
-            self._noise_z_wx = int(round(b_wa + (((b_wn - 1) * 16) // 2) + half))
+            self.noiseform_white_x = int(round(b_wa + (((b_wn - 1) * 16) // 2) + half))
         if b_gn > 0:
-            self._noise_z_gx = int(round(b_ga + (((b_gn - 1) * 16) // 2) + half))
+            self.noiseform_green_x = int(round(b_ga + (((b_gn - 1) * 16) // 2) + half))
         if b_kn > 0:
-            self._noise_z_kx = int(round(b_ka + (((b_kn - 1) * 16) // 2) + half))
+            self.noiseform_black_x = int(round(b_ka + (((b_kn - 1) * 16) // 2) + half))
 
-        if self._noise_z_kx >= 0 and self._noise_z_wx >= 0 and abs(self._noise_z_kx - self._noise_z_wx) < zw:
-            self._noise_z_kx = -1
-        if self._noise_z_kx >= 0 and self._noise_z_gx >= 0 and abs(self._noise_z_kx - self._noise_z_gx) < zw:
-            self._noise_z_kx = -1
-        if self._noise_z_wx >= 0 and self._noise_z_gx >= 0 and abs(self._noise_z_wx - self._noise_z_gx) < zw:
+        if self.noiseform_black_x >= 0 and self.noiseform_white_x >= 0 and abs(self.noiseform_black_x - self.noiseform_white_x) < zw:
+            self.noiseform_black_x = -1
+        if self.noiseform_black_x >= 0 and self.noiseform_green_x >= 0 and abs(self.noiseform_black_x - self.noiseform_green_x) < zw:
+            self.noiseform_black_x = -1
+        if self.noiseform_white_x >= 0 and self.noiseform_green_x >= 0 and abs(self.noiseform_white_x - self.noiseform_green_x) < zw:
             if b_wn >= b_gn:
-                self._noise_z_gx = -1
+                self.noiseform_green_x = -1
             else:
-                self._noise_z_wx = -1
-        return self._noise_z_wx >= 0 and self._noise_z_gx >= 0 and self._noise_z_kx >= 0
+                self.noiseform_white_x = -1
+        return self.noiseform_white_x >= 0 and self.noiseform_green_x >= 0 and self.noiseform_black_x >= 0
 
     def detect_noiseform_target(self, noiseform_img, fish_img):
         """Pick the bar-relative X for the current Noiseform warning.
@@ -3425,17 +3425,17 @@ class Api:
 
         if self._noise_z_scan_t < 1 or (now - self._noise_z_scan_t) >= gint:
             self._noise_z_scan_t = now
-            zp_w, zp_g, zp_k = self._noise_z_wx, self._noise_z_gx, self._noise_z_kx
+            zp_w, zp_g, zp_k = self.noiseform_white_x, self.noiseform_green_x, self.noiseform_black_x
             if self.scan_noiseform_zones(fish_img):
                 self._noise_z_fresh_t = now
                 if zlock:
-                    self._noise_z_wx = zp_w
-                    self._noise_z_gx = zp_g
-                    self._noise_z_kx = zp_k
+                    self.noiseform_white_x = zp_w
+                    self.noiseform_green_x = zp_g
+                    self.noiseform_black_x = zp_k
             else:
-                self._noise_z_wx = zp_w
-                self._noise_z_gx = zp_g
-                self._noise_z_kx = zp_k
+                self.noiseform_white_x = zp_w
+                self.noiseform_green_x = zp_g
+                self.noiseform_black_x = zp_k
 
         self._noise_z_prev_ok = self._noise_z_ok
         self._noise_z_ok = self._noise_z_fresh_t > 0 and (now - self._noise_z_fresh_t) < 0.60
@@ -3456,11 +3456,11 @@ class Api:
             return gk, None
 
         if self._noise_pend_kind == "WHITE":
-            gz = self._noise_z_wx
+            gz = self.noiseform_white_x
         elif self._noise_pend_kind == "GREEN":
-            gz = self._noise_z_gx
+            gz = self.noiseform_green_x
         elif self._noise_pend_kind == "BLACK":
-            gz = self._noise_z_kx
+            gz = self.noiseform_black_x
         else:
             gz = -1
         if gz < 0:

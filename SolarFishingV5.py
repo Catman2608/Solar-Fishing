@@ -68,8 +68,10 @@ def load_misc_settings(last_config_path):
         with open(last_config_path, "r", encoding="utf-8") as file:
             data = json.load(file)
         return data
+
     except:
         return {}
+
 def get_macos_menu_offset():
     if sys.platform != "darwin":
         return 0
@@ -82,6 +84,7 @@ def get_macos_menu_offset():
 
     except Exception:
         return 0
+
 if sys.platform == "darwin":
     import Quartz
     _QUARTZ_SRGB_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(
@@ -94,7 +97,6 @@ if sys.platform == "darwin":
 else:
     _QUARTZ_SRGB_COLOR_SPACE = None
     _QUARTZ_P3_COLOR_SPACE = None
-
 def mss_to_srgb_numpy(image, source_is_p3=True):
     """
     Convert an untagged raw MSS/Fastgrab frame buffer from Display P3 to sRGB
@@ -108,7 +110,6 @@ def mss_to_srgb_numpy(image, source_is_p3=True):
         return bgr if bgr.flags["C_CONTIGUOUS"] else np.ascontiguousarray(bgr)
 
     height, width = image.shape[:2]
-    
     # 1. Ensure input buffer is BGRA (4 channels required by CGDataProvider)
     if image.shape[2] == 3:
         bgra = np.empty((height, width, 4), dtype=np.uint8)
@@ -116,18 +117,15 @@ def mss_to_srgb_numpy(image, source_is_p3=True):
         bgra[:, :, 3] = 255
     else:
         bgra = image
-
     # 2. Wrap raw NumPy buffer in CGImage tagged as Display P3
     bytes_per_row = width * 4
     provider = Quartz.CGDataProviderCreateWithData(None, bgra.tobytes(), len(bgra.tobytes()), None)
-    
     src_cg_image = Quartz.CGImageCreate(
         width, height, 8, 32, bytes_per_row,
         _QUARTZ_P3_COLOR_SPACE,
         Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little, # BGRA
         provider, None, False, Quartz.kCGRenderingIntentDefault
     )
-
     # 3. Draw into an sRGB context (CoreGraphics handles exact ColorSync transformation)
     out_raw = np.empty((height, width, 4), dtype=np.uint8)
     context = Quartz.CGBitmapContextCreate(
@@ -135,9 +133,7 @@ def mss_to_srgb_numpy(image, source_is_p3=True):
         _QUARTZ_SRGB_COLOR_SPACE,
         Quartz.kCGImageAlphaPremultipliedLast | Quartz.kCGBitmapByteOrder32Big
     )
-    
     Quartz.CGContextDrawImage(context, Quartz.CGRectMake(0, 0, width, height), src_cg_image)
-
     # 4. Extract BGR uint8 result matching Quartz/MSS consumers
     return np.ascontiguousarray(out_raw[:, :, :3][:, :, ::-1])
 
@@ -451,6 +447,7 @@ def get_exe_dir():
     """Directory that contains the running executable (or the .py file in dev)."""
     if _is_frozen():
         return Path(sys.executable).parent.resolve()
+
     return Path(__file__).parent.resolve()
 
 def get_resource_path():
@@ -464,9 +461,12 @@ def get_resource_path():
     if _is_frozen():
         if sys.platform == "win32":
             return Path(sys.executable).parent.resolve()
+
         if hasattr(sys, "_MEIPASS"):
             return Path(sys._MEIPASS).resolve()
+
         return Path(sys.executable).parent.resolve()
+
     return Path(__file__).parent.resolve()
 
 def get_appdata_path():
@@ -474,18 +474,21 @@ def get_appdata_path():
     if _is_frozen():
         if sys.platform == "darwin":
             return os.path.join(
+
                 os.path.expanduser("~"),
                 "Library", "Application Support",
                 "SolarFishingV5"
             )
         elif sys.platform == "win32":
             return os.path.join(
+
                 os.path.expanduser("~"),
                 "AppData", "Roaming",
                 "SolarFishingV5"
             )
         else:
             return os.path.join(os.path.expanduser("~"), "SolarFishingV5")
+
     return str(Path(__file__).parent.resolve())
 
 def find_bundled_configs(resource_path, exe_dir):
@@ -498,17 +501,18 @@ def find_bundled_configs(resource_path, exe_dir):
     for path in candidates:
         if os.path.isdir(path):
             return path
+
     return candidates[0]
 
 def seed_configs_from_bundle(bundled_configs, configs_path):
     """If AppData has no configs folder, copy the packaged defaults into it."""
     if os.path.isdir(configs_path):
         return
+
     if os.path.isdir(bundled_configs):
         shutil.copytree(bundled_configs, configs_path)
     else:
         os.makedirs(configs_path, exist_ok=True)
-
 # Establish Paths For Solar Fishing V5
 RESOURCE_PATH = str(get_resource_path())
 EXE_DIR = str(get_exe_dir())
@@ -536,7 +540,6 @@ def open_folder(folder):
         subprocess.run(["open", folder])
     else:  # Linux
         subprocess.run(["xdg-open", folder])
-
 def open_base_folder():
     # Writable User Data (Configs, Debug Shots, Logs)
     open_folder(BASE_PATH)
@@ -613,20 +616,16 @@ AREA_CONFIG = {
 }
 # Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
-
 def get_tesseract_path(configured_path=None):
     """
     Return a valid Tesseract path for the current operating system.
-
     If an imported config contains a Tesseract path from another OS,
     automatically fall back to the current OS's Tesseract installation.
     """
-
     # 1. Try the path stored in the config first
     if configured_path:
         try:
             configured_path = str(configured_path).strip().strip('"')
-
             if Path(configured_path).is_file():
                 return configured_path
 
@@ -635,7 +634,6 @@ def get_tesseract_path(configured_path=None):
 
     # 2. Check if Tesseract is already available in PATH
     detected = shutil.which("tesseract")
-
     if detected:
         return detected
 
@@ -645,20 +643,17 @@ def get_tesseract_path(configured_path=None):
             r"C:\Program Files\Tesseract-OCR\tesseract.exe",
             r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
         ]
-
     elif sys.platform == "darwin":
         possible_paths = [
             "/opt/homebrew/bin/tesseract",   # Apple Silicon Homebrew
             "/usr/local/bin/tesseract",      # Intel Homebrew
         ]
-
     else:
         # Linux
         possible_paths = [
             "/usr/bin/tesseract",
             "/usr/local/bin/tesseract",
         ]
-
     for path in possible_paths:
         if Path(path).is_file():
             return path
@@ -668,7 +663,6 @@ def get_tesseract_path(configured_path=None):
 
 def _schedule_webview_destroy(win, after=None, delay=0.05):
     """Destroy a pywebview window after the current JS/GUI call returns.
-
     Calling Window.destroy() from that window's js_api deadlocks pywebview
     (the bridge waits for destroy; destroy waits for the bridge). The stall
     freezes every other window too. Tear windows down from a short-lived
@@ -680,6 +674,7 @@ def _schedule_webview_destroy(win, after=None, delay=0.05):
                 after()
             except Exception:
                 pass
+
         return
 
     def _destroy():
@@ -689,6 +684,7 @@ def _schedule_webview_destroy(win, after=None, delay=0.05):
             win.destroy()
         except Exception:
             pass
+
         if after:
             try:
                 after()
@@ -696,8 +692,6 @@ def _schedule_webview_destroy(win, after=None, delay=0.05):
                 pass
 
     threading.Thread(target=_destroy, daemon=True).start()
-
-
 class AreaSelector:
     """
     Fullscreen transparent overlay implemented as a second pywebview window.
@@ -953,7 +947,6 @@ class AreaSelector:
         win = self.area_window
         self.area_window = None
         _schedule_webview_destroy(win)
-
     def _pixels_to_ratios(self, box, menu_offset=0):
         """Convert JS canvas-pixel boxes back to full-screen ratios.
         Divides by the CSS client size (_view_w / _view_h) reported by the
@@ -1018,7 +1011,6 @@ class AreaSelector:
         win = self.area_window
         self.area_window = None
         _schedule_webview_destroy(win)
-
     def get_screenshot_data(self):
         """Return the data-URL of the frozen (menu-bar-cropped) screenshot."""
         return self._screenshot_b64 or ""
@@ -1187,7 +1179,6 @@ class Eyedropper:
 
     def hide(self):
         """Destroy the overlay without freezing the GUI.
-
         pywebview deadlocks if destroy() runs on the same window whose JS
         bridge is still inside pick_color() / close_eyedropper(). That also
         stalls the main window ("not responding"). Clear flags immediately,
@@ -1476,6 +1467,7 @@ class FishOverlay:
         loop is still drawing."""
         if not (self._overlay_window and self._open):
             return
+
         try:
             self._overlay_window.evaluate_js(script)
         except Exception:
@@ -1731,8 +1723,6 @@ class Api:
         self.status_right = (300 * scale * self.scale_x_1080)
         self.status_bottom = (200 * scale * self.scale_y_1080)
         self.status_overlay.hide()
-        # Noiseform (Shapes) Warn-Kind State — Port Of DeepFish NoiseWarnKind()
-        self._reset_noiseform_warn_state()
         # Load Settings
         self._load_misc_settings()
     def _refresh_screen_dimensions(self):
@@ -1816,6 +1806,7 @@ class Api:
         value = source.get("global_settings", "off")
         if isinstance(value, bool):
             return value
+
         return str(value).strip().lower() in ("on", "true", "1", "yes")
 
     def _color_setting_keys(self):
@@ -1870,7 +1861,6 @@ class Api:
                 return {"success": False, "error": "No config selected."}
 
             self.active_config = config_name
-
             folder = os.path.join(CONFIGS_PATH,config_name)
             os.makedirs(folder, exist_ok=True)
             settings = self._fill_blank_settings(settings)
@@ -1901,7 +1891,6 @@ class Api:
                 return {"success": False, "error": "No config selected."}
 
             self.active_config = config_name
-
             settings, config_path = self._load_settings_data(config_name)
             # If Global Settings Is Active (In The Session Or The Loaded File), Keep
             # Noncolor Values Shared And Only Swap In This Config'S Colors.
@@ -2037,10 +2026,12 @@ class Api:
                     }
         except:
             pass
+
         # Hotkeys
         if "start_key" in self.vars and "area_selector_key" in self.vars and "stop_key" in self.vars:
             # Case 1: Hotkeys Are In Self.Vars
             pass
+
         elif "start_key" in data and "area_selector_key" in data and "stop_key" in data:
             # Case 2: Hotkeys Are In Data
             self.vars["start_key"] = data["start_key"]
@@ -2289,17 +2280,20 @@ class Api:
             with open(path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
             return {
+
                 "success": True,
                 "settings": settings,
                 "filename": os.path.basename(path)
             }
         except json.JSONDecodeError:
             return {
+
                 "success": False,
                 "error": "Invalid config file."
             }
         except Exception as e:
             return {
+
                 "success": False,
                 "error": str(e)
             }
@@ -2365,6 +2359,7 @@ class Api:
                 js_code = f"""
                 (function() {{
                     return confirm("{escaped_message}");
+
                 }})();
                 """
                 return window.evaluate_js(js_code)
@@ -2374,6 +2369,7 @@ class Api:
                 (function() {{
                     alert("{escaped_message}");
                     return null;
+
                 }})();
                 """
                 window.evaluate_js(js_code)
@@ -2386,6 +2382,7 @@ class Api:
         """Copy text to the system clipboard. Returns True on success."""
         if text is None:
             return False
+
         text = str(text)
         try:
             if sys.platform == "darwin":
@@ -2394,6 +2391,7 @@ class Api:
                 # NSPasteboardTypeString Is Preferred; Fall Back To Legacy Type Name
                 paste_type = getattr(AppKit, "NSPasteboardTypeString", None) or AppKit.NSStringPboardType
                 return bool(pasteboard.setString_forType_(text, paste_type))
+
             elif sys.platform == "win32":
                 # Prefer Powershell Setclipboard For Reliable Unicode Support
                 try:
@@ -2411,8 +2409,10 @@ class Api:
                     )
                     if completed.returncode == 0:
                         return True
+
                 except Exception:
                     pass
+
                 # Fallback: Clip.Exe With Utf16Le
                 try:
                     completed = subprocess.run(
@@ -2422,8 +2422,10 @@ class Api:
                         timeout=5,
                     )
                     return completed.returncode == 0
+
                 except Exception:
                     return False
+
             else:
                 # Linux: Try Xclip, Then Xsel
                 payload = text.encode("utf-8")
@@ -2440,11 +2442,15 @@ class Api:
                         )
                         if completed.returncode == 0:
                             return True
+
                     except FileNotFoundError:
                         continue
+
                     except Exception:
                         continue
+
                 return False
+
         except Exception:
             return False
 
@@ -2799,6 +2805,23 @@ class Api:
         except Exception:
             return default
 
+    def _split_ratio(self, item, screen_coords=False):
+        # Normal Appraisal
+        raw_item = self.vars[item]
+        splitted_items = raw_item.replace(" ", "").split(",")
+        try:
+            x = float(splitted_items[0])
+            y = float(splitted_items[1])
+        except:
+            x = 0.5
+            y = 0.5
+        if screen_coords == False:
+            return x, y
+        else:
+            x_screen = int(x * SCREEN_WIDTH)
+            y_screen = int(y * SCREEN_HEIGHT)
+            return x_screen, y_screen
+
     # Detection
     def _hex_to_bgr(self, hex_color):
         "Convert hex color to BGR tuple for OpenCV."
@@ -2892,7 +2915,6 @@ class Api:
             self.capture_frame = frame
             self.capture_id += 1
             time.sleep(self.scan_delay)
-
     def process_image_for_ocr(self, img):
         # Convert To Grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -2923,7 +2945,7 @@ class Api:
                 return None
 
         return None
-    
+
     def pixel_search(self, frame, hex, tolerance, mode=0):
         """
         Searches for the first or last pixel based on mode.
@@ -2943,7 +2965,7 @@ class Api:
         # Failsafe: None Hex
         if hex is None:
             return None, None
-        
+
         try:
             tolerance = int(np.clip(tolerance, 0, 255))
             b, g, r = self._hex_to_bgr(hex)
@@ -2958,6 +2980,7 @@ class Api:
                 else:
                     y, x = coords[-1]
                 return int(x), int(y)
+
         except:
             return None, None
 
@@ -3189,403 +3212,207 @@ class Api:
             # print(f"    Error in line detection: {e}")
             return []
 
-    def _reset_noiseform_warn_state(self):
-        """Reset NoiseWarnKind rolling baselines / rings. Call on init and minigame start."""
-        self._noise_w_base = 0
-        self._noise_w_base_ml = 0
-        self._noise_w_dthr = 6
-        self._noise_dk_ring = [-1] * 32
-        self._noise_ml_ring = [-1] * 32
-        self._noise_d6_ring = [-1] * 32
-        self._noise_dk_idx = 0
-        self._noise_dk_n = 0
-        self._noise_w_gt = 0.0
-        self._noise_w_now = ""
-        self._noise_w_blk = 0
-        self._noise_w_bn = 0
-        self._noise_w_gr = 0
-        self._noise_w_dk = 0
-        self._noise_w_d6 = 0
-        self._noise_w_ml = -1
-        # NoiseGimmickTarget / NoiseZoneScanAll
-        self._noise_z_wx = -1
-        self._noise_z_gx = -1
-        self._noise_z_kx = -1
-        self._noise_z_ok = False
-        self._noise_z_prev_ok = False
-        self._noise_z_scan_t = 0.0
-        self._noise_z_fresh_t = 0.0
-        self._noise_pend_kind = ""
-        self._noise_pend_t = 0.0
-        self._noise_zone_tgt = -1
-        self._noise_zone_t = 0.0
-        self._noise_zone_kind = ""
-        self._noise_z_bd = 0
-        self._noise_z_bb = 0
-        self._noise_z_bl = 0
-        self._noise_z_bg = 0
+    def _normalize_noiseform_pixels(self, pixels):
+        """
+        Accept a BGR line (N, 3) or image (H, W, 3) and return a view
+        of the first three channels. Used by the Noiseform color masks.
+        """
+        pixels = np.asarray(pixels)
+        if pixels.ndim == 3 and pixels.shape[-1] >= 3:
+            return pixels[..., :3]
 
-    def detect_noiseform_color(self, img):
+        if pixels.ndim == 2 and pixels.shape[-1] >= 3:
+            return pixels[..., :3]
+
+        raise ValueError(
+
+            "Noiseform pixels must be a BGR line (N, 3) or image (H, W, 3), "
+            f"got shape {getattr(pixels, 'shape', None)}"
+        )
+    def _noiseform_first_xy(self, mask):
+        """Return the first matching (x, y), or (None, None) if empty."""
+        coords = np.argwhere(mask)
+        if coords.size == 0:
+            return None, None
+
+        if coords.shape[1] == 1:
+            return int(coords[0, 0]), 0
+
+        y, x = coords[0]
+        return int(x), int(y)
+
+    def _detect_noiseform_white(self, pixels, white_hex, tolerance=0):
+        """
+        Detect the first Noiseform white pixel.
+        Same V1-style threshold as `_find_bar_edges` left_mask:
+        every BGR channel must be >= (white_bgr - tolerance).
+        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
+        Returns (x, y) or (None, None).
+        """
+        if pixels is None or getattr(pixels, "size", 0) == 0 or white_hex is None:
+            return None, None
+
+        white_bgr = np.array(
+            self._hex_to_bgr(white_hex),
+            dtype=np.int16
+        )
+        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
+        tol = int(np.clip(tolerance, 0, 255))
+        mask = np.all(pixels >= (white_bgr - tol), axis=-1)
+        return self._noiseform_first_xy(mask)
+
+    def _detect_noiseform_black(self, pixels, black_hex, tolerance=0):
+        """
+        Detect the first Noiseform black pixel.
+        Opposite mask of `_detect_noiseform_white` / `_find_bar_edges`:
+        every BGR channel must be <= (black_bgr + tolerance).
+        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
+        Returns (x, y) or (None, None).
+        """
+        if pixels is None or getattr(pixels, "size", 0) == 0 or black_hex is None:
+            return None, None
+
+        black_bgr = np.array(
+            self._hex_to_bgr(black_hex),
+            dtype=np.int16
+        )
+        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
+        tol = int(np.clip(tolerance, 0, 255))
+        mask = np.all(pixels <= (black_bgr + tol), axis=-1)
+        return self._noiseform_first_xy(mask)
+
+    def _detect_noiseform_green(self, pixels, min_green=40, dominance=10):
+        """
+        Detect the first green-dominant Noiseform pixel.
+        A pixel is green-dominant when its green channel is strong
+        enough and exceeds both red and blue by `dominance`.
+        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
+        Returns (x, y) or (None, None).
+        """
+        if pixels is None or getattr(pixels, "size", 0) == 0:
+            return None, None
+
+        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
+        b = pixels[..., 0]
+        g = pixels[..., 1]
+        r = pixels[..., 2]
+        mask = (
+            (g >= int(min_green)) &
+            (g >= r + int(dominance)) &
+            (g >= b + int(dominance))
+        )
+        return self._noiseform_first_xy(mask)
+
+    def detect_noiseform_color(self, noiseform_img):
         """Classify the Noiseform warning flash: WHITE / GREEN / BLACK / "".
-
-        Port of DeepFish ALPHA v1.4 NoiseWarnKind(). `img` is the Noiseform Box
+        DeepFish ALPHA v1.4 NoiseWarnKind() is used as reference. `noiseform_img` is the Noiseform Box
         crop from capture_frame (BGR). Geometry is computed in screen pixels
         (center at 50% x, 51.94% y) then mapped into this crop, matching AHK's
         WindowWidth/Height minus FishBarLeft/NoteTop mapping.
         """
-        if img is None or img.size == 0 or img.ndim < 2:
-            return ""
-        h, w = img.shape[:2]
-        if h < 80 or w < 100:
-            return ""
+        # Get values 
+        noiseform_white_color = self.vars["noiseform_white_color"]
+        noiseform_black_color = self.vars["noiseform_black_color"]
+        noiseform_white_color2 = f"#{noiseform_white_color}{noiseform_white_color}{noiseform_white_color}"
+        noiseform_black_color2 = f"#{noiseform_black_color}{noiseform_black_color}{noiseform_black_color}"
+        # Detect colors
+        white_x, white_y = self._detect_noiseform_white(noiseform_img, noiseform_white_color2, 5)
+        if white_x is not None:
+            return "white", white_x
 
-        try:
-            noiseform_left, noiseform_top, _, _, _, _ = self.get_areas("noiseform")
-        except Exception:
-            noiseform_left, noiseform_top = 0, 0
+        black_x, black_y = self._detect_noiseform_black(noiseform_img, noiseform_black_color2, 5)
+        if black_x is not None:
+            return "black", black_x
 
-        screen_w = max(1, int(getattr(self, "SCREEN_WIDTH", SCREEN_WIDTH) or SCREEN_WIDTH))
-        screen_h = max(1, int(getattr(self, "SCREEN_HEIGHT", SCREEN_HEIGHT) or SCREEN_HEIGHT))
+        green_x, green_y = self._detect_noiseform_green(noiseform_img, 40, 10)
+        if green_x is not None:
+            return "green", green_x
 
-        # AHK: wcx := Round((WindowWidth * 0.500) - FishBarLeft)
-        wcx = int(round((screen_w * 0.500) - noiseform_left))
-        wcy = int(round((screen_h * 0.5194) - noiseform_top))
-        whw = int(round(screen_w * 0.082))
-        wskip = int(round(screen_w * 0.023))
-        whh = int(round(screen_h * 0.052))
-
-        wx0 = max(0, wcx - whw)
-        wx1 = min(w - 1, wcx + whw)
-        wy0 = max(0, wcy - whh)
-        wy1 = min(h - 1, wcy + whh)
-        if wx1 - wx0 < 24 or wy1 - wy0 < 24:
-            return ""
-
-        # Adaptive dark threshold from rolling mean-luminance baseline.
-        # NoiseWML is mean(vl)*100 (0–25500). dthr = clamp(round(base_ml*45/10000), 6, 60).
-        base_ml = int(getattr(self, "_noise_w_base_ml", 0) or 0)
-        if base_ml >= 200:
-            dthr = int(round((base_ml * 45) / 10000.0))
-            dthr = max(6, min(60, dthr))
-        else:
-            dthr = 6
-        self._noise_w_dthr = dthr
-
-        ys = np.arange(wy0, wy1 + 1, 9)
-        xs = np.arange(wx0, wx1 + 1, 9)
-        # Skip the vertical band around screen-center (AHK wskip).
-        xs = xs[np.abs(xs - wcx) > wskip]
-        if ys.size == 0 or xs.size == 0:
-            return ""
-
-        sample = img[np.ix_(ys, xs)]
-        if sample.size == 0:
-            return ""
-
-        bgr = sample.astype(np.int16)
-        b = bgr[..., 0]
-        g = bgr[..., 1]
-        r = bgr[..., 2]
-        brightness = (r + g + b) // 3
-        wn = int(brightness.size)
-        if wn < 30:
-            return ""
-
-        white = (
-            (brightness > 120)
-            & (np.abs(r - g) < 40)
-            & (np.abs(g - b) < 40)
-        )
-        # AHK: white else-if green (mutually exclusive).
-        green = (
-            (~white)
-            & (g > r + 40)
-            & (g > b + 30)
-            & (g > 90)
-        )
-        dark = brightness < 28
-        dark6 = brightness < dthr
-
-        wbn = int(np.count_nonzero(white))
-        wgr = int(np.count_nonzero(green))
-        wdk = int(np.count_nonzero(dark))
-        wd6 = int(np.count_nonzero(dark6))
-        wls = int(np.sum(brightness, dtype=np.int64))
-
-        # Integer percents, same as AHK `(count * 100) // wn`.
-        noise_w_bn = (wbn * 100) // wn
-        noise_w_gr = (wgr * 100) // wn
-        noise_w_dk = (wdk * 100) // wn
-        noise_w_d6 = (wd6 * 100) // wn
-        noise_w_ml = (wls * 100) // wn
-        self._noise_w_bn = noise_w_bn
-        self._noise_w_gr = noise_w_gr
-        self._noise_w_dk = noise_w_dk
-        self._noise_w_d6 = noise_w_d6
-        self._noise_w_ml = noise_w_ml
-
-        now = time.perf_counter()
-        if noise_w_bn > 35:
-            self._noise_w_now = "WHITE"
-            self._noise_w_gt = now
-            return "WHITE"
-        if noise_w_gr > 35:
-            self._noise_w_now = "GREEN"
-            self._noise_w_gt = now
-            return "GREEN"
-
-        # Rolling 32-sample rings used only for BLACK (sudden darken after a flash).
-        dk_idx = int(getattr(self, "_noise_dk_idx", 0) or 0)
-        dk_n = int(getattr(self, "_noise_dk_n", 0) or 0)
-        self._noise_dk_ring[dk_idx] = noise_w_dk
-        self._noise_ml_ring[dk_idx] = noise_w_ml
-        self._noise_d6_ring[dk_idx] = noise_w_d6
-        dk_idx = (dk_idx + 1) % 32
-        if dk_n < 32:
-            dk_n += 1
-        self._noise_dk_idx = dk_idx
-        self._noise_dk_n = dk_n
-
-        past_min = 999
-        past_max_l = -1
-        if dk_n >= 12:
-            for kk in range(3, 10):
-                pri = (dk_idx - kk + 64) % 32
-                pv = self._noise_d6_ring[pri]
-                if pv >= 0 and pv < past_min:
-                    past_min = pv
-                pm = self._noise_ml_ring[pri]
-                if pm > past_max_l:
-                    past_max_l = pm
-
-        gap_t = 9.0
-        last_flash = float(getattr(self, "_noise_w_gt", 0.0) or 0.0)
-        if last_flash > 0:
-            gap_t = now - last_flash
-
-        blk_hit = False
-        if past_min < 999 and past_max_l > 0:
-            if (noise_w_ml * 100) <= (past_max_l * 70) and (noise_w_d6 - past_min) >= 8:
-                blk_hit = True
-
-        if gap_t >= 1.60 and blk_hit:
-            self._noise_w_now = "BLACK"
-            self._noise_w_blk = int(getattr(self, "_noise_w_blk", 0) or 0) + 1
-            return "BLACK"
-
-        self._noise_w_now = ""
-        if self._noise_w_base < 1:
-            self._noise_w_base = noise_w_dk
-        else:
-            self._noise_w_base = ((self._noise_w_base * 24) + noise_w_dk) // 25
-        if self._noise_w_base_ml < 1:
-            self._noise_w_base_ml = noise_w_ml
-        else:
-            self._noise_w_base_ml = ((self._noise_w_base_ml * 24) + noise_w_ml) // 25
-        return ""
+        return None, None
 
     def scan_noiseform_zones(self, fish_img):
         """Locate WHITE / GREEN / BLACK segments on the fish-bar strip.
-
-        Port of DeepFish ALPHA v1.4 NoiseZoneScanAll(). `fish_img` is the Fish
-        Box crop (BGR), the same strip AHK keeps in pCaptureBits.
-
-        Returns True only when all three zones are found this pass. Zone X
-        values are stored on self as bar-relative pixels (0 = fish_left).
+        The normal fish bar is green, while the Noiseform green zone is
+        only slightly darker than the normal bar. Therefore the green zone
+        is detected by looking for a sustained drop in green-channel
+        brightness rather than simply checking whether a pixel is green.
+        `fish_img` is the Fish Box crop (BGR).
+        Returns (white_x, green_x, black_x) in bar-relative pixels.
+        Missing zones are returned as None.
         """
-        self._noise_z_wx = -1
-        self._noise_z_gx = -1
-        self._noise_z_kx = -1
-        self._noise_z_bd = 0
-        self._noise_z_bb = 0
-        self._noise_z_bl = 0
-        self._noise_z_bg = 0
-        if fish_img is None or fish_img.size == 0 or fish_img.ndim < 2:
-            return False
-        h, w = fish_img.shape[:2]
-        if w < 200 or h < 14:
-            return False
-        zw = int(round(w * 0.12))
-        if zw < 24:
-            return False
+        if fish_img is None or getattr(fish_img, "size", 0) == 0:
+            return None, None, None
 
-        rows = np.arange(3, h - 3, 5)
-        if rows.size < 3:
-            return False
-        strip = fish_img[rows]
-        b = strip[..., 0].astype(np.int32)
-        g = strip[..., 1].astype(np.int32)
-        r = strip[..., 2].astype(np.int32)
-        zl = (r + g + b) // 3
-        zm = np.maximum(r, b)
-        c_l = zl.sum(axis=0, dtype=np.int64)
-        c_g = (g - zm).sum(axis=0, dtype=np.int64)
-        c_b = (zl > 140).sum(axis=0, dtype=np.int64)
-        c_d = np.zeros(w, dtype=np.int64)
-        c_d[1:] = np.abs(zl[:, 1:] - zl[:, :-1]).sum(axis=0, dtype=np.int64)
-
-        nrow = int(rows.size)
-        tot = zw * nrow
-        if tot < 1:
-            return False
-
-        # Prefix sums so each 12%-wide window is O(1), same a += 16 walk as AHK.
-        p_l = np.concatenate(([0], np.cumsum(c_l, dtype=np.int64)))
-        p_g = np.concatenate(([0], np.cumsum(c_g, dtype=np.int64)))
-        p_d = np.concatenate(([0], np.cumsum(c_d, dtype=np.int64)))
-        p_b = np.concatenate(([0], np.cumsum(c_b, dtype=np.int64)))
-
-        r_wa = r_ga = r_ka = -1
-        r_wn = r_gn = r_kn = 0
-        b_wa = b_ga = b_ka = -1
-        b_wn = b_gn = b_kn = 0
-
-        a = 0
-        while a + zw <= w:
-            s_l = int(p_l[a + zw] - p_l[a])
-            s_g = int(p_g[a + zw] - p_g[a])
-            s_d = int(p_d[a + zw] - p_d[a])
-            s_b = int(p_b[a + zw] - p_b[a])
-            m_l = s_l // tot
-            m_g = s_g // tot
-            m_d = s_d // tot
-            m_b = (s_b * 100) // tot
-            if m_d > self._noise_z_bd:
-                self._noise_z_bd = m_d
-                self._noise_z_bl = m_l
-                self._noise_z_bg = m_g
-            if m_l < 60 and m_b > self._noise_z_bb:
-                self._noise_z_bb = m_b
-            is_w = (m_d >= 8 and m_l > 110 and m_g < 45)
-            is_g = (m_d >= 8 and m_l > 40 and m_l < 115 and m_g > 45)
-            is_k = (m_l < 60 and m_b >= 3 and m_d >= 2 and not is_w and not is_g)
-            if is_w:
-                if r_wa < 0:
-                    r_wa = a
-                r_wn += 1
-                if r_wn > b_wn:
-                    b_wn = r_wn
-                    b_wa = r_wa
-            else:
-                r_wa = -1
-                r_wn = 0
-            if is_g:
-                if r_ga < 0:
-                    r_ga = a
-                r_gn += 1
-                if r_gn > b_gn:
-                    b_gn = r_gn
-                    b_ga = r_ga
-            else:
-                r_ga = -1
-                r_gn = 0
-            if is_k:
-                if r_ka < 0:
-                    r_ka = a
-                r_kn += 1
-                if r_kn > b_kn:
-                    b_kn = r_kn
-                    b_ka = r_ka
-            else:
-                r_ka = -1
-                r_kn = 0
-            a += 16
-
-        # Center of the longest run. AHK adds FishBarLeft; we stay bar-relative
-        # so the value can be assigned to fish_x the same way notes use note_x.
-        half = zw // 2
-        if b_wn > 0:
-            self._noise_z_wx = int(round(b_wa + (((b_wn - 1) * 16) // 2) + half))
-        if b_gn > 0:
-            self._noise_z_gx = int(round(b_ga + (((b_gn - 1) * 16) // 2) + half))
-        if b_kn > 0:
-            self._noise_z_kx = int(round(b_ka + (((b_kn - 1) * 16) // 2) + half))
-
-        if self._noise_z_kx >= 0 and self._noise_z_wx >= 0 and abs(self._noise_z_kx - self._noise_z_wx) < zw:
-            self._noise_z_kx = -1
-        if self._noise_z_kx >= 0 and self._noise_z_gx >= 0 and abs(self._noise_z_kx - self._noise_z_gx) < zw:
-            self._noise_z_kx = -1
-        if self._noise_z_wx >= 0 and self._noise_z_gx >= 0 and abs(self._noise_z_wx - self._noise_z_gx) < zw:
-            if b_wn >= b_gn:
-                self._noise_z_gx = -1
-            else:
-                self._noise_z_wx = -1
-        return self._noise_z_wx >= 0 and self._noise_z_gx >= 0 and self._noise_z_kx >= 0
-
-    def detect_noiseform_target(self, noiseform_img, fish_img):
-        """Pick the bar-relative X for the current Noiseform warning.
-
-        Port of DeepFish ALPHA v1.4 NoiseGimmickTarget() / NoteTarget() for
-        Noiseform. Calls detect_noiseform_color (warn flash) then
-        scan_noiseform_zones (bar segments).
-
-        Returns (kind, x) where kind is this frame's WHITE/GREEN/BLACK/"" and
-        x is a locked zone coordinate or None (same role as note_x).
-        """
-        now = time.perf_counter()
-        gk = self.detect_noiseform_color(noiseform_img)
-
-        seq = self._noise_pend_t > 0 and (now - self._noise_pend_t) < 2.0
-        if gk:
-            if gk != "BLACK":
-                self._noise_pend_kind = gk
-                self._noise_pend_t = now
-            elif self._noise_pend_kind == "" or self._noise_pend_kind == "BLACK" or not seq:
-                self._noise_pend_kind = "BLACK"
-                self._noise_pend_t = now
-
-        pend = self._noise_pend_t > 0 and (now - self._noise_pend_t) < 2.20
-        gint = 0.15 if (pend or self._noise_zone_tgt >= 0) else 1.00
-        zlock = self._noise_z_fresh_t > 0 and (now - self._noise_z_fresh_t) < 0.60
-
-        if self._noise_z_scan_t < 1 or (now - self._noise_z_scan_t) >= gint:
-            self._noise_z_scan_t = now
-            zp_w, zp_g, zp_k = self._noise_z_wx, self._noise_z_gx, self._noise_z_kx
-            if self.scan_noiseform_zones(fish_img):
-                self._noise_z_fresh_t = now
-                if zlock:
-                    self._noise_z_wx = zp_w
-                    self._noise_z_gx = zp_g
-                    self._noise_z_kx = zp_k
-            else:
-                self._noise_z_wx = zp_w
-                self._noise_z_gx = zp_g
-                self._noise_z_kx = zp_k
-
-        self._noise_z_prev_ok = self._noise_z_ok
-        self._noise_z_ok = self._noise_z_fresh_t > 0 and (now - self._noise_z_fresh_t) < 0.60
-
-        if self._noise_zone_tgt >= 0:
-            zage = now - self._noise_zone_t
-            zgap = (now - self._noise_z_fresh_t) if self._noise_z_fresh_t > 0 else 99.0
-            if zage < 1.85 and zgap < 1.00:
-                return gk, self._noise_zone_tgt
-            if zage < 4.00 and self._noise_z_ok:
-                return gk, self._noise_zone_tgt
-            self._noise_zone_tgt = -1
-            self._noise_zone_kind = ""
-            self._noise_pend_kind = ""
-            self._noise_pend_t = 0.0
-
-        if not pend or not self._noise_z_ok:
-            return gk, None
-
-        if self._noise_pend_kind == "WHITE":
-            gz = self._noise_z_wx
-        elif self._noise_pend_kind == "GREEN":
-            gz = self._noise_z_gx
-        elif self._noise_pend_kind == "BLACK":
-            gz = self._noise_z_kx
+        pixels = self._normalize_noiseform_pixels(fish_img).astype(np.int16)
+        # If this is a full image, reduce it to a horizontal scan line.
+        # Using the middle of the crop avoids most UI/background edges.
+        if pixels.ndim == 3:
+            height = pixels.shape[0]
+            y = height // 2
+            line = pixels[y]
         else:
-            gz = -1
-        if gz < 0:
-            return gk, None
+            line = pixels
+        width = line.shape[0]
+        if width < 3:
+            return None, None, None
 
-        self._noise_zone_tgt = gz
-        self._noise_zone_t = now
-        self._noise_zone_kind = self._noise_pend_kind
-        self._noise_pend_t = 0.0
-        return gk, gz
+        # 1. Get the normal bar color
+        # The bar itself is green, so use the green-channel strength
+        # as the main signal.  A median is more resistant to the
+        # darker Noiseform segments than using one individual pixel.
+        green_channel = line[:, 1]
+        normal_green = float(np.median(green_channel))
+        # 2. Find pixels that are noticeably darker than the bar
+        # Noiseform's green zone is only slightly darker, so this
+        # threshold should be much smaller than the black-zone
+        # difference.
+        dark_threshold = max(3.0, normal_green * 0.08)
+        green_zone_mask = (
+            green_channel <= (normal_green - dark_threshold)
+        )
+        # 3. Remove tiny isolated pixels
+        # A real Noiseform zone should occupy several neighbouring
+        # pixels.  This prevents one noisy pixel from becoming a zone.
+        min_zone_width = max(2, int(width * 0.01))
+        zones = []
+        start = None
+        for x, matched in enumerate(green_zone_mask):
+            if matched and start is None:
+                start = x
+            elif not matched and start is not None:
+                if x - start >= min_zone_width:
+                    zones.append((start, x - 1))
+                start = None
+        if start is not None and width - start >= min_zone_width:
+            zones.append((start, width - 1))
+        # No darker region means there is no detectable green zone.
+        if not zones:
+            self.noiseform_green_x = None
+            return None, None, None
+
+        # Use the center of the detected darker segment.
+        green_start, green_end = max(
+            zones,
+            key=lambda zone: zone[1] - zone[0]
+        )
+        green_x = (green_start + green_end) // 2
+        # 4. Find WHITE and BLACK using their configured colors
+        noiseform_white_color = self.vars["noiseform_white_color"]
+        noiseform_black_color = self.vars["noiseform_black_color"]
+        noiseform_white_color2 = f"#{noiseform_white_color}{noiseform_white_color}{noiseform_white_color}"
+        noiseform_black_color2 = f"#{noiseform_black_color}{noiseform_black_color}{noiseform_black_color}"
+        white_x, white_y = self._detect_noiseform_white(
+            line,
+            noiseform_white_color2,
+            5
+        )
+        black_x, black_y = self._detect_noiseform_black(
+            line,
+            noiseform_black_color2,
+            5
+        )
+        # 5. Return
+        return white_x, green_x, black_x
 
     def auto_crop_template(self, template, lower_white=200):
         """
@@ -3635,23 +3462,18 @@ class Api:
         # Convert to float for precise calculations
         screenshot_float = screenshot.astype(np.float32)
         template_float = template.astype(np.float32)
-
         # Match template
         result = cv2.matchTemplate(
             screenshot_float,
             template_float,
             cv2.TM_CCOEFF_NORMED
         )
-
         # Get the best match
         _, confidence, _, location = cv2.minMaxLoc(result)
-
         # Threshold can be adjusted
         threshold = 0.8
-
         if confidence >= threshold:
             x, y = location
-
             return int(x), int(y), float(confidence)
 
         return None, None, float(confidence)
@@ -3800,6 +3622,7 @@ class Api:
                 self.vars["tesseract_path"] = tesseract_path
             else:
                 raise RuntimeError("⚠️ Tesseract could not be found.")
+
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3815,6 +3638,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Appraisal error: {e}")
             return
+
         # Get Areas
         hotbar_left, hotbar_top, hotbar_right, hotbar_bottom, _, _ = self.get_areas("appraisal_hotbar")
         # Split Mutations (Sometimes It Contains , At The End)
@@ -3833,6 +3657,7 @@ class Api:
                 appraisal_y_ratio = float(normal_appraisal_ratio[1])
             except:
                 pass
+
         else:
             # Gamepass Appraisal
             raw_gamepass_appraisal_ratio = self.vars["gamepass_appraisal_click"]
@@ -3842,6 +3667,7 @@ class Api:
                 appraisal_y_ratio = float(gamepass_appraisal_ratio[1])
             except:
                 pass
+
             # Gamepass Appraisal 2
             raw_gamepass_appraisal_ratio2 = self.vars["gamepass_appraisal_click2"]
             gamepass_appraisal_ratio2 = raw_gamepass_appraisal_ratio2.replace(" ", "").split(",")
@@ -3850,6 +3676,7 @@ class Api:
                 appraisal_y_ratio2 = float(gamepass_appraisal_ratio2[1])
             except:
                 pass
+
         appraisal_x = int(SCREEN_WIDTH * appraisal_x_ratio)
         appraisal_y = int(SCREEN_HEIGHT * appraisal_y_ratio)
         appraisal_x2 = int(SCREEN_WIDTH * appraisal_x_ratio2)
@@ -3907,6 +3734,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Appraisal error: {e}")
             return
+
         self.set_status("Macro Stopped")
     def start_treasure_appraisal(self):
         # Validate Tesseract
@@ -3918,6 +3746,7 @@ class Api:
                 self.vars["tesseract_path"] = tesseract_path
             else:
                 raise RuntimeError("⚠️ Tesseract could not be found.")
+
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -3933,6 +3762,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Appraisal error: {e}")
             return
+
         # Areas
         treasure_left, treasure_top, treasure_right, treasure_bottom, treasure_width, treasure_height = self.get_areas("treasure_appraisal")
         # Area Calculations
@@ -3947,12 +3777,14 @@ class Api:
             treasure_appraisal_text_y = float(treasure_appraisal_text[1]) * SCREEN_HEIGHT
         except:
             pass
+
         treasure_appraisal_click = self.vars["treasure_appraisal_click"].replace(" ", "").split(",")
         try:
             treasure_appraisal_click_x = float(treasure_appraisal_click[0]) * SCREEN_WIDTH
             treasure_appraisal_click_y = float(treasure_appraisal_click[1]) * SCREEN_HEIGHT
         except:
             pass
+
         ocr_width = int((treasure_width / 357) * 80) # Scaled at 720p
         ocr_height = int((treasure_height / 459) * 15) # Scaled at 720p
         ocr_left = treasure_appraisal_text_x - int(ocr_width / 2)
@@ -4029,6 +3861,7 @@ class Api:
                 self.vars["tesseract_path"] = tesseract_path
             else:
                 raise RuntimeError("⚠️ Tesseract could not be found.")
+
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -4044,6 +3877,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Enchantment error: {e}")
             return
+
         # Get Areas
         enchantment_left, enchantment_top, enchantment_right, enchantment_bottom, enchantment_width, enchantment_height = self.get_areas("enchantment")
         # Split Enchantments
@@ -4061,12 +3895,14 @@ class Api:
             enchantment_click_position_y = float(enchantment_click_position[1]) * SCREEN_HEIGHT
         except:
             pass
+
         enchantment_click_position2 = self.vars["enchantment_click_position2"].replace(" ", "").split(",")
         try:
             enchantment_click_position_x2 = float(enchantment_click_position2[0]) * SCREEN_WIDTH
             enchantment_click_position_y2 = float(enchantment_click_position2[1]) * SCREEN_HEIGHT
         except:
             pass
+
         # Other Calculations
         logging_cycle = int(self.vars["logging_cycle"])
         logging_mode = self.vars["logging_mode"].lower()
@@ -4132,6 +3968,7 @@ class Api:
                 self.vars["tesseract_path"] = tesseract_path
             else:
                 raise RuntimeError("⚠️ Tesseract could not be found.")
+
             self.macro_running = True
         except Exception as e:
             time.sleep(0.2)
@@ -4147,6 +3984,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Angler error: {e}")
             return
+
         # Areas
         backpack_left, backpack_top, _, _, backpack_width, backpack_height = self.get_areas("backpack")
         quest_left, quest_top, quest_right, quest_bottom, _, _ = self.get_areas("angler_quest")
@@ -4160,12 +3998,14 @@ class Api:
             angler_click_position_y = float(angler_click_position[1]) * SCREEN_HEIGHT
         except:
             pass
+
         angler_click_position2 = self.vars["angler_click_position2"].replace(" ", "").split(",")
         try:
             angler_click_position_x2 = float(angler_click_position2[0]) * SCREEN_WIDTH
             angler_click_position_y2 = float(angler_click_position2[1]) * SCREEN_HEIGHT
         except:
             pass
+
         # Main Loop
         try:
             while self.macro_running:
@@ -4273,6 +4113,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Angler error: {e}")
             return
+
         self.set_status("Macro Stopped")
     def start_fishing(self):
         try:
@@ -4298,6 +4139,7 @@ class Api:
             rod_slot = str(self.vars["rod_slot"])
             sundial_slot = str(self.vars["sundial_slot"])
             target_slot = str(self.vars["target_slot"])
+            target_slot2 = str(self.vars["target_slot2"])
             relic_slot = str(self.vars["relic_slot"])
             # 3. Delays & Timings
             select_rod_duration = float(self.vars["select_rod_duration"])
@@ -4325,6 +4167,8 @@ class Api:
             sovereign_recharge_tolerance = int(self.vars["sovereign_recharge_tolerance"])
             auto_refresh = self.vars["auto_refresh"]
             auto_totem = self.vars["auto_totem"]
+            second_totem = self.vars["second_totem"]
+            auto_buy_bait = self.vars["auto_buy_bait"]
             fish_overlay = self.vars["fish_overlay"]
             minigame_click_position = self.vars["minigame_click_position"]
             animation_delay = float(self.vars["animation_delay"])
@@ -4335,15 +4179,17 @@ class Api:
                 enchantment_click_position_y = float(enchantment_click_position[1]) * SCREEN_HEIGHT
             except:
                 pass
+
             enchantment_click_position2 = self.vars["enchantment_click_position2"].replace(" ", "").split(",")
             try:
                 enchantment_click_position_x2 = float(enchantment_click_position2[0]) * SCREEN_WIDTH
                 enchantment_click_position_y2 = float(enchantment_click_position2[1]) * SCREEN_HEIGHT
             except:
                 pass
+
             enchantment_click_delay = float(self.vars["enchantment_click_delay"])
             enchantment_click_delay2 = float(self.vars["enchantment_click_delay2"])
-            # 6. Optimized Opencv Template Matching Setup
+            # 6. Optimized OpenCV Template Matching Setup
             try:
                 sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
                 moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
@@ -4358,6 +4204,17 @@ class Api:
             self.current_cycle = 0
             current_time = None
             current_hunt = ""
+            # 8. Auto Buy Bait Delays
+            buy_bait_slot = str(self.vars["buy_bait_slot"])
+            fishing_slot = str(self.vars["fishing_slot"])
+            bait_move_time = float(self.vars["bait_move_time"])
+            bait_cycles = int(self.vars["bait_cycles"])
+            auto_buy_bait_1_x, auto_buy_bait_1_y = self._split_ratio(self.vars["auto_buy_bait_1"], True)
+            auto_buy_bait_2_x, auto_buy_bait_2_y = self._split_ratio(self.vars["auto_buy_bait_2"], True)
+            auto_buy_bait_3_x, auto_buy_bait_3_y = self._split_ratio(self.vars["auto_buy_bait_3"], True)
+            auto_buy_bait_4_x, auto_buy_bait_4_y = self._split_ratio(self.vars["auto_buy_bait_4"], True)
+            auto_buy_bait_5_x, auto_buy_bait_5_y = self._split_ratio(self.vars["auto_buy_bait_5"], True)
+            auto_buy_bait_6_x, auto_buy_bait_6_y = self._split_ratio(self.vars["auto_buy_bait_6"], True)
             # Catch Metrics (0 - Success, 1 - Failed, 2 - N/A Initial State)
             self.catch_success = 2
             self.catch_rate = 0.0
@@ -4405,6 +4262,30 @@ class Api:
                     self._send_key(rod_slot)
                     self.interruptible_sleep(delay_after_casting / 2)
                 self.set_status("Using Utilities")
+                # Auto Buy Bait
+                if auto_buy_bait == "on":
+                    if bait_cycles == self.current_cycle:
+                        self._send_key(buy_bait_slot, bait_move_time)
+                        self._click_at(HALF_WIDTH, HALF_HEIGHT)
+                        time.sleep(1.2)
+                        self._click_at(auto_buy_bait_1_x, auto_buy_bait_1_y)
+                        time.sleep(1.2)
+                        self._click_at(auto_buy_bait_2_x, auto_buy_bait_2_y)
+                        time.sleep(1.2)
+                        self._click_at(auto_buy_bait_3_x, auto_buy_bait_3_y)
+                        time.sleep(1.2)
+                        for i in range(10):
+                            self._click_at(auto_buy_bait_4_x, auto_buy_bait_4_y)
+                            time.sleep(0.2 + 0.05 * i)
+                        time.sleep(1.2)
+                        self._click_at(auto_buy_bait_5_x, auto_buy_bait_5_y)
+                        time.sleep(1.2)
+                        self._click_at(auto_buy_bait_6_x, auto_buy_bait_6_y)
+                        time.sleep(1.2)
+                        self._click_at(auto_buy_bait_6_x, auto_buy_bait_6_y)
+                        time.sleep(1.2)
+                        self._send_key(fishing_slot, bait_move_time)
+                        bait_cycles = self.current_cycle + bait_cycles
                 # Auto Totem
                 if auto_totem == "on":
                     self.status_overlay.set_main_status("Auto Totem")
@@ -4436,6 +4317,10 @@ class Api:
                     self._send_key(target_slot)
                     self._click_at(shake_x, shake_y)
                     self.interruptible_sleep(totem_delay)
+                    if second_totem == "on":
+                        self._send_key(target_slot2)
+                        self._click_at(shake_x, shake_y)
+                        self.interruptible_sleep(totem_delay)
                     self._send_key(rod_slot)
                     time.sleep(delay_after_casting / 4)
                 if auto_reconnect == "on":
@@ -4487,6 +4372,7 @@ class Api:
                     if self.capture_frame is None:
                         attempts = attempts - 1
                         continue
+
                     if detection_method == "friend_area":
                         friend_img = self.capture_frame[friend_top_s:friend_bottom_s, friend_left_s:friend_right_s]
                         friend_x, friend_y = self.pixel_search(friend_img, friend_color, friend_tolerance)
@@ -4539,6 +4425,7 @@ class Api:
                             time.sleep(2.5)
                         except:
                             pass
+
                 # Update Catch Rate After The Minigame Finishes
                 if self.catch_success == 0:
                     successful_catches += 1
@@ -4570,6 +4457,7 @@ class Api:
             self.macro_running = False
             self.stop_macro(f"Error at line {error_line}: {e}")
             return
+
     def _auto_reconnect(self, center_x, center_y):
         reconnect_threshold = int(self.vars["reconnect_threshold"])
         reconnect_wait_time = int(self.vars["reconnect_wait_time"])
@@ -4581,6 +4469,7 @@ class Api:
         except:
             self.send_logging("**Reconnect Failed**", f"Cycle #{self.current_cycle}", 1)
             return
+
         mirror_slot = str(self.vars["mirror_slot"])
         shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("shake")
         mirror_click_x = int(SCREEN_WIDTH * mirror_xr)
@@ -4623,6 +4512,7 @@ class Api:
                 self.vars["tesseract_path"] = tesseract_path
             else:
                 raise RuntimeError("⚠️ Tesseract could not be found.")
+
         except:
             return
 
@@ -4746,7 +4636,6 @@ class Api:
             # Status Overlay
             self.status_overlay.set_line(1, "Green: ", f"Undefined")
             self.status_overlay.set_line(2, "White: ", f"Undefined")
-
             # Scanning From Shake_Left, Shake_Top To Shake_Right, Shake_Bottom
             shake_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
             # Green Detection
@@ -4791,71 +4680,58 @@ class Api:
                 else:
                     self.status_overlay.set_line(1, "Green: ", f"None (Skipped)")
                     continue  # No green found, try again
+
             # Show Status For Green
             self.status_overlay.set_line(1, "Green: ", f"{green_abs_left}, {green_abs_top}")
-
             # White Detection
             # Search vertically below the center of the green bar.
             green_center_x = (green_abs_left + green_abs_right) // 2
-
             # Keep the coordinate inside shake_img.
             green_center_x = max(
                 0,
                 min(green_center_x, shake_img.shape[1] - 1)
             )
-
             # Comet-style vertical scan:
             # start at the green bar and scan all the way to the
             # bottom of the captured region.
             scan_start_y = max(0, green_abs_top)
             scan_end_y = shake_img.shape[0]
-
             white_column = shake_img[
                 scan_start_y:scan_end_y,
                 green_center_x:green_center_x + 1,
                 :
             ]
-
             # Per-channel tolerance:
             # a pixel matches when every B/G/R channel is within
             # white_cast_tolerance of the target color.
             white_b, white_g, white_r = self._hex_to_bgr(white_cast_color)
-
             white_target = np.array(
                 [white_b, white_g, white_r],
                 dtype=np.int16
             )
-
             white_column_i = white_column.astype(np.int16)
-
             white_diff = np.abs(
                 white_column_i - white_target
             )
-
             white_mask = (
                 np.max(white_diff, axis=2)
                 <= white_cast_tolerance
             )
-
             # Get every matching Y position on the center column.
             white_rows = np.flatnonzero(white_mask[:, 0])
-
             if white_rows.size == 0:
                 self.status_overlay.set_line(2, "White: ", f"None (Skipped)")
                 continue
 
             # First matching pixel = top of the white target.
             white_abs_top = scan_start_y + int(white_rows[0])
-
             # Last matching pixel = bottom of the white target.
             # Keeping this allows Solar's existing Simple and Prediction
             # methods to continue using total_distance.
             white_abs_bottom = scan_start_y + int(white_rows[-1])
-
             # Existing Solar distance calculations.
             total_distance = white_abs_bottom - green_abs_top
             current_distance = white_abs_top - green_abs_top
-
             if total_distance <= 0:
                 self.status_overlay.set_line(
                     2,
@@ -4869,7 +4745,6 @@ class Api:
                 "White: ",
                 f"{green_center_x}, {white_abs_top}"
             )
-
             # Release Logic Based On Selected Method
             if perfect_cast_method == "simple":
                 # Simple (Percentage-Based) Method
@@ -5003,6 +4878,7 @@ class Api:
                             released = True
                 if released:
                     break
+
             elif perfect_cast_method == "prediction":  # perfect_cast_method == "prediction" (PREDICTION METHOD)
                 # Simple (Percentage-Based) Method
                 actual_fill_percentage = (1 - (current_distance / total_distance)) * 100
@@ -5162,9 +5038,11 @@ class Api:
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
                 continue
+
             elif self.capture_frame is None:
                 time.sleep(self.scan_delay)
                 continue
+
             else:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
                 detection_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
@@ -5943,6 +5821,7 @@ class Api:
                 self.status_overlay.set_line(2, "Current Mask Count: ", mask_missing_count)
                 if left_missing_count + right_missing_count == 0:
                     continue # Invalid detection
+
                 # Decide whether the metronome is inside or not
                 metronome_ratio = mask_missing_count / initial_mask_count
                 lullaby_mask_contain_ratio = 1 - lullaby_mask_lost_ratio
@@ -6080,15 +5959,18 @@ class Api:
         last_bar_center = fish_center_x_relative
         last_bar_size = 0
         last_error = 0
-        last_bar_velocity = fish_width
         # Velocities & Mechanics
         right_bar_cycle = 0
         bag_spam_cycle = 0
-        frame_interpolation_cycle = 0
         color_check_bar_velocity = 0.0
         color_check_target_velocity = 0.0
+        noiseform_start_timer = time.perf_counter()
+        noiseform_current_timer = time.perf_counter()
+        noiseform_color, noiseform_position = None, None
+        noiseform_timer = 0.5
+        last_valid_noiseform_color = None
+        zone_x = None
         time.sleep(0.1)
-        self._reset_noiseform_warn_state()
         # Load Templates for Image Search
         try:
             if fishing_mode == "image":
@@ -6110,6 +5992,7 @@ class Api:
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
                 continue
+
             elif self.capture_frame is None:
                 time.sleep(self.scan_delay)
                 continue
@@ -6464,12 +6347,31 @@ class Api:
                 bar_velocity2 = 0
                 self.status_overlay.set_line(2, "", "")
             # Shapes Detection (Noiseform warn flash + bar-zone target)
+            # Optimization 1: Scan only 1 second if bar was not seen
             if fishing_profile == "shapes":
-                noiseform_color, zone_x = self.detect_noiseform_target(noiseform_img, fish_img)
-                if zone_x is not None:
-                    fish_x = zone_x
-                kind_label = noiseform_color or self._noise_zone_kind or "-"
-                self.status_overlay.set_line(3, "Shape: ", kind_label if zone_x is None else f"{kind_label} @ {zone_x}")
+                noiseform_current_timer = time.perf_counter()
+                if noiseform_current_timer - noiseform_start_timer >= noiseform_timer:
+                    noiseform_color, noiseform_position = self.detect_noiseform_color(noiseform_img)
+                    noiseform_start_timer = noiseform_current_timer
+                if noiseform_color is None:
+                    zone_scan = self.scan_noiseform_zones(fish_img)
+                    if isinstance(zone_scan, tuple) and len(zone_scan) == 3:
+                        white_x, green_x, black_x = zone_scan
+                    else:
+                        white_x, green_x, black_x = None, None, None
+                    if last_valid_noiseform_color == "white":
+                        zone_x = white_x
+                    elif last_valid_noiseform_color == "green":
+                        zone_x = green_x
+                    elif last_valid_noiseform_color == "black":
+                        zone_x = black_x
+                    else:
+                        zone_x = None
+                self.status_overlay.set_line(3, "Color: ", f"{noiseform_color} ({zone_x})")
+                if noiseform_color is not None:
+                    noiseform_timer = 0.1
+                else:
+                    noiseform_timer = 0.5
             # Note Detection
             if fishing_profile == "notes":
                 note_x, note_y = self.pixel_search(shake_img, pinion_notes_color, pinion_notes_tolerance)
@@ -6485,6 +6387,13 @@ class Api:
             else:
                 # print("Note Tracking Disabled")
                 note_y_ratio = 0.0
+            # Shapes uses the same target-override rule as notes:
+            # when the special position is valid this hold, fish_x follows it
+            # and last_fish_x stays on the real fish (updated later).
+            if fishing_profile == "shapes":
+                if zone_x is not None:
+                    fish_x = zone_x
+                    fish_detected = True
             if fishing_profile == "notes":
                 # Catch Fails If The Note Ratio Becomes 1 And The Bar Can'T Catch It; Stays Success Only If Note Ratio Is Less Than 0.9
                 if note_y_ratio > 0.9:
@@ -6694,17 +6603,23 @@ class Api:
             else:
                 release_mouse()
             # Update Cache
-            try:
-                last_bar_velocity = (bar_center - last_bar_center) / time_delta
-            except:
-                last_bar_velocity = fish_width
+            if noiseform_color is not None:
+                last_valid_noiseform_color = noiseform_color
             if bar_detected == True:
                 last_left_x = left_x
                 last_right_x = right_x
                 last_bar_center = bar_center
                 last_bar_size = bar_size
             if fish_detected == True:
-                if not fish_x == note_x:
+                # Notes/shapes override fish_x onto a special target.
+                # Do not cache that override as last_fish_x, so the real
+                # fish position is restored when the note/zone disappears
+                # and PID last_error can reset on the switch.
+                tracking_override = (
+                    (fishing_profile == "notes" and note_x is not None and fish_x == note_x)
+                    or (fishing_profile == "shapes" and zone_x is not None and fish_x == zone_x)
+                )
+                if not tracking_override:
                     last_fish_x = fish_x
             last_time = current_time
             # Cleanup
@@ -6719,6 +6634,7 @@ class Api:
             self.fish_overlay.hide()
         except:
             pass
+
         try:
             self.status_overlay.hide()
         except:
@@ -6744,13 +6660,16 @@ class Api:
                     self.camera.stop()
                 except Exception:
                     pass
+
                 try:
                     del self.camera
                 except Exception:
                     pass
+
                 self.camera = None
         except Exception:
             pass
+
         if not text == "":
             self.set_status(text)
         try:
@@ -6829,6 +6748,7 @@ def on_closed():
             closer()
         except Exception:
             pass
+
 api = Api()
 window = webview.create_window(
     f"Solar Fishing V{APP_VERSION}",
