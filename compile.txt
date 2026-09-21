@@ -11,9 +11,7 @@ pyinstaller --onedir --windowed \
   "SolarFishingV5.py"
 
 Windows command:
-pyinstaller --onefile --windowed \
---icon="icon.ico" \
-"SolarFishingV5.py"
+pyinstaller --onefile --windowed --icon="icon.ico" "SolarFishingV5.py"
 
 Step 3: Run this code to create setup instructions (if macOS) and if Windows compress to ZIP
 

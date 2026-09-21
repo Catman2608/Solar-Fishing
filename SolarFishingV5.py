@@ -2806,9 +2806,8 @@ class Api:
             return default
 
     def _split_ratio(self, item, screen_coords=False):
-        # Normal Appraisal
-        raw_item = self.vars[item]
-        splitted_items = raw_item.replace(" ", "").split(",")
+        # Split
+        splitted_items = item.replace(" ", "").split(",")
         try:
             x = float(splitted_items[0])
             y = float(splitted_items[1])
@@ -4205,16 +4204,19 @@ class Api:
             current_time = None
             current_hunt = ""
             # 8. Auto Buy Bait Delays
-            buy_bait_slot = str(self.vars["buy_bait_slot"])
-            fishing_slot = str(self.vars["fishing_slot"])
-            bait_move_time = float(self.vars["bait_move_time"])
-            bait_cycles = int(self.vars["bait_cycles"])
-            auto_buy_bait_1_x, auto_buy_bait_1_y = self._split_ratio(self.vars["auto_buy_bait_1"], True)
-            auto_buy_bait_2_x, auto_buy_bait_2_y = self._split_ratio(self.vars["auto_buy_bait_2"], True)
-            auto_buy_bait_3_x, auto_buy_bait_3_y = self._split_ratio(self.vars["auto_buy_bait_3"], True)
-            auto_buy_bait_4_x, auto_buy_bait_4_y = self._split_ratio(self.vars["auto_buy_bait_4"], True)
-            auto_buy_bait_5_x, auto_buy_bait_5_y = self._split_ratio(self.vars["auto_buy_bait_5"], True)
-            auto_buy_bait_6_x, auto_buy_bait_6_y = self._split_ratio(self.vars["auto_buy_bait_6"], True)
+            try:
+                buy_bait_slot = str(self.vars["buy_bait_slot"])
+                fishing_slot = str(self.vars["fishing_slot"])
+                bait_move_time = float(self.vars["bait_move_time"])
+                bait_cycles = int(self.vars["bait_cycles"])
+                auto_buy_bait_1_x, auto_buy_bait_1_y = self._split_ratio(self.vars["auto_buy_bait_1"], True)
+                auto_buy_bait_2_x, auto_buy_bait_2_y = self._split_ratio(self.vars["auto_buy_bait_2"], True)
+                auto_buy_bait_3_x, auto_buy_bait_3_y = self._split_ratio(self.vars["auto_buy_bait_3"], True)
+                auto_buy_bait_4_x, auto_buy_bait_4_y = self._split_ratio(self.vars["auto_buy_bait_4"], True)
+                auto_buy_bait_5_x, auto_buy_bait_5_y = self._split_ratio(self.vars["auto_buy_bait_5"], True)
+                auto_buy_bait_6_x, auto_buy_bait_6_y = self._split_ratio(self.vars["auto_buy_bait_6"], True)
+            except:
+                pass
             # Catch Metrics (0 - Success, 1 - Failed, 2 - N/A Initial State)
             self.catch_success = 2
             self.catch_rate = 0.0
@@ -4248,7 +4250,8 @@ class Api:
             else:
                 self.status_overlay.hide()
         except KeyError as e:
-            self.stop_macro("Config Error: ", e)
+            self.stop_macro(f"Config Error: {e}")
+            return
         # Main Loop (With Bug Reports)
         try:
             while self.macro_running:
