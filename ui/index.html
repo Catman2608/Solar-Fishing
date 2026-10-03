@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Solar Fishing V5.11</title>
+    <title>Solar Fishing V5.12</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -10,7 +10,7 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="logo">
-                Solar Fishing V5.11
+                Solar Fishing V5.12
             </div>
             <button class="tab-button active" onclick="switchTab('overview')">
                 Overview
@@ -71,6 +71,7 @@
                         <label for="automation_mode">Automation Mode:</label>
                         <select name="automation_mode" id="automation_mode">
                             <option value="fishing">Fishing</option>
+                            <option value="harpoon_gun">Harpoon Gun</option>
                             <option value="appraisal">Appraisal</option>
                             <option value="treasure_appraisal">Treasure Appraisal</option>
                             <option value="enchant">Enchant</option>
@@ -866,13 +867,17 @@
                     </div>
                     <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
-                        <label>Accept Quest Click Position</label>
+                        <label>Accept Quest Click Position (Screen Ratio)</label>
                         <input id=angler_click_position type="text" placeholder="0.5, 0.5">
                     </div>
                     <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">
-                        <label>Backpack Search Click Position</label>
+                        <label>Backpack Search Click Position (Screen Ratio)</label>
                         <input id=angler_click_position2 type="text" placeholder="0.5, 0.5">
+                    </div>
+                    <div class="text">
+                        <label>Backpack Close Click Position (Screen Ratio)</label>
+                        <input id=angler_click_position3 type="text" placeholder="0.5, 0.5">
                     </div>
                     <div class="arrow">&darr;</div> <!-- Arrows -->
                     <div class="text">

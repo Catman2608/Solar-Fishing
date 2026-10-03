@@ -60,7 +60,7 @@ except (ImportError, OSError):
 # All Platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
-APP_VERSION = 5.12
+APP_VERSION = 5.11
 BETA_VERSION = 0
 DEVELOPER = "Catman2608"
 def load_misc_settings(last_config_path):
@@ -270,14 +270,15 @@ elif sys.platform == "darwin":
             SCStreamConfiguration,
             SCStream,
             SCStreamOutputType,
-            SCStreamOutputTypeScreen,
         )
         from Foundation import NSDate, NSObject
         import objc
         _SCK_AVAILABLE = True
         # PyObjC exposes the enum as a NewType. Cases are module constants
         # (SCStreamOutputTypeScreen == 0), not attributes of the NewType.
-        _SCK_OUTPUT_SCREEN = SCStreamOutputTypeScreen
+        _SCK_OUTPUT_SCREEN = getattr(_SCK, "SCStreamOutputTypeScreen", None)
+        if _SCK_OUTPUT_SCREEN is None:
+            _SCK_OUTPUT_SCREEN = getattr(SCStreamOutputType, "SCStreamOutputTypeScreen", 0)
     except Exception as e:
         _SCK = None
         SCShareableContent = None
@@ -313,9 +314,7 @@ elif sys.platform == "darwin":
                 )
             except Exception:
                 pass
-
         return _QUARTZ_KEY_SOURCE
-
     def get_scale_factor():
         global _scale_cache
         if _scale_cache is not None:
@@ -393,12 +392,12 @@ elif sys.platform == "darwin":
             event = Quartz.CGEventCreateKeyboardEvent(source, keycode, down)
             if event is None:
                 return
-
             # Explicit Flags Only. A Null Source Inherits Combined Session Flags,
             # Often Including Globe/Fn. Two Letters Then Look Like A Double
             # Globe Tap And macOS Opens Siri / Type To Siri / Dictation.
             Quartz.CGEventSetFlags(event, flags or 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+
         if click_type == 1:           # Hold (press only)
             _post_key(True)
         elif click_type == 2:         # Release only
@@ -407,6 +406,7 @@ elif sys.platform == "darwin":
             _post_key(True)
             time.sleep(delay)
             _post_key(False)
+
     def send_hotkey(modifier, key, delay=0.05):
         """Modifier Down, Key Click With That Flag, Modifier Up."""
         flag_map = {
@@ -504,317 +504,135 @@ elif sys.platform.startswith("linux"):
             d.sync()
 def _cm_time_make(value, timescale):
     """CMTime for SCStreamConfiguration.minimumFrameInterval.
+
     CMTimeMake is CoreMedia, not Quartz. Quartz.CMTimeMake raises
     AttributeError on current PyObjC (lazy import has no such symbol).
     """
-    if sys.platform == "darwin":
-        value = int(value)
-        timescale = int(timescale)
+    value = int(value)
+    timescale = int(timescale)
+    try:
+        import CoreMedia
+        return CoreMedia.CMTimeMake(value, timescale)
+    except Exception:
+        pass
+    maker = getattr(Quartz, "CMTimeMake", None) if sys.platform == "darwin" else None
+    if maker is not None:
         try:
-            import CoreMedia
-            return CoreMedia.CMTimeMake(value, timescale)
-
+            return maker(value, timescale)
         except Exception:
             pass
-
-        maker = getattr(Quartz, "CMTimeMake", None) if sys.platform == "darwin" else None
-        if maker is not None:
-            try:
-                return maker(value, timescale)
-
-            except Exception:
-                pass
-
-        # kCMTimeFlags_Valid = 1. Layout matches Apple's CMTime (24 bytes).
-        import objc as _objc
-        try:
-            cm_time = _objc.createStructType(
-                "CMTime",
-                b"{CMTime=qiIq}",
-                ["value", "timescale", "flags", "epoch"],
-            )
-        except Exception:
-            cm_time = _objc.lookUpStructType("CMTime")
-        return cm_time(value, timescale, 1, 0)
-
-    else:
-        return 0
-
-def _sck_cf_ptr(value):
-    """Address of a PyObjC opaque pointer (CMSampleBuffer / CVPixelBuffer)."""
-    if sys.platform == "darwin":
-        if value is None:
-            return 0
-
-        if isinstance(value, int):
-            return value
-
-        try:
-            import objc as _objc
-            raw = _objc.pyobjc_id(value)
-            if raw:
-                return int(raw)
-
-        except Exception:
-            pass
-
-        for attr in ("pointer", "__pointer__", "ptr"):
-            raw = getattr(value, attr, None)
-            if raw is None:
-                continue
-
-            try:
-                return int(raw)
-
-            except (TypeError, ValueError):
-                pass
-
-        try:
-            return int(ctypes.cast(value, ctypes.c_void_p).value or 0)
-
-        except Exception:
-            return 0
-
-    else:
-        return 0
-
-def _sck_coremedia():
-    if sys.platform == "darwin":
-        global _SCK_COREMEDIA
-        if _SCK_COREMEDIA is None:
-            lib = ctypes.cdll.LoadLibrary(
-                "/System/Library/Frameworks/CoreMedia.framework/CoreMedia"
-            )
-            lib.CMSampleBufferGetImageBuffer.argtypes = [ctypes.c_void_p]
-            lib.CMSampleBufferGetImageBuffer.restype = ctypes.c_void_p
-            _SCK_COREMEDIA = lib
-        return _SCK_COREMEDIA
-
-    else:
-        return None
-
-def _sck_corevideo():
-    if sys.platform == "darwin":
-        global _SCK_COREVIDEO
-        if _SCK_COREVIDEO is None:
-            lib = ctypes.cdll.LoadLibrary(
-                "/System/Library/Frameworks/CoreVideo.framework/CoreVideo"
-            )
-            lib.CVPixelBufferLockBaseAddress.argtypes = [ctypes.c_void_p, ctypes.c_int]
-            lib.CVPixelBufferLockBaseAddress.restype = ctypes.c_int
-            lib.CVPixelBufferUnlockBaseAddress.argtypes = [ctypes.c_void_p, ctypes.c_int]
-            lib.CVPixelBufferUnlockBaseAddress.restype = ctypes.c_int
-            lib.CVPixelBufferGetWidth.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetWidth.restype = ctypes.c_size_t
-            lib.CVPixelBufferGetHeight.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetHeight.restype = ctypes.c_size_t
-            lib.CVPixelBufferGetBytesPerRow.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetBytesPerRow.restype = ctypes.c_size_t
-            lib.CVPixelBufferGetBaseAddress.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetBaseAddress.restype = ctypes.c_void_p
-            lib.CVPixelBufferGetPixelFormatType.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetPixelFormatType.restype = ctypes.c_uint32
-            _SCK_COREVIDEO = lib
-        return _SCK_COREVIDEO
-
-    else:
-        return None
-
-def _sck_copy_bgra(pixel_addr):
-    """Copy a BGRA CVPixelBuffer by address. Returns a contiguous BGRA array."""
-    if sys.platform == "darwin":
-        cv = _sck_corevideo()
-        if cv.CVPixelBufferLockBaseAddress(pixel_addr, 1) != 0:
-            return None
-
-        try:
-            fmt = int(cv.CVPixelBufferGetPixelFormatType(pixel_addr))
-            if fmt != 0x42475241:
-                return None
-
-            width = int(cv.CVPixelBufferGetWidth(pixel_addr))
-            height = int(cv.CVPixelBufferGetHeight(pixel_addr))
-            bytes_per_row = int(cv.CVPixelBufferGetBytesPerRow(pixel_addr))
-            base = cv.CVPixelBufferGetBaseAddress(pixel_addr)
-            if not base or width <= 0 or height <= 0 or bytes_per_row < width * 4:
-                return None
-
-            raw = np.frombuffer(
-                ctypes.string_at(base, bytes_per_row * height), dtype=np.uint8
-            ).reshape(height, bytes_per_row)
-            return np.ascontiguousarray(raw[:, : width * 4]).reshape(height, width, 4)
-
-        finally:
-            cv.CVPixelBufferUnlockBaseAddress(pixel_addr, 1)
-    return np.empty((1, 1))
-
-def _sck_copy_bgra_pyobjc(image_buffer):
-    """PyObjC CoreVideo path. Base address exposes as_buffer; copy before unlock."""
-    if sys.platform == "darwin":
-        cv = getattr(Quartz, "CoreVideo", None)
-        if cv is None:
-            return None
-
-        width = int(cv.CVPixelBufferGetWidth(image_buffer))
-        height = int(cv.CVPixelBufferGetHeight(image_buffer))
-        bytes_per_row = int(cv.CVPixelBufferGetBytesPerRow(image_buffer))
-        if width <= 0 or height <= 0 or bytes_per_row < width * 4:
-            return None
-
-        cv.CVPixelBufferLockBaseAddress(image_buffer, 0)
-        try:
-            base = cv.CVPixelBufferGetBaseAddress(image_buffer)
-            if base is None or not hasattr(base, "as_buffer"):
-                return None
-
-            raw = np.frombuffer(base.as_buffer(bytes_per_row * height), dtype=np.uint8)
-            raw = raw.reshape(height, bytes_per_row)
-            return np.ascontiguousarray(raw[:, : width * 4]).reshape(height, width, 4)
-
-        finally:
-            cv.CVPixelBufferUnlockBaseAddress(image_buffer, 0)
-    else:
-        return np.empty((1, 1))
-
-def _sck_ci_to_srgb_bgr(image_buffer):
-    """Render a non-BGRA pixel buffer through CoreImage into sRGB BGR."""
-    if sys.platform == "darwin":
-        global _SCK_CI_CONTEXT
-        try:
-            ci_image = Quartz.CIImage.imageWithCVPixelBuffer_(image_buffer)
-        except Exception:
-            ci_image = None
-        if ci_image is None:
-            return None
-
-        try:
-            extent = ci_image.extent()
-            width = int(extent.size.width)
-            height = int(extent.size.height)
-        except Exception:
-            return None
-
-        if width <= 0 or height <= 0:
-            return None
-
-        try:
-            if _SCK_CI_CONTEXT is None:
-                options = {}
-                working = getattr(Quartz, "kCIContextWorkingColorSpace", None)
-                output = getattr(Quartz, "kCIContextOutputColorSpace", None)
-                if working is not None:
-                    options[working] = _QUARTZ_SRGB_COLOR_SPACE
-                if output is not None:
-                    options[output] = _QUARTZ_SRGB_COLOR_SPACE
-                _SCK_CI_CONTEXT = Quartz.CIContext.contextWithOptions_(options or None)
-            cg_image = _SCK_CI_CONTEXT.createCGImage_fromRect_(ci_image, extent)
-        except Exception:
-            return None
-
-        if cg_image is None:
-            return None
-
-        frame = cgimage_to_srgb_numpy(cg_image)
-        if frame is None:
-            return None
-
-        return np.ascontiguousarray(frame)
-
-    return np.empty((1, 1))
+    # kCMTimeFlags_Valid = 1. Layout matches Apple's CMTime (24 bytes).
+    import objc as _objc
+    try:
+        cm_time = _objc.createStructType(
+            "CMTime",
+            b"{CMTime=qiIq}",
+            ["value", "timescale", "flags", "epoch"],
+        )
+    except Exception:
+        cm_time = _objc.lookUpStructType("CMTime")
+    return cm_time(value, timescale, 1, 0)
 
 def _sck_sample_to_bgr(sample_buffer):
-    """ScreenCaptureKit sample -> contiguous sRGB BGR uint8.
-    The callback argument is an opaque CMSampleBuffer. PyObjC warns and then
-    refuses to pass that pointer into CMSampleBufferGetImageBuffer, which used
-    to look like 'no frames' and fall back to Quartz. Read it with ctypes.
-    Display P3 bytes are ColorSync'd to sRGB so they match the Quartz path.
+    """Copy a ScreenCaptureKit BGRA sample into a contiguous BGR uint8 array.
+
+    The stream is configured for sRGB, so the bytes are already in the same
+    space cgimage_to_srgb_numpy produces. Copy before unlocking — SCK reuses
+    the pixel buffer.
     """
-    _sck_sample_to_bgr.last_error = None
     if sys.platform != "darwin" or sample_buffer is None:
         return None
 
+    import ctypes
+
+    # --- 1. Get the CVPixelBuffer -------------------------------------
+    image_buffer = None
     try:
-        bgra = None
-        pixel_addr = _sck_coremedia().CMSampleBufferGetImageBuffer(
-            _sck_cf_ptr(sample_buffer)
-        )
-        if pixel_addr:
-            bgra = _sck_copy_bgra(pixel_addr)
-        if bgra is None:
-            image_buffer = None
+        import CoreMedia
+        getter = getattr(CoreMedia, "CMSampleBufferGetImageBuffer", None)
+        if getter is not None:
+            image_buffer = getter(sample_buffer)
+    except Exception:
+        image_buffer = None
+
+    if image_buffer is None:
+        getter = getattr(Quartz, "CMSampleBufferGetImageBuffer", None)
+        if getter is not None:
             try:
-                import CoreMedia
-                image_buffer = CoreMedia.CMSampleBufferGetImageBuffer(sample_buffer)
-            except Exception as exc:
-                _sck_sample_to_bgr.last_error = exc
+                image_buffer = getter(sample_buffer)
+            except Exception:
                 image_buffer = None
-            if image_buffer is not None:
-                bgra = _sck_copy_bgra_pyobjc(image_buffer)
-                if bgra is None:
-                    return _sck_ci_to_srgb_bgr(image_buffer)
 
-        if bgra is None:
-            if _sck_sample_to_bgr.last_error is None:
-                _sck_sample_to_bgr.last_error = "no BGRA image buffer"
-            return None
-
-        return mss_to_srgb_numpy(bgra, source_is_p3=True)
-
-    except Exception as exc:
-        _sck_sample_to_bgr.last_error = exc
+    if image_buffer is None:
         return None
 
-_sck_sample_to_bgr.last_error = None
-_SCK_CI_CONTEXT = None
-_SCK_COREMEDIA = None
-_SCK_COREVIDEO = None
+    # --- 2. Lock ------------------------------------------------------
+    lock_flag = getattr(Quartz, "kCVPixelBufferLock_ReadOnly", 1)
+    try:
+        Quartz.CVPixelBufferLockBaseAddress(image_buffer, lock_flag)
+    except Exception:
+        return None
+
+    try:
+        try:
+            width = int(Quartz.CVPixelBufferGetWidth(image_buffer))
+            height = int(Quartz.CVPixelBufferGetHeight(image_buffer))
+            bytes_per_row = int(Quartz.CVPixelBufferGetBytesPerRow(image_buffer))
+            base = Quartz.CVPixelBufferGetBaseAddress(image_buffer)
+        except Exception:
+            return None
+
+        if base is None or width <= 0 or height <= 0 or bytes_per_row < width * 4:
+            return None
+
+        # --- 3. Resolve the raw pointer to a Python int --------------
+        addr = 0
+        try:
+            addr = int(base)
+        except (TypeError, ValueError):
+            addr = 0
+        if addr == 0:
+            try:
+                import objc as _objc
+                addr = int(_objc.pyobjc_id(base)) or 0
+            except Exception:
+                addr = 0
+        if addr == 0:
+            return None
+
+        # --- 4. Copy out the pixels ----------------------------------
+        try:
+            buf_type = ctypes.c_uint8 * (bytes_per_row * height)
+            raw = np.ctypeslib.as_array(buf_type.from_address(addr))
+            raw = raw.reshape(height, bytes_per_row)
+            bgra = np.ascontiguousarray(raw[:, : width * 4]).reshape(height, width, 4)
+            return bgra[:, :, :3].copy()
+        except Exception:
+            return None
+    finally:
+        try:
+            Quartz.CVPixelBufferUnlockBaseAddress(image_buffer, lock_flag)
+        except Exception:
+            pass
+
 # ScreenCaptureKit
 if sys.platform == "darwin" and _SCK_AVAILABLE:
-    # Register before the class exists so the callback argument is a
-    # CMSampleBuffer, not a generic pointer (that path warns and then
-    # CMSampleBufferGetImageBuffer rejects it).
-    try:
-        objc.registerMetaDataForSelector(
-            b"NSObject",
-            b"stream:didOutputSampleBuffer:ofType:",
-            {
-                "arguments": {
-                    2: {"type": b"@"},
-                    3: {"type": b"^{opaqueCMSampleBuffer=}"},
-                    4: {"type": b"q"},
-                }
-            },
-        )
-    except Exception:
-        pass
-
-    import warnings
-    warnings.filterwarnings(
-        "ignore",
-        message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",
-    )
     class _SCStreamOutput(NSObject):
         """
         Delegate that receives CMSampleBuffers from an SCStream and forwards
         them to a Python callback. Runs on a ScreenCaptureKit-owned thread.
         """
+
         def initWithCallback_(self, callback):
             self = objc.super(_SCStreamOutput, self).init()
             if self is None:
                 return None
-
             self._callback = callback
             return self
 
         def stream_didOutputSampleBuffer_ofType_(self, stream, sample_buffer, output_type):
-            # SCStreamOutputTypeScreen is 0. A NewType wrapper must not drop frames.
-            try:
-                if int(output_type) != int(_SCK_OUTPUT_SCREEN):
-                    return
-
-            except Exception:
-                pass
-
+            if output_type != _SCK_OUTPUT_SCREEN:
+                return
             try:
                 self._callback(sample_buffer)
             except Exception:
@@ -822,28 +640,6 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
                 # callback — it would crash the process.
                 pass
 
-    # Without this, PyObjC wraps the callback argument as a generic pointer and
-    # warns "PyObjCPointer created: ... ^{opaqueCMSampleBuffer=}".
-    try:
-        objc.registerMetaDataForSelector(
-            b"NSObject",
-            b"stream:didOutputSampleBuffer:ofType:",
-            {
-                "arguments": {
-                    2: {"type": b"@"},
-                    3: {"type": b"^{opaqueCMSampleBuffer=}"},
-                    4: {"type": b"q"},
-                }
-            },
-        )
-    except Exception:
-        pass
-
-    import warnings
-    warnings.filterwarnings(
-        "ignore",
-        message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",
-    )
 # Path Management
 def _is_frozen():
     return bool(getattr(sys, "frozen", False))
@@ -2982,7 +2778,17 @@ class Api:
                     self.macro_running = True
                     # Save Current Settings To Config Before Starting
                     self.save_settings(self.current_config, self.vars)
-                    # Start the camera thread first
+                    if automation_mode == "fishing":
+                        self.macro_thread = threading.Thread(target=self.start_fishing, daemon=True)
+                    elif automation_mode == "appraisal":
+                        self.macro_thread = threading.Thread(target=self.start_appraisal, daemon=True)
+                    elif automation_mode == "enchant":
+                        self.macro_thread = threading.Thread(target=self.start_enchantment, daemon=True)
+                    elif automation_mode == "angler":
+                        self.macro_thread = threading.Thread(target=self.start_angler, daemon=True)
+                    elif automation_mode == "treasure_appraisal":
+                        self.macro_thread = threading.Thread(target=self.start_treasure_appraisal, daemon=True)
+                    self.macro_thread.start()
                     if dxcam is not None:
                         self.camera = dxcam.create(output_color="BGR")
                         self.camera.start()
@@ -2996,20 +2802,6 @@ class Api:
                             target = self.capture_loop_mss
                         self.capture_thread = threading.Thread(target=target, daemon=True)
                         self.capture_thread.start()
-                    # Now start the fishing thread
-                    if automation_mode == "fishing":
-                        self.macro_thread = threading.Thread(target=self.start_fishing, daemon=True)
-                    elif automation_mode == "harpoon_gun":
-                        self.macro_thread = threading.Thread(target=self.start_fishing_harpoon, daemon=True)
-                    elif automation_mode == "appraisal":
-                        self.macro_thread = threading.Thread(target=self.start_appraisal, daemon=True)
-                    elif automation_mode == "enchant":
-                        self.macro_thread = threading.Thread(target=self.start_enchantment, daemon=True)
-                    elif automation_mode == "angler":
-                        self.macro_thread = threading.Thread(target=self.start_angler, daemon=True)
-                    elif automation_mode == "treasure_appraisal":
-                        self.macro_thread = threading.Thread(target=self.start_treasure_appraisal, daemon=True)
-                    self.macro_thread.start()
             elif key == area_selector_key:
                 # Guard To Prevent Area Selector From Being Opened The Second The Macro Started
                 if self.macro_running == True:
@@ -3098,9 +2890,11 @@ class Api:
                 _move_mouse(x, y)
                 _move_mouse(x + 5, y + 5)
                 _move_mouse(x, y)
+
             for i in range(click_count):
                 _mouse_event(button="left", press=True)
                 _mouse_event(button="left", press=False)
+
                 if i < click_count - 1:
                     time.sleep(0.03)
     # Keyboard
@@ -3147,6 +2941,7 @@ class Api:
                     keyboard_controller.release(key)
             except Exception as e:
                 print("Error sending keys:", e)
+
     def _type_text(self, text, per_char_delay=0.08):
         """Type A String As Individual Keys. Skips OCR Junk That Is Not In The Key Map."""
         if not text:
@@ -3160,7 +2955,6 @@ class Api:
                 key = "space"
             elif char == "\n" or char == "\r" or char == "\t":
                 continue
-
             else:
                 key = char.lower()
                 if sys.platform == "darwin" and key not in MAC_KEY_MAP:
@@ -3168,6 +2962,7 @@ class Api:
 
             self._send_key(key)
             time.sleep(per_char_delay)
+
     def _select_all_text(self):
         """Cmd+A On macOS, Ctrl+A Everywhere Else. Clears The Search Field Selection."""
         if sys.platform == "darwin":
@@ -3270,7 +3065,6 @@ class Api:
             y = 0.5
         if screen_coords == False:
             return x, y
-
         else:
             x_screen = int(x * SCREEN_WIDTH)
             y_screen = int(y * SCREEN_HEIGHT)
@@ -3369,43 +3163,40 @@ class Api:
             self.capture_frame = frame
             self.capture_id += 1
             time.sleep(self.scan_delay)
-    def _build_sck_stream(self, display):
-        """Create an SCStream the same way the working ScreenCaptureKit probe does.
-        Pixel size comes from the SCDisplay (pixels), not SCREEN_WIDTH * scale —
-        a doubled Retina size starts cleanly and then never delivers a frame.
-        colorSpaceName is intentionally unset: SCK does not retain it, and a
-        bad name also yields no frames. Display P3 -> sRGB is done in
-        _sck_sample_to_bgr.
-        """
-        if sys.platform == "darwin":
-            content_filter = SCContentFilter.alloc().initWithDisplay_excludingWindows_(
-                display, []
-            )
-            config = SCStreamConfiguration.alloc().init()
-            try:
-                width = int(display.width())
-                height = int(display.height())
-            except Exception:
-                width = 0
-                height = 0
-            if width <= 0 or height <= 0:
-                width = int(self.SCREEN_WIDTH * get_scale_factor())
-                height = int(self.SCREEN_HEIGHT * get_scale_factor())
-            config.setWidth_(width)
-            config.setHeight_(height)
-            # kCVPixelFormatType_32BGRA. Same literal the working probe uses.
-            config.setPixelFormat_(0x42475241)
-            config.setShowsCursor_(False)
-            self._sck_filter = content_filter
-            self._sck_config = config
-            stream = SCStream.alloc().initWithFilter_configuration_delegate_(
-                content_filter, config, None
-            )
-            return stream
 
-        else:
-            print("ScreenCaptureKit activated on windows, stopping.")
-            raise RuntimeError("ScreenCaptureKit is not supported on Windows")
+    def _build_sck_stream(self, display):
+        """Create an SCStream configured for sRGB full-display capture."""
+        content_filter = SCContentFilter.alloc().initWithDisplay_excludingWindows_(
+            display, []
+        )
+        config = SCStreamConfiguration.alloc().init()
+        config.setWidth_(int(self.SCREEN_WIDTH * get_scale_factor()))
+        config.setHeight_(int(self.SCREEN_HEIGHT * get_scale_factor()))
+        # kCVPixelFormatType_32BGRA. Memory order is B,G,R,A — OpenCV BGR after dropping A.
+        bgra = getattr(Quartz, "kCVPixelFormatType_32BGRA", 0x42475241)
+        config.setPixelFormat_(bgra)
+        # SCK does not retain colorSpaceName. Keep an NSString alive for the
+        # stream lifetime, otherwise the name can dangle and frames stay in Display P3.
+        from Foundation import NSString
+        srgb_name = getattr(Quartz, "kCGColorSpaceSRGB", None) or "kCGColorSpaceSRGB"
+        self._sck_color_space_name = NSString.stringWithString_(str(srgb_name))
+        config.setColorSpaceName_(self._sck_color_space_name)
+        config.setShowsCursor_(False)
+        try:
+            config.setQueueDepth_(5)
+        except Exception:
+            pass
+        try:
+            # 1/60 s. Default is already ~60 fps; skip if this PyObjC build
+            # cannot marshal CMTime.
+            config.setMinimumFrameInterval_(_cm_time_make(1, 60))
+        except Exception:
+            print(traceback.format_exc())
+        self._sck_config = config
+        stream = SCStream.alloc().initWithFilter_configuration_delegate_(
+            content_filter, config, None
+        )
+        return stream
 
     def capture_loop_screencapturekit(self):
         """
@@ -3413,202 +3204,177 @@ class Api:
         Falls back to capture_loop_quartz if SCK is unavailable, fails to
         start, or produces no frames within a short grace period.
         """
-        if sys.platform == "darwin":
-            if not _SCK_AVAILABLE:
-                return self.capture_loop_quartz()
+        if not _SCK_AVAILABLE:
+            return self.capture_loop_quartz()
 
+        if not self.macro_running:
+            return
+
+        # --- Resolve the primary display --------------------------------
+        display_holder = {"display": None, "error": None}
+        done = threading.Event()
+
+        def _content_handler(content, error):
+            try:
+                if error:
+                    display_holder["error"] = error
+                elif content is None:
+                    display_holder["error"] = "no shareable content"
+                else:
+                    displays = content.displays()
+                    if displays and len(displays) > 0:
+                        display_holder["display"] = displays[0]
+                    else:
+                        display_holder["error"] = "no displays"
+            finally:
+                done.set()
+
+        SCShareableContent.getShareableContentWithCompletionHandler_(_content_handler)
+
+        # Pump the run loop while we wait (do NOT block on Event.wait here).
+        deadline = time.time() + 5.0
+        while not done.is_set() and time.time() < deadline:
             if not self.macro_running:
                 return
-
-            #  Resolve the primary display 
-            display_holder = {"display": None, "error": None}
-            done = threading.Event()
-            def _content_handler(content, error):
-                try:
-                    if error:
-                        display_holder["error"] = error
-                    elif content is None:
-                        display_holder["error"] = "no shareable content"
-                    else:
-                        displays = content.displays()
-                        if displays and len(displays) > 0:
-                            display_holder["display"] = displays[0]
-                        else:
-                            display_holder["error"] = "no displays"
-                finally:
-                    done.set()
-            SCShareableContent.getShareableContentWithCompletionHandler_(_content_handler)
-            # Pump the run loop while we wait (do NOT block on Event.wait here).
-            deadline = time.time() + 5.0
-            while not done.is_set() and time.time() < deadline:
-                if not self.macro_running:
-                    return
-
-                try:
-                    from Foundation import NSRunLoop
-                    NSRunLoop.currentRunLoop().runUntilDate_(
-                        NSDate.dateWithTimeIntervalSinceNow_(0.05)
-                    )
-                except Exception:
-                    time.sleep(0.05)
-            display = display_holder.get("display")
-            if display is None:
-                err = display_holder.get("error")
-                self.set_status(f"ScreenCaptureKit unavailable ({err}); using Quartz")
-                print(f"ScreenCaptureKit Error\n{err}")
-                return self.capture_loop_quartz()
-
-            #  Sample callback (runs on SCK's dispatch queue) 
-            self._sck_sample_count = 0
-            self._sck_convert_fail = 0
-            def _on_sample(sample_buffer):
-                if not self.macro_running:
-                    return
-
-                self._sck_sample_count += 1
-                try:
-                    frame = _sck_sample_to_bgr(sample_buffer)
-                except Exception as exc:
-                    self._sck_convert_fail += 1
-                    self.set_status(f"ScreenCaptureKit sample conversion failed: {exc}")
-                    print("ScreenCaptureKit sample conversion error:\n", traceback.format_exc())
-                    return
-
-                if frame is None:
-                    self._sck_convert_fail += 1
-                    return
-
-                self.capture_frame = frame
-                self.capture_id = self.capture_id + 1
-            output = _SCStreamOutput.alloc().initWithCallback_(_on_sample)
-            self._sck_output = output  # keep the delegate alive
-            #  Create + configure the stream -
-            try:
-                stream = self._build_sck_stream(display)
-                self._sck_stream = stream
-                added = stream.addStreamOutput_type_sampleHandlerQueue_error_(
-                    output,
-                    _SCK_OUTPUT_SCREEN,
-                    None,      # None = SCK-managed queue (same as the working probe)
-                    None,
-                )
-                add_error = None
-                if isinstance(added, tuple):
-                    add_ok = added[0]
-                    add_error = added[1] if len(added) > 1 else None
-                else:
-                    add_ok = added
-                # BOOL methods return True. None is success on builds that drop the error out-param.
-                if add_ok is False or add_error:
-                    raise RuntimeError(f"addStreamOutput failed: {add_error or add_ok}")
-
-            except Exception as e:
-                self.set_status(f"ScreenCaptureKit setup failed: {e}; using Quartz")
-                print("ScreenCaptureKit setup failed:\n", traceback.format_exc())
-                return self.capture_loop_quartz()
-
-            #  Start and pump the run loop while waiting --
-            started = threading.Event()
-            start_error = {"error": None}
-            def _start_handler(error):
-                start_error["error"] = error
-                started.set()
-            try:
-                stream.startCaptureWithCompletionHandler_(_start_handler)
-            except Exception as e:
-                self.set_status(f"ScreenCaptureKit start raised: {e}; using Quartz")
-                print("ScreenCaptureKit start raised:\n", traceback.format_exc())
-                return self.capture_loop_quartz()
-
-            start_deadline = time.time() + 5.0
-            while (self.macro_running
-                and not started.is_set()
-                and time.time() < start_deadline):
-                try:
-                    from Foundation import NSRunLoop
-                    NSRunLoop.currentRunLoop().runUntilDate_(
-                        NSDate.dateWithTimeIntervalSinceNow_(0.05)
-                    )
-                except Exception:
-                    time.sleep(0.05)
-            if not started.is_set() or start_error["error"] is not None:
-                self.set_status(
-                    f"ScreenCaptureKit start failed "
-                    f"({start_error['error']}); using Quartz"
-                )
-                print("ScreenCaptureKit start raised:\n", start_error['error'])
-                try:
-                    stream.stopCaptureWithCompletionHandler_(lambda e: None)
-                except Exception:
-                    pass
-
-                return self.capture_loop_quartz()
-
-            #  Wait for the FIRST frame 
-            # If the delegate never fires (permissions, bad format, blocked
-            # queue), capture_frame stays None forever. Detect that and fall
-            # back so the user doesn't get a silently dead macro.
-            first_frame_deadline = time.time() + 3.0
-            while (self.macro_running
-                and self.capture_frame is None
-                and time.time() < first_frame_deadline):
-                try:
-                    from Foundation import NSRunLoop
-                    NSRunLoop.currentRunLoop().runUntilDate_(
-                        NSDate.dateWithTimeIntervalSinceNow_(0.05)
-                    )
-                except Exception:
-                    time.sleep(0.05)
-            if self.capture_frame is None:
-                samples = getattr(self, "_sck_sample_count", 0)
-                failed = getattr(self, "_sck_convert_fail", 0)
-                if samples:
-                    self.set_status(
-                        f"ScreenCaptureKit frames failed color conversion "
-                        f"({failed}/{samples}); using Quartz"
-                    )
-                    print(
-                        f"ScreenCaptureKit received {samples} sample(s) but "
-                        f"color conversion failed ({failed}): "
-                        f"{getattr(_sck_sample_to_bgr, 'last_error', None)}"
-                    )
-                else:
-                    self.set_status(
-                        "ScreenCaptureKit produced no frames; using Quartz"
-                    )
-                    print("ScreenCaptureKit produced no frames")
-                try:
-                    stream.stopCaptureWithCompletionHandler_(lambda e: None)
-                except Exception:
-                    pass
-
-                return self.capture_loop_quartz()
-
-            #  Idle loop — frames arrive on the SCK callback thread -
             try:
                 from Foundation import NSRunLoop
+                NSRunLoop.currentRunLoop().runUntilDate_(
+                    NSDate.dateWithTimeIntervalSinceNow_(0.05)
+                )
             except Exception:
-                NSRunLoop = None
-            while self.macro_running:
-                if NSRunLoop is not None:
-                    NSRunLoop.currentRunLoop().runUntilDate_(
-                        NSDate.dateWithTimeIntervalSinceNow_(0.05)
-                    )
-                else:
-                    time.sleep(0.05)
-            #  Stop cleanly --
+                time.sleep(0.05)
+
+        display = display_holder.get("display")
+        if display is None:
+            err = display_holder.get("error")
+            self.set_status(f"ScreenCaptureKit unavailable ({err}); using Quartz")
+            print(f"ScreenCaptureKit Error\n{err}")
+            return self.capture_loop_quartz()
+
+        # --- Sample callback (runs on SCK's dispatch queue) -------------
+        def _on_sample(sample_buffer):
+            if not self.macro_running:
+                return
             try:
-                stop_done = threading.Event()
-                def _stop_handler(error):
-                    stop_done.set()
-                stream.stopCaptureWithCompletionHandler_(_stop_handler)
-                stop_done.wait(timeout=3.0)
+                frame = _sck_sample_to_bgr(sample_buffer)
+            except Exception as exc:
+                self.set_status(f"ScreenCaptureKit sample conversion failed: {exc}")
+                print("ScreenCaptureKit sample conversion error:\n", traceback.format_exc())
+                return
+            if frame is None:
+                return
+            self.capture_frame = frame
+            self.capture_id = self.capture_id + 1
+
+        output = _SCStreamOutput.alloc().initWithCallback_(_on_sample)
+        self._sck_output = output  # keep the delegate alive
+
+        # --- Create + configure the stream ------------------------------
+        try:
+            stream = self._build_sck_stream(display)
+            self._sck_stream = stream
+            stream.addStreamOutput_type_sampleHandlerQueue_error_(
+                output,
+                _SCK_OUTPUT_SCREEN,
+                None,      # None = SCK-managed queue
+                None,
+            )
+        except Exception as e:
+            self.set_status(f"ScreenCaptureKit setup failed: {e}; using Quartz")
+            print("ScreenCaptureKit setup failed:\n", traceback.format_exc())
+            return self.capture_loop_quartz()
+
+        # --- Start and pump the run loop while waiting ------------------
+        started = threading.Event()
+        start_error = {"error": None}
+
+        def _start_handler(error):
+            start_error["error"] = error
+            started.set()
+
+        try:
+            stream.startCaptureWithCompletionHandler_(_start_handler)
+        except Exception as e:
+            self.set_status(f"ScreenCaptureKit start raised: {e}; using Quartz")
+            print("ScreenCaptureKit start raised:\n", traceback.format_exc())
+            return self.capture_loop_quartz()
+
+        start_deadline = time.time() + 5.0
+        while (self.macro_running
+            and not started.is_set()
+            and time.time() < start_deadline):
+            try:
+                from Foundation import NSRunLoop
+                NSRunLoop.currentRunLoop().runUntilDate_(
+                    NSDate.dateWithTimeIntervalSinceNow_(0.05)
+                )
+            except Exception:
+                time.sleep(0.05)
+
+        if not started.is_set() or start_error["error"] is not None:
+            self.set_status(
+                f"ScreenCaptureKit start failed "
+                f"({start_error['error']}); using Quartz"
+            )
+            print("ScreenCaptureKit start raised:\n", start_error['error'])
+            try:
+                stream.stopCaptureWithCompletionHandler_(lambda e: None)
             except Exception:
                 pass
+            return self.capture_loop_quartz()
 
-        else:
-            print("ScreenCaptureKit activated on windows, stopping.")
-            raise RuntimeError("ScreenCaptureKit is not supported on Windows")
+        # --- Wait for the FIRST frame -----------------------------------
+        # If the delegate never fires (permissions, bad format, blocked
+        # queue), capture_frame stays None forever. Detect that and fall
+        # back so the user doesn't get a silently dead macro.
+        first_frame_deadline = time.time() + 3.0
+        while (self.macro_running
+            and self.capture_frame is None
+            and time.time() < first_frame_deadline):
+            try:
+                from Foundation import NSRunLoop
+                NSRunLoop.currentRunLoop().runUntilDate_(
+                    NSDate.dateWithTimeIntervalSinceNow_(0.05)
+                )
+            except Exception:
+                time.sleep(0.05)
+
+        if self.capture_frame is None:
+            self.set_status(
+                "ScreenCaptureKit produced no frames; using Quartz"
+            )
+            print("ScreenCaptureKit produced no frames")
+            try:
+                stream.stopCaptureWithCompletionHandler_(lambda e: None)
+            except Exception:
+                pass
+            return self.capture_loop_quartz()
+
+        # --- Idle loop — frames arrive on the SCK callback thread -------
+        try:
+            from Foundation import NSRunLoop
+        except Exception:
+            NSRunLoop = None
+
+        while self.macro_running:
+            if NSRunLoop is not None:
+                NSRunLoop.currentRunLoop().runUntilDate_(
+                    NSDate.dateWithTimeIntervalSinceNow_(0.05)
+                )
+            else:
+                time.sleep(0.05)
+
+        # --- Stop cleanly -----------------------------------------------
+        try:
+            stop_done = threading.Event()
+
+            def _stop_handler(error):
+                stop_done.set()
+
+            stream.stopCaptureWithCompletionHandler_(_stop_handler)
+            stop_done.wait(timeout=3.0)
+        except Exception:
+            pass
 
     def process_image_for_ocr(self, img):
         # Convert To Grayscale
@@ -4748,8 +4514,10 @@ class Api:
                 time.sleep(0.1)
                 self._send_key("backspace")
                 time.sleep(0.2)
+
                 # Type Fish Name (macOS Must Not Inherit Globe/Fn Or Siri Opens)
                 self._type_text(required_fish, per_char_delay=0.15)
+
                 time.sleep(1.5)
                 # Step 5: Locate Quest_Text In Quest Area Via OCR And Click It
                 # Check If Dxcam Is Available
@@ -4766,14 +4534,6 @@ class Api:
                     config="--psm 11"
                 )
                 quest_click_x, quest_click_y = None, None
-                # Normalize the required fish name once.
-                required_words = required_fish.strip().lower().split()
-                # Tesseract gives us individual words, so combine words that belong
-                # to the same OCR line. This allows:
-                #   Red
-                #   Snapper
-                # to match "Red Snapper".
-                ocr_lines = {}
                 for i, text_tok in enumerate(ocr_data_q["text"]):
                     tok = text_tok.strip().lower()
                     try:
@@ -4783,48 +4543,14 @@ class Api:
                     if conf < 40 or not tok:
                         continue
 
-                    block_num = ocr_data_q["block_num"][i]
-                    par_num = ocr_data_q["par_num"][i]
-                    line_num = ocr_data_q["line_num"][i]
-                    line_key = (block_num, par_num, line_num)
-                    ocr_lines.setdefault(line_key, []).append({
-                        "text": tok,
-                        "left": ocr_data_q["left"][i],
-                        "top": ocr_data_q["top"][i],
-                        "width": ocr_data_q["width"][i],
-                        "height": ocr_data_q["height"][i],
-                    })
-                # Search each OCR line for the required fish name.
-                for words in ocr_lines.values():
-                    # Tesseract normally returns words left-to-right, but sort explicitly
-                    # so the matching also works reliably if the OCR ordering changes.
-                    words.sort(key=lambda w: (w["top"], w["left"]))
-                    for start in range(len(words)):
-                        candidate_words = []
-                        for end in range(start, len(words)):
-                            candidate_words.append(words[end]["text"])
-                            candidate = " ".join(candidate_words)
-                            # Exact multi-word match.
-                            if candidate == " ".join(required_words):
-                                matched_words = words[start:end + 1]
-                                left = min(w["left"] for w in matched_words)
-                                top = min(w["top"] for w in matched_words)
-                                right = max(w["left"] + w["width"] for w in matched_words)
-                                bottom = max(w["top"] + w["height"] for w in matched_words)
-                                # Click the center of the entire phrase.
-                                quest_click_x = quest_left + ((left + right) // 2) // 3
-                                quest_click_y = quest_top + ((top + bottom) // 2) // 3
-                                break
-
-                            # Don't keep extending once the candidate is longer than
-                            # the required fish name.
-                            if len(candidate_words) >= len(required_words):
-                                break
-
-                        if quest_click_x is not None:
-                            break
-
-                    if quest_click_x is not None:
+                    if tok in required_fish or required_fish in tok:
+                        qx = ocr_data_q["left"][i]
+                        qy = ocr_data_q["top"][i]
+                        qw = ocr_data_q["width"][i]
+                        qh = ocr_data_q["height"][i]
+                        # Undo The 3× Upscale To Get Back To Screen Coords
+                        quest_click_x = quest_left + (qx + qw // 2) // 3
+                        quest_click_y = quest_top  + (qy + qh // 2) // 3
                         break
 
                 if quest_click_x is not None:
@@ -4859,24 +4585,6 @@ class Api:
             return
 
         self.set_status("Macro Stopped")
-    def start_fishing_harpoon(self):
-        shake_left, shake_top, shake_right, shake_bottom, _, _ = self.get_areas("shake")
-        self.macro_running = True
-        last_click_x = 0
-        last_click_y = 0
-        while self.macro_running:
-            if dxcam is not None:
-                self.capture_frame = self.camera.get_latest_frame()
-            shake_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
-            click_x, click_y = self._find_circles(shake_img)
-            if click_x is not None and click_y is not None:
-                x_distance = abs(last_click_x - click_x)
-                y_distance = abs(last_click_y - click_y)
-                if x_distance > 100 and y_distance > 100:
-                    self._click_at((click_x + shake_left), (click_y + shake_top))
-                last_click_x = click_x
-                last_click_y = click_y
-            time.sleep(0.08)
     def start_fishing(self):
         try:
             self.status_overlay.set_main_status("Initialization")
@@ -4980,7 +4688,6 @@ class Api:
                 auto_buy_bait_6_x, auto_buy_bait_6_y = self._split_ratio(self.vars["auto_buy_bait_6"], True)
             except:
                 pass
-
             # Catch Metrics (0 - Success, 1 - Failed, 2 - N/A Initial State)
             self.catch_success = 2
             self.catch_rate = 0.0
@@ -5016,7 +4723,6 @@ class Api:
         except KeyError as e:
             self.stop_macro(f"Config Error: {e}")
             return
-
         # Main Loop (With Bug Reports)
         try:
             while self.macro_running:
@@ -5130,6 +4836,10 @@ class Api:
                     self._execute_cast_normal()
                 time.sleep(delay_after_casting)
                 # Shake
+                try:
+                    cv2.imwrite("debug_full.png", self.capture_frame)
+                except:
+                    pass
                 self.set_status("Shaking")
                 self.status_overlay.set_main_status(f"Shaking ({shake_mode})")
                 self.scan_delay = float(self.vars["shake_scan_delay"])
@@ -5752,9 +5462,6 @@ class Api:
         return
 
     def _enter_minigame_tranquility(self):
-        # Areas
-        shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("shake")
-        friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
         # Colors
         left_color = self.vars["left_color"]
         right_color = self.vars["right_color"]
@@ -5782,12 +5489,20 @@ class Api:
         tranquility_key_4 = str(self.vars["tranquility_key_4"])
         # Last Values (Cache)
         is_initial_run = True
-        note_scan_width = int(shake_width / 4.1)
-        half_note_scan_width = int(note_scan_width / 2)
-        # Note Positions (Dict)
-        last_note_positions = {}
-        current_note_positions = {}
-        initial_note_positions = {}
+        # Initial Note Positions.
+        # The First Four Detected Notes Are Ignored For The Initial State.
+        initial_left = []
+        initial_right = []
+        initial_arrow = []
+        initial_fish = []
+        # Perframe Detected Note Positions.
+        lowest_left = []
+        lowest_right = []
+        lowest_arrow = []
+        lowest_fish = []
+        # Get Areas
+        shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("shake")
+        friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
         # Resize Overlay
         left_offset = shake_left - int(shake_width / 3.8)
         overlay_width = int(shake_width / 4)
@@ -5816,112 +5531,109 @@ class Api:
                     time.sleep(restart_delay)
                     return
 
-            current_note_positions = {}
             circles = self._find_all_circles(detection_img)
             self.status_overlay.set_line(1, "Circles: ", len(circles))
-            for i, (x, y) in enumerate(circles):
-                lane = round(((x + half_note_scan_width) / shake_width) * 4)
-                if is_initial_run == True:
-                    initial_note_positions[lane] = y
-                if lane in current_note_positions:
-                    pass
-                else:
-                    current_note_positions[lane] = y
-                if abs(current_note_positions[lane] - initial_note_positions[lane]) <= 5:
-                    del current_note_positions[lane]
-                if lane not in current_note_positions:
-                    continue
-
-                current_y = current_note_positions[lane]
-                last_y = last_note_positions.get(lane)
-
-                # We need a previous position before we can calculate velocity.
-                if last_y is None:
-                    continue
-
-                # Calculate the note's vertical movement.
-                velocity = current_y - last_y
-
-                # Notes normally move downwards. A positive velocity means
-                # that the detected note is falling.
-                if velocity <= 0:
-                    continue
-            # Check for notes that disappeared from the circle detector.
-            # This can happen when the falling note overlaps the initial note.
-            for lane, last_y in last_note_positions.items():
-                if lane in current_note_positions:
-                    continue
-
-                if lane not in initial_note_positions:
-                    continue
-
-                initial_y = initial_note_positions[lane]
-
-                # Only check when the note was moving downward toward
-                # its initial position.
-                if last_y <= initial_y:
-                    continue
-
-                # Calculate the horizontal detection block for this lane.
-                lane_center = int((lane / 4) * shake_width)
-                block_left = max(0, lane_center - half_note_scan_width)
-                block_right = min(
-                    shake_width,
-                    lane_center + half_note_scan_width
-                )
-
-                # Check a small vertical region around the initial note.
-                block_top = max(0, initial_y - 5)
-                block_bottom = min(
-                    shake_height,
-                    initial_y + 5
-                )
-
-                detection_block = detection_img[
-                    block_top:block_bottom,
-                    block_left:block_right
-                ]
-
-                # Look for the note colors in the overlap region.
-                detected = False
-
-                for color, tolerance in (
-                    (left_color, left_tolerance),
-                    (right_color, right_tolerance),
-                    (arrow_color, arrow_tolerance),
-                    (fish_color, fish_tolerance),
-                ):
-                    pixel_x, pixel_y = self.pixel_search(
-                        detection_block,
-                        color,
-                        tolerance
+            # Collect The Four Starting Note Positions.
+            # Nothing Is Pressed During The Initial Run.
+            if is_initial_run:
+                for circle in range(len(circles)):
+                    circle_x_ratio = round(circles[circle][0] / shake_width, 2)
+                    circle_y_ratio = round(circles[circle][1] / shake_height, 2)
+                    if 0.0 <= circle_x_ratio <= 0.25:
+                        initial_left.append(circle_y_ratio)
+                    elif 0.25 < circle_x_ratio <= 0.5:
+                        initial_right.append(circle_y_ratio)
+                    elif 0.5 < circle_x_ratio <= 0.75:
+                        initial_arrow.append(circle_y_ratio)
+                    elif 0.75 < circle_x_ratio <= 1.0:
+                        initial_fish.append(circle_y_ratio)
+                    self.fish_overlay.draw_box(
+                        x1=int(overlay_width * 0.15),
+                        y1=circles[circle][1],
+                        x2=int(overlay_width * 0.85),
+                        y2=circles[circle][1] + 67,
+                        color=f"#{min(circle * 3500, 9999)}ff"
                     )
+                # Wait Until The Four Initial Notes Have Been Detected.
+                initial_note_count = (
+                    len(initial_left)
+                    + len(initial_right)
+                    + len(initial_arrow)
+                    + len(initial_fish)
+                )
+                if initial_note_count >= 4:
+                    is_initial_run = False
+                last_capture_id = self.capture_id
+                time.sleep(self.scan_delay)
+                continue
 
-                    if pixel_x is not None:
-                        detected = True
-                        break
-
-                if not detected:
+            # Normal Detection After The Initial Four Notes Have Been Recorded.
+            for circle in range(len(circles)):
+                circle_x_ratio = round(circles[circle][0] / shake_width, 2)
+                circle_y_ratio = round(circles[circle][1] / shake_height, 2)
+                if 0.0 <= circle_x_ratio <= 0.25:
+                    lowest_left.append(circle_y_ratio)
+                elif 0.25 < circle_x_ratio <= 0.5:
+                    lowest_right.append(circle_y_ratio)
+                elif 0.5 < circle_x_ratio <= 0.75:
+                    lowest_arrow.append(circle_y_ratio)
+                elif 0.75 < circle_x_ratio <= 1.0:
+                    lowest_fish.append(circle_y_ratio)
+                # Print(
+                #     f"Circle #{circle}: "
+                #     f"x{circles[circle][0]} y{circles[circle][1]} "
+                #     f"xr{circle_x_ratio} yr{circle_y_ratio}"
+                # )
+                self.fish_overlay.draw_box(
+                    x1=int(overlay_width * 0.15),
+                    y1=circles[circle][1],
+                    x2=int(overlay_width * 0.85),
+                    y2=circles[circle][1] + 67,
+                    color=f"#{min(circle * 3500, 9999)}ff"
+                )
+            # A Note At Its Original Starting Position Is Still Part Of
+            # The Protected Initial State, So Do Nothing.
+            # If The Original Position Disappeared Because Two Circles
+            # Connected, The Newly Detected Position Will Not Match The
+            # Starting Position And Can Be Processed Normally.
+            self.status_overlay.set_line(2, "Waiting for notes", "")
+            for circle_y_ratio in lowest_left:
+                if circle_y_ratio in initial_left:
                     continue
 
-                # The falling note has reached the initial note.
-                if lane == 0:
-                    key = tranquility_key_1
-                elif lane == 1:
-                    key = tranquility_key_2
-                elif lane == 2:
-                    key = tranquility_key_3
-                else:
-                    key = tranquility_key_4
+                if circle_y_ratio > tranquility_note_ratio:
+                    self.status_overlay.set_line(2, f"Pressing {tranquility_key_1}", circle_y_ratio)
+                    self._send_key(tranquility_key_1, 0.01)
+            for circle_y_ratio in lowest_right:
+                if circle_y_ratio in initial_right:
+                    continue
 
-                self.status_overlay.set_line(
-                    2,
-                    f"Pressing {key}",
-                    f"Lane {lane}"
-                )
-                self._send_key(key, target_delay)
-            last_note_positions = current_note_positions
+                if circle_y_ratio > tranquility_note_ratio:
+                    self.status_overlay.set_line(2, f"Pressing {tranquility_key_2}", circle_y_ratio)
+                    self._send_key(tranquility_key_2, 0.01)
+            for circle_y_ratio in lowest_arrow:
+                if circle_y_ratio in initial_arrow:
+                    continue
+
+                if circle_y_ratio > tranquility_note_ratio:
+                    self.status_overlay.set_line(2, f"Pressing {tranquility_key_3}", circle_y_ratio)
+                    self._send_key(tranquility_key_3, 0.01)
+            for circle_y_ratio in lowest_fish:
+                if circle_y_ratio in initial_fish:
+                    continue
+
+                if circle_y_ratio > tranquility_note_ratio:
+                    self.status_overlay.set_line(2, f"Pressing {tranquility_key_4}", circle_y_ratio)
+                    self._send_key(tranquility_key_4, 0.01)
+            lowest_left.clear()
+            lowest_right.clear()
+            lowest_arrow.clear()
+            lowest_fish.clear()
+            last_capture_id = self.capture_id
             is_initial_run = False
+            time.sleep(self.scan_delay)
+        return
+
     def _enter_minigame_dreambreaker(self):
         # Helper Functions
         mouse_down = False
@@ -6580,22 +6292,9 @@ class Api:
                 initial_right_count = np.count_nonzero(initial_right_small)
                 left_missing_count = np.count_nonzero(left_missing_mask)
                 right_missing_count = np.count_nonzero(right_missing_mask)
-
                 # Calculate The Total Mask Count
                 initial_mask_count = initial_left_count + initial_right_count
-                current_mask_count = (
-                    np.count_nonzero(current_left_mask)
-                    + np.count_nonzero(current_right_mask)
-                )
-
-                # If The Current Mask Is Larger Than The Initial Mask,
-                # Update The Initial Mask Count To Prevent The Metronome
-                # From Occupying Too Much Of The Baseline.
-                if current_mask_count > initial_mask_count:
-                    initial_mask_count = current_mask_count
-
                 mask_missing_count = left_missing_count + right_missing_count
-
                 self.status_overlay.set_line(1, "Initial Mask Count: ", initial_mask_count)
                 self.status_overlay.set_line(2, "Current Mask Count: ", mask_missing_count)
                 if left_missing_count + right_missing_count == 0:
@@ -7391,7 +7090,6 @@ class Api:
                 last_arrow_on_left_side = arrow_on_left_side
             except:
                 pass
-
             if noiseform_color is not None:
                 last_valid_noiseform_color = noiseform_color
             if bar_detected == True:
