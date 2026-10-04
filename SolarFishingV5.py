@@ -834,183 +834,7 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
 
     import warnings
     warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",)
-# Path Management
-def _is_frozen():
-    return bool(getattr(sys, "frozen", False))
-
-def get_exe_dir():
-    """Directory that contains the running executable (or the .py file in dev)."""
-    if _is_frozen():
-        return Path(sys.executable).parent.resolve()
-
-    return Path(__file__).parent.resolve()
-
-def get_resource_path():
-    """
-    Packaged assets (ui/, images/, bundled default configs/).
-    Compiled macOS/Linux: PyInstaller onedir --add-data folder (sys._MEIPASS,
-    typically <app>/_internal or .app/Contents/Frameworks).
-    Compiled Windows: directory next to the .exe (unchanged).
-    Dev: project directory.
-    """
-    if _is_frozen():
-        if sys.platform == "win32":
-            return Path(sys.executable).parent.resolve()
-
-        if hasattr(sys, "_MEIPASS"):
-            return Path(sys._MEIPASS).resolve()
-
-        return Path(sys.executable).parent.resolve()
-
-    return Path(__file__).parent.resolve()
-
-def get_appdata_path():
-    """Writable user data. Compiled → platform AppData; dev → project directory."""
-    if _is_frozen():
-        if sys.platform == "darwin":
-            return os.path.join(
-
-                os.path.expanduser("~"),
-                "Library", "Application Support",
-                "SolarFishingV5"
-            )
-        elif sys.platform == "win32":
-            return os.path.join(
-
-                os.path.expanduser("~"),
-                "AppData", "Roaming",
-                "SolarFishingV5"
-            )
-        else:
-            return os.path.join(os.path.expanduser("~"), "SolarFishingV5")
-
-    return str(Path(__file__).parent.resolve())
-
-def find_bundled_configs(resource_path, exe_dir):
-    """Locate the packaged configs folder shipped with the onedir build."""
-    candidates = [
-        os.path.join(resource_path, "configs"),
-        os.path.join(exe_dir, "configs"),
-        os.path.join(exe_dir, "_internal", "configs"),
-    ]
-    for path in candidates:
-        if os.path.isdir(path):
-            return path
-
-    return candidates[0]
-
-def seed_configs_from_bundle(bundled_configs, configs_path):
-    """If AppData has no configs folder, copy the packaged defaults into it."""
-    if os.path.isdir(configs_path):
-        return
-
-    if os.path.isdir(bundled_configs):
-        shutil.copytree(bundled_configs, configs_path)
-    else:
-        os.makedirs(configs_path, exist_ok=True)
-# Establish Paths For Solar Fishing V5
-RESOURCE_PATH = str(get_resource_path())
-EXE_DIR = str(get_exe_dir())
-IS_COMPILED = _is_frozen()
-APPDATA_PATH = get_appdata_path()
-# Writable Files (Last_Config.Json, Debug Shots, Logs) Live Here.
-# Compiled → Appdata; Dev → Project Directory.
-BASE_PATH = APPDATA_PATH if IS_COMPILED else RESOURCE_PATH
-os.makedirs(BASE_PATH, exist_ok=True)
-IMAGES_PATH = os.path.join(RESOURCE_PATH, "images")
-UI_PATH = os.path.join(RESOURCE_PATH, "ui")
-if IS_COMPILED:
-    CONFIGS_PATH = os.path.join(APPDATA_PATH, "configs")
-    BUNDLED_CONFIGS_PATH = find_bundled_configs(RESOURCE_PATH, EXE_DIR)
-    seed_configs_from_bundle(BUNDLED_CONFIGS_PATH, CONFIGS_PATH)
-else:
-    BUNDLED_CONFIGS_PATH = os.path.join(RESOURCE_PATH, "configs")
-    CONFIGS_PATH = BUNDLED_CONFIGS_PATH
-LAST_CONFIG = os.path.join(BASE_PATH, "last_config.json")
-# File Management
-def open_folder(folder):
-    if sys.platform == "win32":
-        os.startfile(folder)
-    elif sys.platform == "darwin":  # Macos
-        subprocess.run(["open", folder])
-    else:  # Linux
-        subprocess.run(["xdg-open", folder])
-def open_base_folder():
-    # Writable User Data (Configs, Debug Shots, Logs)
-    open_folder(BASE_PATH)
-# Central Area Definitions.  To Add A New Selectable Area:
-# 1. Add An Entry Below (Key, Color, Label, Default Ratios 0–1).
-# 2. That'S It — Selector Ui, Save/Load, Defaults, And The Show/Hide Menu
-#      all pick it up automatically.  Use get_areas("your_key") later if needed.
-AREA_CONFIG = {
-    "shake": {
-        "color": "#df0000",
-        "label": "Shake Box",
-        "default": {"x": 0.1041, "y": 0.0925, "width": 0.7917, "height": 0.6963},
-    },
-    "fish": {
-        "color": "#00beff",
-        "label": "Fish Box",
-        "default": {"x": 0.2844, "y": 0.7981, "width": 0.4297, "height": 0.0389},
-    },
-    "friend": {
-        "color": "#ffed00",
-        "label": "Friend Box (Fish End)",
-        "default": {"x": 0.0046, "y": 0.8583, "width": 0.0355, "height": 0.0817},
-    },
-    "totem": {
-        "color": "#00de07",
-        "label": "Totem Box (Day/Night)",
-        "default": {"x": 0.9504, "y": 0.8305, "width": 0.0234, "height": 0.0490},
-    },
-    "sovereign": {
-        "color": "#d994ff",
-        "label": "Sovereign Box (Bar)",
-        "default": {"x": 0.2844, "y": 0.8184, "width": 0.4297, "height": 0.0185},
-    },
-    "noiseform": {
-        "color": "#2a8d4f",
-        "label": "Noiseform Box (Shapes)",
-        "default": {"x": 0.4222, "y": 0.3543, "width": 0.2056, "height": 0.2762},
-    },
-    "lullaby": {
-        "color": "#fdeeca",
-        "label": "Lullaby Box (Above Fish)",
-        "default": {"x": 0.4222, "y": 0.7043, "width": 0.1556, "height": 0.1360},
-    },
-    "chat": {
-        "color": "#004383",
-        "label": "Chat Box",
-        "default": {"x": 0.0030, "y": 0.0683, "width": 0.2536, "height": 0.3323},
-    },
-    "backpack": {
-        "color": "#ffe195",
-        "label": "Backpack Box",
-        "default": {"x": 0.3373, "y": 0.6108, "width": 0.3254, "height": 0.2656},
-    },
-    "treasure_appraisal": {
-        "color": "#4f35f6",
-        "label": "Treasure Appraisal Box (Grid)",
-        "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
-    },
-    "appraisal_hotbar": {
-        "color": "#e78300",
-        "label": "Hotbar Box (Appraisal)",
-        "default": {"x": 0.5529, "y": 0.8905, "width": 0.0373, "height": 0.0619},
-    },
-    "enchantment": {
-        "color": "#008363",
-        "label": "Enchantment Box (Text)",
-        "default": {"x": 0.3061, "y": 0.3932, "width": 0.3649, "height": 0.1674},
-    },
-    "angler_quest": {
-        "color": "#9BFF9B",
-        "label": "Quest Box (Angler)",
-        "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
-    },
-}
-# Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
-AREA_ORDER = list(AREA_CONFIG.keys())
+# Validate Tesseract Path
 def get_tesseract_path(configured_path=None):
     """
     Return a valid Tesseract path for the current operating system.
@@ -1087,6 +911,165 @@ def _schedule_webview_destroy(win, after=None, delay=0.05):
                 pass
 
     threading.Thread(target=_destroy, daemon=True).start()
+# Config Management
+def get_base_path():
+    # 1. Check If The Application Is Bundled/Frozen
+    if getattr(sys, 'frozen', False):
+        # Detect If It'S A macOS Application Bundle (.App)
+        if sys.platform == 'darwin':
+            if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+                #   Windows/Linux onedir →  <app>/_internal
+                #   macOS .app           →  <app>.app/Contents/Frameworks
+                #   onefile              →  temp extract dir
+                return Path(sys._MEIPASS).resolve(), True
+
+        # Detect If It'S A Linux Packaged Environment (Like Appimage)
+        # Linux Appimages Extract To A Mount Point, Keeping Assets Inside The Binary Environment
+        elif sys.platform == "linux":
+            if 'AppRun' in sys.executable:
+                return Path(sys.executable).parent.resolve(), True
+
+        # 2. Windows Exe (Onefile) Or Standard Local Folder Deployment
+        # Returns The Directory Containing The Actual .Exe File, Not The Temporary _Meipass Folder
+        else:
+            return Path(sys.executable).parent.resolve(), True
+
+    # 3. Running From Raw Source Code (.Py File)
+    else:
+        return Path(__file__).parent.resolve(), False
+# Get Read Only Path
+def get_resource_path():
+    """
+    Packaged assets (ui/, images/, bundled default configs/).
+    Compiled macOS/Linux: PyInstaller onedir --add-data folder (sys._MEIPASS,
+    typically <app>/_internal or .app/Contents/Frameworks).
+    Compiled Windows: directory next to the .exe (unchanged).
+    Dev: project directory.
+    """
+    if getattr(sys, 'frozen', False):
+        if sys.platform == "win32":
+            return Path(sys.executable).parent.resolve()
+
+        if hasattr(sys, "_MEIPASS"):
+            return Path(sys._MEIPASS).resolve()
+
+        return Path(sys.executable).parent.resolve()
+
+    return Path(__file__).parent.resolve()
+# Move Configs Automatically
+def seed_configs():
+    source = Path(READ_ONLY_PATH) / "configs"
+    destination = Path(CONFIGS_PATH)
+
+    # Nothing to seed if the bundled configs do not exist
+    if not source.exists() or not source.is_dir():
+        return
+
+    # Create the editable configs directory if needed
+    destination.mkdir(parents=True, exist_ok=True)
+
+    # Copy only files that do not already exist
+    for source_file in source.iterdir():
+        destination_file = destination / source_file.name
+
+        if source_file.is_file() and not destination_file.exists():
+            shutil.copy2(source_file, destination_file)
+# Establish The Global Base Path For Solar Fishing V5
+EDITABLE_PATH, IS_COMPILED = get_base_path()
+READ_ONLY_PATH = get_resource_path()
+# Make Sure Base Path Exists
+os.makedirs(EDITABLE_PATH, exist_ok=True)
+os.makedirs(READ_ONLY_PATH, exist_ok=True)
+# Configs Path
+LAST_CONFIG = os.path.join(EDITABLE_PATH, "last_config.json")
+data = load_misc_settings(LAST_CONFIG)
+CONFIGS_PATH = os.path.join(EDITABLE_PATH, "configs")
+IMAGES_PATH = os.path.join(READ_ONLY_PATH, "images")
+UI_PATH = os.path.join(READ_ONLY_PATH, "ui")
+# If Editable And Read Only Path Is Different, Seed Configs from Read Only Path To Editable Path
+if EDITABLE_PATH != READ_ONLY_PATH:
+    seed_configs()
+# File Management
+def open_base_folder(folder=EDITABLE_PATH):
+    if sys.platform == "win32":
+        os.startfile(folder)
+    elif sys.platform == "darwin":  # Macos
+        subprocess.run(["open", folder])
+    else:  # Linux
+        subprocess.run(["xdg-open", folder])
+# Central Area Definitions.  To Add A New Selectable Area:
+# 1. Add An Entry Below (Key, Color, Label, Default Ratios 0–1).
+# 2. That'S It — Selector Ui, Save/Load, Defaults, And The Show/Hide Menu
+#      all pick it up automatically.  Use get_areas("your_key") later if needed.
+AREA_CONFIG = {
+    "shake": {
+        "color": "#df0000",
+        "label": "Shake Box",
+        "default": {"x": 0.1041, "y": 0.0925, "width": 0.7917, "height": 0.6963},
+    },
+    "fish": {
+        "color": "#00beff",
+        "label": "Fish Box",
+        "default": {"x": 0.2844, "y": 0.7981, "width": 0.4297, "height": 0.0389},
+    },
+    "friend": {
+        "color": "#ffed00",
+        "label": "Friend Box (Fish End)",
+        "default": {"x": 0.0046, "y": 0.8583, "width": 0.0355, "height": 0.0817},
+    },
+    "totem": {
+        "color": "#00de07",
+        "label": "Totem Box (Day/Night)",
+        "default": {"x": 0.9504, "y": 0.8305, "width": 0.0234, "height": 0.0490},
+    },
+    "sovereign": {
+        "color": "#d994ff",
+        "label": "Sovereign Box (Bar)",
+        "default": {"x": 0.2844, "y": 0.8184, "width": 0.4297, "height": 0.0185},
+    },
+    "noiseform": {
+        "color": "#2a8d4f",
+        "label": "Noiseform Box (Shapes)",
+        "default": {"x": 0.4222, "y": 0.3543, "width": 0.2056, "height": 0.2762},
+    },
+    "lullaby": {
+        "color": "#fdeeca",
+        "label": "Lullaby Box (Above Fish)",
+        "default": {"x": 0.4222, "y": 0.7043, "width": 0.1556, "height": 0.1360},
+    },
+    "chat": {
+        "color": "#004383",
+        "label": "Chat Box",
+        "default": {"x": 0.0030, "y": 0.0683, "width": 0.2536, "height": 0.3323},
+    },
+    "backpack": {
+        "color": "#ffe195",
+        "label": "Backpack Box",
+        "default": {"x": 0.3373, "y": 0.6108, "width": 0.3254, "height": 0.2656},
+    },
+    "treasure_appraisal": {
+        "color": "#4f35f6",
+        "label": "Treasure Appraisal Box (Grid)",
+        "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
+    },
+    "appraisal_hotbar": {
+        "color": "#e78300",
+        "label": "Hotbar Box (Appraisal)",
+        "default": {"x": 0.5529, "y": 0.8905, "width": 0.0373, "height": 0.0619},
+    },
+    "enchantment": {
+        "color": "#008363",
+        "label": "Enchantment Box (Text)",
+        "default": {"x": 0.3061, "y": 0.3932, "width": 0.3649, "height": 0.1674},
+    },
+    "angler_quest": {
+        "color": "#9BFF9B",
+        "label": "Quest Box (Angler)",
+        "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
+    },
+}
+# Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
+AREA_ORDER = list(AREA_CONFIG.keys())
 class AreaSelector:
     """
     Fullscreen transparent overlay implemented as a second pywebview window.
@@ -2405,7 +2388,7 @@ class Api:
 
     def _load_misc_settings(self):
         """Load miscellaneous settings from last_config.json."""
-        current_path = os.path.join(BASE_PATH, "last_config.json")
+        current_path = os.path.join(EDITABLE_PATH, "last_config.json")
         data = load_misc_settings(current_path)
         # Bar Areas
         try:
@@ -2445,7 +2428,7 @@ class Api:
             self.message_box_javascript("Missing required image files:\nsun.png, moon.png\nAuto Totem will be disabled")
     def save_misc_settings(self):
         """Save miscellaneous settings."""
-        path = os.path.join(BASE_PATH, "last_config.json")
+        path = os.path.join(EDITABLE_PATH, "last_config.json")
         # Existing Data
         data = {}
         if os.path.exists(path):
@@ -2608,15 +2591,9 @@ class Api:
     def reset_areas(self):
         """Reset areas to default"""
         try:
-            config_path = os.path.join(
-                BASE_PATH,
-                "last_config.json"
-            )
+            config_path = os.path.join( EDITABLE_PATH, "last_config.json" )
             if not os.path.exists(config_path):
-                return {
-
-                    "success": True
-                }
+                return { "success": True }
             with open(config_path, "r") as f:
                 config_data = json.load(f)
             # Remove Saved Custom Areas
@@ -2882,7 +2859,7 @@ class Api:
             return
 
         try:
-            cv2.imwrite(os.path.join(BASE_PATH, "debug_full.png"), full_img)
+            cv2.imwrite(os.path.join(EDITABLE_PATH, "debug_full.png"), full_img)
         except Exception as e:
             self.set_status(f"Error saving full screenshot: {e}")
             return
@@ -2901,7 +2878,7 @@ class Api:
                 if crop.size == 0:
                     continue
 
-                cv2.imwrite(os.path.join(BASE_PATH, f"debug_{name}.png"), crop)
+                cv2.imwrite(os.path.join(EDITABLE_PATH, f"debug_{name}.png"), crop)
                 saved.append(name)
         except Exception as e:
             self.set_status(f"Error saving region screenshots: {e}")
@@ -4300,7 +4277,7 @@ class Api:
         """Write debug logs to a text file."""
         try:
             # Use Base Path For Logs
-            log_dir = BASE_PATH
+            log_dir = EDITABLE_PATH
             os.makedirs(log_dir, exist_ok=True)
             # Daily Log File
             log_file = os.path.join(
@@ -7494,7 +7471,7 @@ def check_setup_guide():
         Please report this bug in the Discord Server.\n
         Do you want to open the install folder?""")
         if open_folder_choice == True:
-            open_folder(RESOURCE_PATH)
+            open_base_folder()
         return False
 
     try:
