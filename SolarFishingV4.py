@@ -497,7 +497,7 @@ class AreaSelector:
                     print("Failed to maximize area selector:", e)
             self._win.events.shown += maximize_area_selector
         else:
-            self._win = webview.create_window( "Area Selector", self.HTML_FILE, js_api=self, 
+            self._win = webview.create_window("Area Selector", self.HTML_FILE, js_api=self, 
                                             # Window Style
                                             transparent=True, frameless=True, easy_drag=False, 
                                             # Keep Above Everything
@@ -904,8 +904,8 @@ class FishOverlay:
             height = int(height / 2)
         width = max(1, int(width))
         height = max(1, int(height))
-        x = max( 0, min( int(x), max(0, int(self.parent_app.SCREEN_WIDTH) - width) ) )
-        y = max( 0, min( int(y), max(0, int(self.parent_app.SCREEN_HEIGHT) - height) ) )
+        x = max(0, min(int(x), max(0, int(self.parent_app.SCREEN_WIDTH) - width)))
+        y = max(0, min(int(y), max(0, int(self.parent_app.SCREEN_HEIGHT) - height)))
         self.x = x
         self.y = y
         self.width = width
@@ -1043,27 +1043,27 @@ class SetupGuide(ctk.CTk):
             self.configure(fg_color="#290000")
             self.button_fill = "#480102"
             self.button_outline = "#ed000e"
-            ctk.CTkLabel( self, text=(f"Please take actions against {stealer} and " "download the official Solar Fishing from Google Drive"), wraplength=500 ).pack(pady=(0, 20))
-            ctk.CTkButton( self, text="Download Official Build", command=self.open_link("https://drive.google.com/drive/folders/1e9tZwDtAaiYKTVFeArjWTIuztLgLg88a"), 
+            ctk.CTkLabel(self, text=(f"Please take actions against {stealer} and " "download the official Solar Fishing from Google Drive"), wraplength=500).pack(pady=(0, 20))
+            ctk.CTkButton(self, text="Download Official Build", command=self.open_link("https://drive.google.com/drive/folders/1e9tZwDtAaiYKTVFeArjWTIuztLgLg88a"), 
                           fg_color=self.button_fill, border_color=self.button_outline, border_width=3, corner_radius=8).pack(pady=5)
-            ctk.CTkButton( self, text="Upcoming Features", command=self.open_link("https://docs.google.com/document/d/1WwWWMR-eN-R-GO42IioToHpWTgiXkLoiNE_4NeE-GsU"), 
+            ctk.CTkButton(self, text="Upcoming Features", command=self.open_link("https://docs.google.com/document/d/1WwWWMR-eN-R-GO42IioToHpWTgiXkLoiNE_4NeE-GsU"), 
                           fg_color=self.button_fill, border_color=self.button_outline, border_width=3, corner_radius=8).pack(pady=5)
         elif not sys.platform == "win32":
             self.geometry("600x550")
-            ctk.CTkLabel(self, text=( "Before starting the macro, grant permissions and " "copy the required folders into the Solar Fishing directory."), wraplength=500).pack(pady=(0, 20))
+            ctk.CTkLabel(self, text=("Before starting the macro, grant permissions and " "copy the required folders into the Solar Fishing directory."), wraplength=500).pack(pady=(0, 20))
             ctk.CTkButton(self, text="Accessibility Permissions", command=self.open_accessibility, 
                           fg_color=self.button_fill, border_color=self.button_outline, border_width=3, corner_radius=8).pack(pady=5)
             ctk.CTkButton(self, text="Input Monitoring", command=self.open_input_monitoring, 
                           fg_color=self.button_fill, border_color=self.button_outline, border_width=3, corner_radius=8).pack(pady=5)
             ctk.CTkButton(self, text="Screen Recording", command=self.open_screen_recording, 
                           fg_color=self.button_fill, border_color=self.button_outline, border_width=3, corner_radius=8).pack(pady=5)
-            ctk.CTkLabel(self, text=("Move configs, images and UI into the Solar Fishing folder."), wraplength=500 ).pack(pady=(5, 10))
+            ctk.CTkLabel(self, text=("Move configs, images and UI into the Solar Fishing folder."), wraplength=500).pack(pady=(5, 10))
             ctk.CTkButton(self, text="Open Solar Fishing Folder", command=open_base_folder,
                           fg_color=self.button_fill, border_color=self.button_outline, border_width=3, corner_radius=8).pack(pady=5)
         else:
             self.geometry("600x450")
             # Windows-Specific Setup Text
-            ctk.CTkLabel(self, text=("Before starting the macro, copy the required " "folders into the Solar Fishing directory."), wraplength=400 ).pack(pady=(0, 20))
+            ctk.CTkLabel(self, text=("Before starting the macro, copy the required " "folders into the Solar Fishing directory."), wraplength=400).pack(pady=(0, 20))
             ctk.CTkLabel(
                 self,
                 text=(

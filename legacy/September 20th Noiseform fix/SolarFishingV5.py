@@ -1648,7 +1648,7 @@ class StatusOverlay:
             f"{json.dumps(str(label))}, "
             f"{json.dumps(str(value))})"
         )
-    def set_status( self, title, main_status, line1, line2, line3 ):
+    def set_status(self, title, main_status, line1, line2, line3):
         """
         Updates the entire status overlay.
         Each line should be a (label, value) tuple.
@@ -1772,8 +1772,8 @@ class Api:
         for field_id, placeholder in input_pattern.findall(html):
             prompt = placeholder.strip()
             defaults[field_id] = prompt
-        select_pattern = re.compile( r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL, )
-        option_pattern = re.compile( r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE, )
+        select_pattern = re.compile(r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL,)
+        option_pattern = re.compile(r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE,)
         for field_id, body in select_pattern.findall(html):
             match = option_pattern.search(body)
             if match:
@@ -2008,8 +2008,8 @@ class Api:
     # Delete Config
     def delete_config(self, config_name):
         try:
-            folder = os.path.join( CONFIGS_PATH, config_name )
-            config_path = os.path.join( folder, "config.json" )
+            folder = os.path.join(CONFIGS_PATH, config_name)
+            config_path = os.path.join(folder, "config.json")
             if os.path.exists(config_path):
                 os.remove(config_path)
             if os.path.exists(folder):
@@ -3679,7 +3679,7 @@ class Api:
     def start_appraisal(self):
         # Validate Tesseract
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -3797,7 +3797,7 @@ class Api:
     def start_treasure_appraisal(self):
         # Validate Tesseract
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -3908,7 +3908,7 @@ class Api:
     def start_enchantment(self):
         # Validate Tesseract
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -4011,7 +4011,7 @@ class Api:
     def start_angler(self):
         # Validate Tesseract
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -4502,7 +4502,7 @@ class Api:
     def hunt_detect(self, current_hunt):
         "current_hunt: Does nothing"
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -5113,7 +5113,7 @@ class Api:
                 #     f"Circle #{circle}: "
                 #     f"x{circles[circle][0]} y{circles[circle][1]} "
                 #     f"xr{circle_x_ratio} yr{circle_y_ratio}"
-                # )
+                #)
                 self.fish_overlay.draw_box(
                     x1=int(overlay_width * 0.15),
                     y1=circles[circle][1],

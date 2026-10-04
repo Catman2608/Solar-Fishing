@@ -39,8 +39,8 @@ from pynput import keyboard, mouse
 from pynput.keyboard import Controller as KeyboardController
 from pynput.mouse import Controller as MouseController
 from pynput.mouse import Button
+import ctypes
 if sys.platform == "win32":
-    import ctypes
     from ctypes import wintypes
 elif sys.platform == "darwin":
     import Quartz
@@ -344,7 +344,7 @@ elif sys.platform == "darwin":
         """
         # Define the target point
         point = Quartz.CGPointMake(float(x), float(y))
-        event = Quartz.CGEventCreateMouseEvent( None, Quartz.kCGEventMouseMoved, point, Quartz.kCGMouseButtonLeft )
+        event = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventMouseMoved, point, Quartz.kCGMouseButtonLeft)
         # Warp the cursor
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
     def _mouse_event(button="left", press=True, x=None, y=None):
@@ -528,11 +528,7 @@ def _cm_time_make(value, timescale):
         # kCMTimeFlags_Valid = 1. Layout matches Apple's CMTime (24 bytes).
         import objc as _objc
         try:
-            cm_time = _objc.createStructType(
-                "CMTime",
-                b"{CMTime=qiIq}",
-                ["value", "timescale", "flags", "epoch"],
-            )
+            cm_time = _objc.createStructType("CMTime", b"{CMTime=qiIq}", ["value", "timescale", "flags", "epoch"],)
         except Exception:
             cm_time = _objc.lookUpStructType("CMTime")
         return cm_time(value, timescale, 1, 0)
@@ -582,9 +578,7 @@ def _sck_coremedia():
     if sys.platform == "darwin":
         global _SCK_COREMEDIA
         if _SCK_COREMEDIA is None:
-            lib = ctypes.cdll.LoadLibrary(
-                "/System/Library/Frameworks/CoreMedia.framework/CoreMedia"
-            )
+            lib = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreMedia.framework/CoreMedia")
             lib.CMSampleBufferGetImageBuffer.argtypes = [ctypes.c_void_p]
             lib.CMSampleBufferGetImageBuffer.restype = ctypes.c_void_p
             _SCK_COREMEDIA = lib
@@ -597,9 +591,7 @@ def _sck_corevideo():
     if sys.platform == "darwin":
         global _SCK_COREVIDEO
         if _SCK_COREVIDEO is None:
-            lib = ctypes.cdll.LoadLibrary(
-                "/System/Library/Frameworks/CoreVideo.framework/CoreVideo"
-            )
+            lib = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreVideo.framework/CoreVideo")
             lib.CVPixelBufferLockBaseAddress.argtypes = [ctypes.c_void_p, ctypes.c_int]
             lib.CVPixelBufferLockBaseAddress.restype = ctypes.c_int
             lib.CVPixelBufferUnlockBaseAddress.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -724,10 +716,11 @@ def _sck_ci_to_srgb_bgr(image_buffer):
 
 def _sck_sample_to_bgr(sample_buffer):
     """ScreenCaptureKit sample -> contiguous sRGB BGR uint8.
-    The callback argument is an opaque CMSampleBuffer. PyObjC warns and then
-    refuses to pass that pointer into CMSampleBufferGetImageBuffer, which used
-    to look like 'no frames' and fall back to Quartz. Read it with ctypes.
-    Display P3 bytes are ColorSync'd to sRGB so they match the Quartz path.
+    The SCStreamConfiguration is tagged with kCGColorSpaceSRGB, so SCK
+    already performs Display P3 -> sRGB conversion before handing us the
+    buffer. The raw BGRA bytes are therefore sRGB and must NOT be run
+    through another ColorSync P3 -> sRGB pass (that double-converts greens,
+    e.g. #9BFF9B -> #5CFF8A).
     """
     _sck_sample_to_bgr.last_error = None
     if sys.platform != "darwin" or sample_buffer is None:
@@ -735,9 +728,7 @@ def _sck_sample_to_bgr(sample_buffer):
 
     try:
         bgra = None
-        pixel_addr = _sck_coremedia().CMSampleBufferGetImageBuffer(
-            _sck_cf_ptr(sample_buffer)
-        )
+        pixel_addr = _sck_coremedia().CMSampleBufferGetImageBuffer(_sck_cf_ptr(sample_buffer))
         if pixel_addr:
             bgra = _sck_copy_bgra(pixel_addr)
         if bgra is None:
@@ -758,7 +749,9 @@ def _sck_sample_to_bgr(sample_buffer):
                 _sck_sample_to_bgr.last_error = "no BGRA image buffer"
             return None
 
-        return mss_to_srgb_numpy(bgra, source_is_p3=True)
+        # Buffers are already sRGB (SCStreamConfiguration.colorSpaceName was
+        # set to kCGColorSpaceSRGB), so just strip the alpha channel.
+        return np.ascontiguousarray(bgra[:, :, :3])
 
     except Exception as exc:
         _sck_sample_to_bgr.last_error = exc
@@ -840,10 +833,7 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
         pass
 
     import warnings
-    warnings.filterwarnings(
-        "ignore",
-        message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",
-    )
+    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",)
 # Path Management
 def _is_frozen():
     return bool(getattr(sys, "frozen", False))
@@ -2045,7 +2035,7 @@ class StatusOverlay:
             f"{json.dumps(str(label))}, "
             f"{json.dumps(str(value))})"
         )
-    def set_status( self, title, main_status, line1, line2, line3 ):
+    def set_status(self, title, main_status, line1, line2, line3):
         """
         Updates the entire status overlay.
         Each line should be a (label, value) tuple.
@@ -2167,8 +2157,8 @@ class Api:
         for field_id, placeholder in input_pattern.findall(html):
             prompt = placeholder.strip()
             defaults[field_id] = prompt
-        select_pattern = re.compile( r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL, )
-        option_pattern = re.compile( r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE, )
+        select_pattern = re.compile(r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL,)
+        option_pattern = re.compile(r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE,)
         for field_id, body in select_pattern.findall(html):
             match = option_pattern.search(body)
             if match:
@@ -2402,8 +2392,8 @@ class Api:
     # Delete Config
     def delete_config(self, config_name):
         try:
-            folder = os.path.join( CONFIGS_PATH, config_name )
-            config_path = os.path.join( folder, "config.json" )
+            folder = os.path.join(CONFIGS_PATH, config_name)
+            config_path = os.path.join(folder, "config.json")
             if os.path.exists(config_path):
                 os.remove(config_path)
             if os.path.exists(folder):
@@ -2985,7 +2975,7 @@ class Api:
                     # Start the camera thread first
                     if dxcam is not None:
                         self.camera = dxcam.create(output_color="BGR")
-                        self.camera.start()
+                        self.camera.start(target_fps=60)
                     else:
                         if sys.platform == "darwin":
                             if _SCK_AVAILABLE:
@@ -3373,9 +3363,12 @@ class Api:
         """Create an SCStream the same way the working ScreenCaptureKit probe does.
         Pixel size comes from the SCDisplay (pixels), not SCREEN_WIDTH * scale —
         a doubled Retina size starts cleanly and then never delivers a frame.
-        colorSpaceName is intentionally unset: SCK does not retain it, and a
-        bad name also yields no frames. Display P3 -> sRGB is done in
-        _sck_sample_to_bgr.
+
+        We explicitly tag the stream as sRGB via colorSpaceName so SCK performs
+        Display P3 -> sRGB conversion for us, matching what Quartz/MSS return.
+        Without this, the raw BGRA buffer is untagged (effectively Display P3 on
+        modern Macs) and running a second P3 -> sRGB ColorSync pass on it
+        over-converts greens (e.g. #9BFF9B -> #5CFF8A).
         """
         if sys.platform == "darwin":
             content_filter = SCContentFilter.alloc().initWithDisplay_excludingWindows_(
@@ -3393,16 +3386,37 @@ class Api:
                 height = int(self.SCREEN_HEIGHT * get_scale_factor())
             config.setWidth_(width)
             config.setHeight_(height)
-            # kCVPixelFormatType_32BGRA. Same literal the working probe uses.
+            # kCVPixelFormatType_32BGRA
             config.setPixelFormat_(0x42475241)
             config.setShowsCursor_(False)
+            try:
+                # 60 FPS -> interval = 1/60 s. CMTimeMake(1, 60).
+                config.setMinimumFrameInterval_(_cm_time_make(1, 60))
+            except Exception:
+                pass
+            # Ask SCK to deliver sRGB. This makes the CVPixelBuffer carry an
+            # sRGB-tagged color space, and SCK does the P3 -> sRGB transform
+            # internally, so the bytes we receive are already sRGB (matching
+            # MSS/Quartz). If we leave this unset, the buffer is untagged and
+            # _sck_sample_to_bgr's ColorSync P3->sRGB pass double-converts.
+            try:
+                from Foundation import NSString
+                # kCGColorSpaceSRGB is the CFString constant name CoreGraphics
+                # uses for the sRGB color space.
+                config.setColorSpaceName_("kCGColorSpaceSRGB")
+            except Exception:
+                # Some PyObjC builds want the raw CFString value instead.
+                try:
+                    config.setColorSpaceName_(Quartz.kCGColorSpaceSRGB)
+                except Exception:
+                    pass
+
             self._sck_filter = content_filter
             self._sck_config = config
             stream = SCStream.alloc().initWithFilter_configuration_delegate_(
                 content_filter, config, None
             )
             return stream
-
         else:
             print("ScreenCaptureKit activated on windows, stopping.")
             raise RuntimeError("ScreenCaptureKit is not supported on Windows")
@@ -4310,7 +4324,7 @@ class Api:
     def start_appraisal(self):
         # Validate Tesseract
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -4434,7 +4448,7 @@ class Api:
     def start_treasure_appraisal(self):
         # Validate Tesseract
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -4549,7 +4563,7 @@ class Api:
     def start_enchantment(self):
         # Validate Tesseract
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -4656,7 +4670,7 @@ class Api:
     def start_angler(self):
         # Validate Tesseract
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
@@ -5145,6 +5159,7 @@ class Api:
                         friend_img = self.capture_frame[friend_top_s:friend_bottom_s, friend_left_s:friend_right_s]
                         friend_x, friend_y = self.pixel_search(friend_img, friend_color, friend_tolerance)
                         if friend_x is None or friend_y is None:
+                            cv2.imwrite("debug_full.png", self.capture_frame)
                             break
 
                     else:
@@ -5273,7 +5288,7 @@ class Api:
     def hunt_detect(self, current_hunt):
         "current_hunt: Does nothing"
         try:
-            tesseract_path = get_tesseract_path( self.vars.get("tesseract_path") )
+            tesseract_path = get_tesseract_path(self.vars.get("tesseract_path"))
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
                 # Repair the imported config in memory
