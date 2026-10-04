@@ -1,7 +1,7 @@
 {
     "global_settings": "off",
     "appdata_settings": "off",
-    "automation_mode": "harpoon_gun",
+    "automation_mode": "fishing",
     "fishing_profile": "normal",
     "start_key": "F5",
     "area_selector_key": "F6",
@@ -44,12 +44,12 @@
     "friends_tolerance": "5",
     "auto_zoom": "off",
     "auto_refresh": "on",
-    "fish_overlay": "on",
-    "status_overlay": "on",
+    "fish_overlay": "off",
+    "status_overlay": "off",
     "bag_spam": "on",
     "lock_cursor": "on",
     "casting_mode": "normal",
-    "shake_mode": "pixel",
+    "shake_mode": "navigation",
     "fishing_mode": "color",
     "perfect_cast_method": "velocity",
     "fall_scan_timeout": "5",
@@ -77,7 +77,7 @@
     "minigame_scan_delay": "0.01",
     "restart_delay": "1.5",
     "bar_ratio_from_side": "0.5",
-    "controller_mode": "predictive",
+    "controller_mode": "normal",
     "kp": "0.6",
     "kd": "0.6",
     "stopping_distance": "0.6",
@@ -148,5 +148,6 @@
     "angler_click_position": "0.5, 0.5",
     "angler_click_position2": "0.5, 0.5",
     "angler_click_position3": "0.5, 0.5",
-    "angler_cooldown": "130"
+    "angler_cooldown": "130",
+    "capture_backend": "on"
 }
