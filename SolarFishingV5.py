@@ -1,7 +1,6 @@
 # Imports
 # GUI (Primary And Fallback)
 import webview
-import customtkinter as ctk
 from tkinter import messagebox
 # Text Parsing
 import json
@@ -60,7 +59,7 @@ except (ImportError, OSError):
 # All Platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
-APP_VERSION = 5.12
+APP_VERSION = 5.2
 BETA_VERSION = 0
 DEVELOPER = "Catman2608"
 def load_misc_settings(last_config_path):
@@ -216,6 +215,30 @@ if sys.platform == "win32":
         except:
             pass  # DPI awareness could not be set - coordinates may be inconsistent
 
+    # Define the RECT structure used by Windows API
+    class RECT(ctypes.Structure):
+        _fields_ = [
+            ("left", ctypes.c_long),
+            ("top", ctypes.c_long),
+            ("right", ctypes.c_long),
+            ("bottom", ctypes.c_long)
+        ]
+
+    def get_taskbar_height():
+        # Find the window handle for the taskbar
+        hwnd = ctypes.windll.user32.FindWindowW("Shell_TrayWnd", None)
+
+        if hwnd:
+            rect = RECT()
+            # Get the bounding rectangle coordinates
+            if ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                taskbar_height = rect.bottom - rect.top
+                return int(taskbar_height)
+            else:
+                return "Failed to get taskbar dimensions."
+        else:
+            return "Could not find the Windows Taskbar window."
+
     # Windows Api Related Functions
     def get_scale_factor():
         return 1
@@ -300,6 +323,8 @@ elif sys.platform == "darwin":
         "command": 55, "cmd": 55, "shift": 56, "option": 58, "alt": 58, "control": 59, "ctrl": 59,
     }
     _QUARTZ_KEY_SOURCE = None
+    def get_taskbar_height():
+        return 0
     def _get_quartz_key_source():
         # Private Source So Posted Keys Do Not Inherit Hardware Command/Fn/Globe State
         global _QUARTZ_KEY_SOURCE
@@ -427,6 +452,8 @@ elif sys.platform == "darwin":
 # Linux (Mouse Positions And Xdisplay)
 elif sys.platform.startswith("linux"):
     _xdisplay = None
+    def get_taskbar_height():
+        return 0
     def _get_xdisplay():
         global _xdisplay
         if _xdisplay is None:
@@ -986,6 +1013,8 @@ data = load_misc_settings(LAST_CONFIG)
 CONFIGS_PATH = os.path.join(EDITABLE_PATH, "configs")
 IMAGES_PATH = os.path.join(READ_ONLY_PATH, "images")
 UI_PATH = os.path.join(READ_ONLY_PATH, "ui")
+# None until index.html is parsed. Must exist before _get_prompt_defaults reads it.
+_PROMPT_DEFAULTS = None
 # If Editable And Read Only Path Is Different, Seed Configs from Read Only Path To Editable Path
 if EDITABLE_PATH != READ_ONLY_PATH:
     seed_configs()
@@ -1005,65 +1034,60 @@ AREA_CONFIG = {
     "shake": {
         "color": "#df0000",
         "label": "Shake Box",
-        "default": {"x": 0.1041, "y": 0.0925, "width": 0.7917, "height": 0.6963},
+        "default": {"x": 0.1041, "y": 0.0963, "width": 0.7917, "height": 0.7245},
     },
     "fish": {
         "color": "#00beff",
         "label": "Fish Box",
-        "default": {"x": 0.2844, "y": 0.7981, "width": 0.4297, "height": 0.0389},
+        "default": {"x": 0.2844, "y": 0.8294, "width": 0.4297, "height": 0.0404},
     },
     "friend": {
         "color": "#ffed00",
         "label": "Friend Box (Fish End)",
-        "default": {"x": 0.0046, "y": 0.8583, "width": 0.0355, "height": 0.0817},
+        "default": {"x": 0.0046, "y": 0.893, "width": 0.0355, "height": 0.085},
     },
     "totem": {
         "color": "#00de07",
         "label": "Totem Box (Day/Night)",
-        "default": {"x": 0.9504, "y": 0.8305, "width": 0.0234, "height": 0.0490},
+        "default": {"x": 0.9504, "y": 0.8641, "width": 0.0234, "height": 0.0509},
     },
     "sovereign": {
         "color": "#d994ff",
         "label": "Sovereign Box (Bar)",
-        "default": {"x": 0.2844, "y": 0.8184, "width": 0.4297, "height": 0.0185},
+        "default": {"x": 0.2844, "y": 0.8515, "width": 0.4297, "height": 0.0192},
     },
     "noiseform": {
-        "color": "#2a8d4f",
+        "color": "#ff9b00",
         "label": "Noiseform Box (Shapes)",
-        "default": {"x": 0.4222, "y": 0.3543, "width": 0.2056, "height": 0.2762},
+        "default": {"x": 0.4222, "y": 0.3686, "width": 0.2056, "height": 0.2873},
     },
     "lullaby": {
-        "color": "#fdeeca",
+        "color": "#7b00ff",
         "label": "Lullaby Box (Above Fish)",
-        "default": {"x": 0.4222, "y": 0.7043, "width": 0.1556, "height": 0.1360},
+        "default": {"x": 0.4222, "y": 0.7327, "width": 0.1556, "height": 0.1415},
     },
     "chat": {
-        "color": "#004383",
+        "color": "#ff008c",
         "label": "Chat Box",
         "default": {"x": 0.0030, "y": 0.0683, "width": 0.2536, "height": 0.3323},
     },
-    "backpack": {
-        "color": "#ffe195",
-        "label": "Backpack Box",
-        "default": {"x": 0.3373, "y": 0.6108, "width": 0.3254, "height": 0.2656},
-    },
     "treasure_appraisal": {
-        "color": "#4f35f6",
+        "color": "#df0000",
         "label": "Treasure Appraisal Box (Grid)",
         "default": {"x": 0.3343, "y": 0.4156, "width": 0.3385, "height": 0.1629},
     },
     "appraisal_hotbar": {
-        "color": "#e78300",
+        "color": "#00beff",
         "label": "Hotbar Box (Appraisal)",
         "default": {"x": 0.5529, "y": 0.8905, "width": 0.0373, "height": 0.0619},
     },
     "enchantment": {
-        "color": "#008363",
+        "color": "#ffed00",
         "label": "Enchantment Box (Text)",
         "default": {"x": 0.3061, "y": 0.3932, "width": 0.3649, "height": 0.1674},
     },
     "angler_quest": {
-        "color": "#9BFF9B",
+        "color": "#00de07",
         "label": "Quest Box (Angler)",
         "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
     },
@@ -1071,47 +1095,388 @@ AREA_CONFIG = {
 # Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
 class AreaSelector:
-    """
-    Fullscreen transparent overlay implemented as a second pywebview window.
-    Long-lived instance: call show() / hide() / update() as needed.
-    Areas are fully data-driven via the module-level AREA_CONFIG / AREA_ORDER.
-    Adding a new area requires only a new entry in AREA_CONFIG.
-    """
-    # Prevent Pywebview From Walking This Object When The Main Api Is Js_Api
-    # (Window.Native.Accessibilityobject.Bounds Recursion / Webview2 Com).
-    _serializable = False
     HTML_FILE = os.path.join(UI_PATH, "area_selector.html")
     def __init__(self, parent_app):
         self.parent_app = parent_app
-        self.area_window = None
+        self.overlay_window = None  
         self._open = False
+        self._visible = False
         self._areas = {}
-        self._visible = {name: True for name in AREA_ORDER}
+        self._visible_areas = {}
         self._screen_capture = None
         self._screenshot_b64 = None
-        # Css Client Size Of The Overlay (Reported By Js). Used For Pixel↔Ratio
-        # Conversion So Boxes Align When Display Scale ≠ 100%. Falls Back To
-        # Screen_* Until Window_Ready Reports The Real Size.
-        self._view_w = float(SCREEN_WIDTH)
-        self._view_h = float(SCREEN_HEIGHT)
+        self._page_ready = False
+        self._pending_js = []
+        # Track active viewport geometry (logical points for pywebview)
+        self.left = 0
+        self.top = 0
+        self.width = 0
+        self.height = 0
+    def _to_window_coords(self, left, top, width, height):
+        """
+        Convert physical-pixel geometry (from _get_areas / capture) into the
+        logical points pywebview expects for window x/y/width/height.
+        On Windows scale is always 1; on macOS Retina it is typically 2.0.
+        Also clamps width/height so a bad (e.g. post-reset) size cannot make
+        the overlay cover the entire screen or exceed monitor bounds.
+        """
+        scale = get_scale_factor()
+        if scale <= 0:
+            scale = 1.0
+        left = int(left)
+        top = int(top)
+        width = max(1, int(width))
+        height = max(1, int(height))
+        # SCREEN_* are physical pixels; window geometry is in logical points.
+        screen_w = max(1, int(SCREEN_WIDTH * scale))
+        screen_h = max(1, int(SCREEN_HEIGHT * scale))
+        width = min(width, screen_w)
+        height = min(height, screen_h)
+        left = max(0, min(left, max(0, screen_w - width)))
+        top = max(0, min(top, max(0, screen_h - height)))
+        return left, top, width, height
+
+    def show(self):
+        """Creates and displays the transparent frameless overlay window.
+        Arguments are physical-pixel screen coordinates (same space as
+        _get_areas / capture_frame). They are converted to logical points
+        for pywebview.
+        """
+        # Position below the macOS menu area; use physical pixels because
+        # _to_window_coords converts its geometry to logical window points.
+        scale = get_scale_factor()
+        if scale <= 0:
+            scale = 1.0
+        macos_offset = int(round(get_macos_menu_offset()))
+        left, top, width, height = self._to_window_coords(
+            0,
+            macos_offset,
+            SCREEN_WIDTH,
+            max(1, SCREEN_HEIGHT - macos_offset),
+        )
+        if self._open and self.overlay_window:
+            # If already open, shift/resize it instead of duplicating
+            self.resize(left, top, width, height, already_logical=True)
+            return
+
+        self._page_ready = False
+        self._pending_js = []
+        self._screen_capture = self._capture_and_crop()
+        self._screenshot_b64 = self._encode_screenshot(self._screen_capture)
+        self._view_w = float(width)
+        self._view_h = float(height)
+        self.left = left
+        self.top = top
+        self.width = width
+        self.height = height
+
+        # Thin js_api only. Do not pass self — it holds the pywebview Window,
+        # and pywebview walks that into AccessibilityObject.Bounds recursion.
+        outer = self
+        class _AreaSelectorApi:
+            def window_ready(self, win_x, win_y, width=None, height=None):
+                return outer.window_ready(win_x, win_y, width, height)
+
+            def get_screenshot_data(self):
+                return outer.get_screenshot_data()
+
+            def save_areas(self, areas):
+                return outer.save_areas(areas)
+
+        self.overlay_window = webview.create_window(
+            "Area Selector",
+            self.HTML_FILE,
+            js_api=_AreaSelectorApi(),
+            transparent=False,
+            frameless=True,
+            easy_drag=False,
+            on_top=True,
+            resizable=False,
+            width=self.width,
+            height=self.height,
+            x=self.left,
+            y=self.top,
+            background_color="#000000",
+            min_size=(10, 10),
+        )
+        self._open = True
+        self._visible = True
+        self.overlay_window.events.closed += self._on_closed
+        if sys.platform == "win32":
+            def maximize_area_selector():
+                try:
+                    hwnd = _get_hwnd(self.overlay_window)
+                    if hwnd:
+                        user32.ShowWindow(wintypes.HWND(hwnd), SW_MAXIMIZE)
+                except Exception as e:
+                    try:
+                        self.parent_app.set_status("Failed to maximize area selector:", e)
+                    except Exception:
+                        pass
+            self.overlay_window.events.shown += maximize_area_selector
+    def hide(self):
+        """Destroys the current window instance completely.
+        Clear _open BEFORE destroy so concurrent minigame threads that still
+        call clear()/draw_box()/_eval skip the disposed WebView2 and avoid
+        ObjectDisposedException (logged by pywebview as 'Error occurred in script').
+        Destroy is scheduled off the JS-API thread to avoid pywebview deadlock.
+        """
+        win = self.overlay_window
+        if not win or not self._open:
+            self._open = False
+            self._visible = False
+            return
+
+        self._open = False
+        self._visible = False
+        self.overlay_window = None
+        _schedule_webview_destroy(win, after=self._on_closed)
+    def window_ready(self, win_x, win_y, width=None, height=None):
+        """JS signals the page is ready — record CSS client size and push screenshot.
+        width/height are window.innerWidth / innerHeight (CSS pixels). Using
+        these for box conversion fixes the off-screen drawing that happens
+        when display scale ≠ 100% and SCREEN_* (physical) ≠ canvas size.
+        """
+        try:
+            if width is not None and height is not None:
+                w = float(width)
+                h = float(height)
+                if w > 0 and h > 0:
+                    self._view_w = w
+                    self._view_h = h
+        except (TypeError, ValueError):
+            pass
+
+        if self._screenshot_b64 and self.overlay_window and self._open:
+            # Inject Via A Short Data Reference; Js Stores It And Draws.
+            try:
+                # Pass As Return Value Of A Dedicated Getter Instead Of
+                # Embedding A Huge String In Evaluate_Js When Possible.
+                self.overlay_window.evaluate_js(
+                    "window.__applyScreenshot && window.__applyScreenshot()"
+                )
+            except Exception:
+                pass
+
+        self._page_ready = True
+        self._flush_pending_js()
+        return None
+    def update(self, areas_dict, data):
+        self.clear()
+        scale = get_scale_factor() or 1.0
+        if scale <= 0:
+            scale = 1.0
+        menu_offset_pixels = int(round(get_macos_menu_offset() * scale))
+        self._visible_areas = {}
+        visible_areas = []
+        automation_mode = data["automation_mode"]
+        fishing_profile = data["fishing_profile"]
+        if automation_mode == "fishing":
+            visible_areas.append("fish")
+            if data["shake_mode"] != "navigation":
+                visible_areas.append("shake")
+            if data["detection_method"] == "friend_area" or data["restart_method"] == "friend_area":
+                visible_areas.append("friend")
+            if data["auto_totem"] == True:
+                visible_areas.append("totem")
+            if data["hunt_detect"] == True:
+                visible_areas.append("chat")
+            if data["sovereign_recharge"] == True:
+                visible_areas.append("sovereign")
+            if fishing_profile == "shapes":
+                visible_areas.append("noiseform")
+            elif fishing_profile == "metronome":
+                visible_areas.append("lullaby")
+        elif automation_mode == "appraisal":
+            visible_areas.append("appraisal_hotbar")
+        elif automation_mode == "treasure_appraisal":
+            visible_areas.append("treasure_appraisal")
+        elif automation_mode == "enchant":
+            visible_areas.append("enchantment")
+        elif automation_mode == "angler":
+            visible_areas.append("angler_quest")
+        for name in AREA_ORDER:
+            area_data = (areas_dict or {}).get(name)
+            if not isinstance(area_data, dict):
+                area_data = AREA_CONFIG[name]["default"]
+            color = AREA_CONFIG[name]["color"]
+            label = AREA_CONFIG[name].get("label", name)
+            self._areas[name] = self.pixels_to_ratios(area_data)
+            # Now draw the areas
+            if name in visible_areas:
+                self._visible_areas[name] = {"color": color, "label": label}
+        # Convert ratios to logical canvas coordinates (CSS pixels).
+        # SCREEN_WIDTH/HEIGHT are logical; menu_offset_pixels is physical and
+        # must be converted to logical before subtracting from the canvas y.
+        menu_offset_logical = menu_offset_pixels / scale
+        boxes = {}
+        for name, style in self._visible_areas.items():
+            area = self._areas[name]
+            boxes[name] = {
+                "x": area["x"] * SCREEN_WIDTH,
+                "y": area["y"] * SCREEN_HEIGHT - menu_offset_logical,
+                "width": area["width"] * SCREEN_WIDTH,
+                "height": area["height"] * SCREEN_HEIGHT,
+                **style,
+            }
+        self._eval(f"window.fishOverlay && window.fishOverlay.setBoxes({json.dumps(boxes)})")
+    def resize(self, left, top, width, height, already_logical=False):
+        """Resizes and moves the window dynamically if it exists.
+        By default arguments are physical pixels (same as show()).
+        Pass already_logical=True when the caller has already converted them.
+        """
+        if not already_logical:
+            left, top, width, height = self._to_window_coords(left, top, width, height)
+        self.left = left
+        self.top = top
+        self.width = width
+        self.height = height
+        if self.overlay_window and self._open:
+            try:
+                self.overlay_window.move(self.left, self.top)
+                self.overlay_window.resize(self.width, self.height)
+            except Exception:
+                # Window may already be disposed (race with stop_macro / hide)
+                self._open = False
+                self.overlay_window = None
+
+    def pixels_to_ratios(self, area):
+        """Convert pixels to ratios by dividing values by screen width and height"""
+        if not isinstance(area, dict):
+            return {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0}
+
+        values = {
+            "x": float(area.get("x", 0)),
+            "y": float(area.get("y", 0)),
+            "width": float(area.get("width", area.get("w", 0))),
+            "height": float(area.get("height", area.get("h", 0))),
+        }
+        if any(abs(values[key]) > 1 for key in values):
+            values["x"] /= SCREEN_WIDTH
+            values["y"] /= SCREEN_HEIGHT
+            values["width"] /= SCREEN_WIDTH
+            values["height"] /= SCREEN_HEIGHT
+        return values
+
+    def clear(self):
+        """Clears rendering elements inside the web view context."""
+        self._eval("window.fishOverlay && window.fishOverlay.clear()")
+    def get_screenshot_data(self):
+        """Return the data-URL of the frozen (menu-bar-cropped) screenshot."""
+        return self._screenshot_b64 or ""
+
+    def save_areas(self, areas):
+        """Persist the current canvas boxes (logical pixels) and close the overlay.
+        Called from JS on Esc / F6 / beforeunload so changes are always written back.
+        """
+        if not isinstance(areas, dict):
+            areas = {}
+        scale = get_scale_factor() or 1.0
+        if scale <= 0:
+            scale = 1.0
+        # menu_offset is stored/used in logical units to match the canvas and
+        # SCREEN_WIDTH/HEIGHT (which are logical).
+        menu_offset_logical = get_macos_menu_offset()
+        for name, box in areas.items():
+            if name not in self._areas or not isinstance(box, dict):
+                continue
+            self._areas[name] = {
+                "x": float(box.get("x", 0)) / SCREEN_WIDTH,
+                "y": (float(box.get("y", 0)) + menu_offset_logical) / SCREEN_HEIGHT,
+                "width": float(box.get("width", box.get("w", 0))) / SCREEN_WIDTH,
+                "height": float(box.get("height", box.get("h", 0))) / SCREEN_HEIGHT,
+            }
+            self.parent_app.bar_areas[name] = dict(self._areas[name])
+        self.parent_app.save_misc_settings()
+        try:
+            self.parent_app.set_status("Area selector closed")
+        except Exception:
+            pass
+        self.hide()
+
+    def request_save_and_close(self):
+        """Ask the page to persist its current boxes before closing."""
+        if not self._open or not self.overlay_window:
+            return
+        if not self._page_ready:
+            self.hide()
+            return
+        self.overlay_window.evaluate_js(
+            "window.fishOverlay && window.fishOverlay.saveAndClose()"
+        )
+
+    def draw_box(self, x1, y1, x2, y2, color, show_bar_center=False, label=""):
+        """Evaluates JS drawing contexts based on calculations inside the viewport.
+        bar_center / box_size / canvas_offset are in physical pixels relative to
+        the fish capture region; they are converted to logical CSS pixels for
+        the overlay canvas (which matches the logical window size).
+        """
+        # Ensure the overlay exists before trying to execute scripts on it
+        if not self._open or not self.overlay_window:
+            return
+
+        scale = get_scale_factor()
+        if scale <= 0:
+            scale = 1.0
+        shape = {
+            "x1": int(x1 / scale),
+            "y1": int(y1 / scale),
+            "x2": int(x2 / scale),
+            "y2": int(y2 / scale),
+            "color": str(color),
+            "show_bar_center": bool(show_bar_center),
+            "label": str(label or "")
+        }
+        self._eval(f"window.fishOverlay && window.fishOverlay.draw({json.dumps(shape)})")
+    def _eval(self, script):
+        """Safely executes JavaScript strings within the running window environment.
+        Calls made before the page is ready are queued — evaluate_js during
+        create_window can fail and must not tear the overlay down (that was
+        dropping the screenshot)."""
+        if not (self.overlay_window and self._open):
+            return
+        if not self._page_ready:
+            self._pending_js.append(script)
+            return
+        try:
+            self.overlay_window.evaluate_js(script)
+        except Exception:
+            # Page may not be attached yet; keep the window and retry later.
+            self._pending_js.append(script)
+
+    def _flush_pending_js(self):
+        if not (self.overlay_window and self._open and self._page_ready):
+            return
+        pending = self._pending_js
+        self._pending_js = []
+        for script in pending:
+            try:
+                self.overlay_window.evaluate_js(script)
+            except Exception:
+                self._pending_js.append(script)
+
     def _capture_and_crop(self):
         """Capture full screen and remove the macOS menu bar strip so the
         image matches the frameless window geometry (no menu bar)."""
         frame = self.parent_app.capture_single_frame()
+        cv2.imwrite("debug_areas2.png", frame)
         if frame is None:
             return None
 
         if frame.ndim == 3 and frame.shape[2] == 4:
             frame = frame[:, :, :3].copy()
-        menu_offset = get_macos_menu_offset()
         scale = get_scale_factor()
+        macos_offset = get_macos_menu_offset()
         if scale <= 0:
             scale = 1.0
         self._scale = scale
-        if menu_offset > 0:
-            crop = int(round(menu_offset * scale))
-            if 0 < crop < frame.shape[0]:
-                frame = frame[crop:, :, :].copy()
+        # Crop top (macOS menu bar) so canvas y=0 aligns with menu macos_offset
+        menu_bar_pixels = int(round(macos_offset * scale))
+        if 0 < menu_bar_pixels < frame.shape[0]:
+            frame = frame[
+                menu_bar_pixels:int(round(SCREEN_HEIGHT * scale)),
+                0:int(round(SCREEN_WIDTH * scale)),
+            ]
         frame = np.clip(frame.astype(np.int16) - 15, 0, 255).astype(np.uint8)
         return frame
 
@@ -1132,288 +1497,14 @@ class AreaSelector:
         except Exception:
             return None
 
-    def show(self):
-        """Thin js_api object — only exposes the methods the HTML page calls.
-        Do NOT pass `self` (or any object that holds a reference to the
-        pywebview Window): on macOS Cocoa that triggers infinite recursion
-        via AccessibilityObject.Bounds."""
-        outer = self
-        class _AreaApi:
-            def get_area_config(self):
-                return outer.get_area_config()
-
-            def set_visibility(self, visible_dict):
-                return outer.set_visibility(visible_dict)
-
-            def get_areas(self):
-                return outer.get_areas()
-
-            def on_mouse_move(self, mouse_x, mouse_y, current_boxes):
-                return outer.on_mouse_move(mouse_x, mouse_y, current_boxes)
-
-            def on_point_select(self, name, xr, yr):
-                return outer.on_point_select(name, xr, yr)
-
-            def save_areas(self, areas):
-                return outer.save_areas(areas)
-
-            def get_screenshot_data(self):
-                return outer.get_screenshot_data()
-
-            def window_ready(self, win_x, win_y, width=None, height=None):
-                return outer.window_ready(win_x, win_y, width, height)
-
-        if self._open and self.area_window:
-            return
-
-        self._screen_capture = self._capture_and_crop()
-        self._screenshot_b64 = self._encode_screenshot(self._screen_capture)
-        menu_offset = get_macos_menu_offset()
-        # Default View Size Until Js Reports The Real Css Client Size.
-        # At Scale ≠ 100% These Often Differ From Screen_* (Physical).
-        self._view_w = float(SCREEN_WIDTH)
-        self._view_h = float(max(1, SCREEN_HEIGHT - menu_offset))
-        self.area_window = webview.create_window(
-            "Area Selector", self.HTML_FILE, js_api=_AreaApi(),
-            transparent=True, frameless=True, easy_drag=False, on_top=True,
-            resizable=False, width=SCREEN_WIDTH, height=SCREEN_HEIGHT - menu_offset,
-            x=SCREEN_LEFT, y=SCREEN_TOP, background_color="#000000",
-        )
-        self._open = True
-        self.area_window.events.closed += self._on_closed
-        if sys.platform == "win32":
-            def maximize_area_selector():
-                try:
-                    hwnd = _get_hwnd(self.area_window)
-                    if hwnd:
-                        user32.ShowWindow(wintypes.HWND(hwnd), SW_MAXIMIZE)
-                except Exception as e:
-                    try:
-                        self.parent_app.set_status(f"Failed to maximize area selector: {e}")
-                    except Exception:
-                        print("Failed to maximize area selector:", e)
-            self.area_window.events.shown += maximize_area_selector
-    def _to_ratios(self, area):
-        """Accept normalized areas and legacy pixel areas, store normalized values."""
-        if not isinstance(area, dict):
-            return {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0}
-
-        values = {
-            "x": float(area.get("x", 0)),
-            "y": float(area.get("y", 0)),
-            "width": float(area.get("width", area.get("w", 0))),
-            "height": float(area.get("height", area.get("h", 0))),
-        }
-        if any(abs(values[key]) > 1 for key in values):
-            values["x"] /= SCREEN_WIDTH
-            values["y"] /= SCREEN_HEIGHT
-            values["width"] /= SCREEN_WIDTH
-            values["height"] /= SCREEN_HEIGHT
-        return values
-
-    def update(self, area_name, area_dict):
-        """Set one area by name (ratios or legacy pixels)."""
-        self._areas[area_name] = self._to_ratios(area_dict)
-    def update_all(self, areas_dict):
-        """Bulk-load every known area from a {name: dict} mapping."""
-        for name in AREA_ORDER:
-            src = (areas_dict or {}).get(name)
-            if not isinstance(src, dict):
-                src = AREA_CONFIG[name]["default"]
-            self._areas[name] = self._to_ratios(src)
-    def get_area_config(self):
-        """Return colours, labels, order and visibility so JS stays data-driven."""
-        return {
-
-            "order": list(AREA_ORDER),
-            "areas": {
-                name: {"color": cfg["color"], "label": cfg["label"]}
-                for name, cfg in AREA_CONFIG.items()
-            },
-            "visible": dict(self._visible),
-        }
-    def set_visibility(self, visible_dict):
-        """Keep Python in sync when the overlay panel toggles boxes."""
-        if isinstance(visible_dict, dict):
-            for name, val in visible_dict.items():
-                if name in self._visible:
-                    self._visible[name] = bool(val)
-    def get_areas(self):
-        """Return canvas-relative pixel boxes for JS (menu-bar offset subtracted).
-        Uses the CSS client size reported by the page (_view_w / _view_h) so
-        boxes line up with the canvas at any display scale. Falls back to
-        SCREEN_* only before window_ready has reported the real size.
-        """
-        menu_offset = get_macos_menu_offset()
-        vw = float(self._view_w) if self._view_w and self._view_w > 0 else float(SCREEN_WIDTH)
-        vh = float(self._view_h) if self._view_h and self._view_h > 0 else float(max(1, SCREEN_HEIGHT - menu_offset))
-        # Reconstruct Fullscreen Height In The Same Units As The View So
-        # Stored Ratios (Relative To The Full Screen Including Menu Bar)
-        # Map Correctly Into The Overlay'S Client Coordinate Space.
-        full_h = vh + float(menu_offset)
-        result = {}
-        for name, area in self._areas.items():
-            result[name] = {
-                "x": area["x"] * vw,
-                "y": area["y"] * full_h - menu_offset,
-                "width": area["width"] * vw,
-                "height": area["height"] * full_h,
-            }
-        return result
-
-    def on_mouse_move(self, mouse_x, mouse_y, current_boxes):
-        if not self._open:
-            return
-
-        menu_offset = get_macos_menu_offset()
-        for name in AREA_ORDER:
-            box = current_boxes.get(name, {})
-            if box:
-                self._areas[name] = self._pixels_to_ratios(box, menu_offset)
-            b = current_boxes.get(name)
-            if b and self._visible.get(name, True):
-                bx, by = float(b.get("x", 0)), float(b.get("y", 0))
-                bw = float(b.get("width", b.get("w", 0)) or 1)
-                bh = float(b.get("height", b.get("h", 0)) or 1)
-                mx, my = float(mouse_x or 0), float(mouse_y or 0)
-                if bx <= mx <= bx + bw and by <= my <= by + bh:
-                    xr = round((mx - bx) / bw, 2)
-                    yr = round((my - by) / bh, 2)
-                    try:
-                        self.parent_app.set_status(f"{name.upper()} → X: {xr:.2f}  Y: {yr:.2f}")
-                    except Exception:
-                        pass
-
-                    break
-
-    def on_point_select(self, name, xr, yr):
-        """Called by JS when Select Point mode is on and user clicks.
-        Click inside an area → ratios relative to that area box.
-        Click outside any area → full-screen (viewport) ratios 0–1 under the
-        name "screen". Shows ratios in the status bar and closes the selector
-        without the generic 'Area selector closed' message so the ratios remain visible."""
-        if not self._open:
-            return
-
-        try:
-            xr = float(xr)
-            yr = float(yr)
-        except (TypeError, ValueError):
-            return
-
-        xr = max(0.0, min(1.0, xr))
-        yr = max(0.0, min(1.0, yr))
-        # name may be None / "screen" / unknown when the click missed every box
-        if not name or name == "screen" or name not in AREA_CONFIG:
-            label = "SCREEN"
-        else:
-            label = (AREA_CONFIG.get(name) or {}).get("label", name)
-        status_msg = f"{label.upper()}  →  X RATIO: {xr:.4f}  Y RATIO: {yr:.4f}"
-        # Persist Current Areas, Then Close Without Overwriting The Ratio Status.
-        try:
-            self.parent_app.bar_areas.update(self._areas)
-            self.parent_app.save_misc_settings()
-        except Exception:
-            pass
-
-        self._open = False
-        try:
-            self.parent_app.set_status(status_msg)
-        except Exception:
-            pass
-
-        win = self.area_window
-        self.area_window = None
-        _schedule_webview_destroy(win)
-    def _pixels_to_ratios(self, box, menu_offset=0):
-        """Convert JS canvas-pixel boxes back to full-screen ratios.
-        Divides by the CSS client size (_view_w / _view_h) reported by the
-        page so the ratio is correct even when that size differs from
-        SCREEN_WIDTH / SCREEN_HEIGHT (common at display scale ≠ 100%).
-        """
-        vw = float(self._view_w) if self._view_w and self._view_w > 0 else float(SCREEN_WIDTH)
-        vh = float(self._view_h) if self._view_h and self._view_h > 0 else float(max(1, SCREEN_HEIGHT - menu_offset))
-        full_h = vh + float(menu_offset)
-        if vw <= 0:
-            vw = 1.0
-        if full_h <= 0:
-            full_h = 1.0
-        return {
-
-            "x": float(box.get("x", 0)) / vw,
-            "y": (float(box.get("y", 0)) + menu_offset) / full_h,
-            "width": float(box.get("width", box.get("w", 0))) / vw,
-            "height": float(box.get("height", box.get("h", 0))) / full_h,
-        }
-    def window_ready(self, win_x, win_y, width=None, height=None):
-        """JS signals the page is ready — record CSS client size and push screenshot.
-        width/height are window.innerWidth / innerHeight (CSS pixels). Using
-        these for box conversion fixes the off-screen drawing that happens
-        when display scale ≠ 100% and SCREEN_* (physical) ≠ canvas size.
-        """
-        try:
-            if width is not None and height is not None:
-                w = float(width)
-                h = float(height)
-                if w > 0 and h > 0:
-                    self._view_w = w
-                    self._view_h = h
-        except (TypeError, ValueError):
-            pass
-
-        if self._screenshot_b64 and self.area_window and self._open:
-            # Inject Via A Short Data Reference; Js Stores It And Draws.
-            try:
-                # Pass As Return Value Of A Dedicated Getter Instead Of
-                # Embedding A Huge String In Evaluate_Js When Possible.
-                self.area_window.evaluate_js(
-                    "window.__applyScreenshot && window.__applyScreenshot()"
-                )
-            except Exception:
-                pass
-
-        return None
-
-    def save_areas(self, areas):
-        if not self._open:
-            return
-
-        menu_offset = get_macos_menu_offset()
-        for name in AREA_ORDER:
-            if name in areas:
-                self._areas[name] = self._pixels_to_ratios(areas[name], menu_offset)
-        self.parent_app.bar_areas.update(self._areas)
-        self.parent_app.save_misc_settings()
-        self._open = False
-        self.parent_app.set_status("Area selector closed")
-        win = self.area_window
-        self.area_window = None
-        _schedule_webview_destroy(win)
-    def get_screenshot_data(self):
-        """Return the data-URL of the frozen (menu-bar-cropped) screenshot."""
-        return self._screenshot_b64 or ""
+    def is_open(self):
+        return self._open
 
     def _on_closed(self):
-        if self._open:
-            self.parent_app.bar_areas.update(self._areas)
-            self.parent_app.save_misc_settings()
-            self.parent_app.set_status("Area selector closed")
-        self.area_window = None
+        """Internal callback cleaning lifecycle states upon execution exit."""
+        self.overlay_window = None
         self._open = False
-    def is_open(self):
-        return self._open and self.area_window is not None
-
-    def hide(self):
-        if self.is_open():
-            self.close()
-    def close(self):
-        if self.is_open():
-            self.save_areas(self.get_areas())
-        elif self.area_window:
-            win = self.area_window
-            self.area_window = None
-            self._open = False
-            _schedule_webview_destroy(win)
+        self._visible = False
 # Eyedropper Class
 class Eyedropper:
     """
@@ -1521,7 +1612,7 @@ class Eyedropper:
             "Eyedropper",
             self.HTML_FILE,
             js_api=_EyedropperApi(),
-            transparent=True,
+            transparent=False,
             frameless=True,
             easy_drag=False,
             on_top=True,
@@ -2005,11 +2096,11 @@ class StatusOverlay:
         )
     def set_line(self, number, label, value):
         """
-        Updates one of the three status lines.
-        number must be 1, 2, or 3.
+        Updates one of the four status lines.
+        number must be 1, 2, 3, or 4.
         """
-        if number not in (1, 2, 3):
-            raise ValueError("Status line number must be 1, 2, or 3")
+        if number not in (1, 2, 3, 4):
+            raise ValueError("Status line number must be 1, 2, 3, or 4")
 
         self._eval(
             f"window.statusOverlay && "
@@ -2018,16 +2109,19 @@ class StatusOverlay:
             f"{json.dumps(str(label))}, "
             f"{json.dumps(str(value))})"
         )
-    def set_status(self, title, main_status, line1, line2, line3):
+    def set_status(self, title, main_status, line1, line2, line3, line4=None):
         """
         Updates the entire status overlay.
         Each line should be a (label, value) tuple.
+        line4 is optional.
         """
         self.set_title(title)
         self.set_main_status(main_status)
-        self.set_line(1,line1[0],line1[1])
-        self.set_line(2,line2[0],line2[1])
-        self.set_line(3,line3[0],line3[1])
+        self.set_line(1, line1[0], line1[1])
+        self.set_line(2, line2[0], line2[1])
+        self.set_line(3, line3[0], line3[1])
+        if line4 is not None:
+            self.set_line(4, line4[0], line4[1])
     def clear(self):
         """
         Resets the status overlay to its default state.
@@ -2060,8 +2154,14 @@ class Api:
     def __init__(self):
         self.vars = {} # Save Entry Variables Here
         self.current_config = self.get_last_config()
-        self.load_settings_into_vars(self.current_config)
+        # Load last_config.json into vars before hotkeys or the macro run.
+        try:
+            self.load_settings(self.current_config or None)
+        except Exception:
+            pass
         # Start Hotkey Listener
+        self.hotkey_state = 0
+        self.rebind_target = None
         try:
             self.key_listener = KeyListener(on_press=self.on_key_press)
             self.key_listener.daemon = True
@@ -2092,6 +2192,10 @@ class Api:
         menu_offset = get_macos_menu_offset()
         self.bar_areas = {name: None for name in AREA_ORDER}
         self.current_rod_name = "Default"
+        self.session_start = None
+        self.catch_rate = 0.0
+        self.perfect_catch_rate = 0.0
+        self.current_cycle = 0
         self.scale_x_1440 = SCREEN_WIDTH / 2560
         self.scale_y_1440 = SCREEN_HEIGHT / 1440
         self.scale_x_1080 = SCREEN_WIDTH / 1920
@@ -2101,290 +2205,405 @@ class Api:
         self.status_right = (300 * scale * self.scale_x_1080)
         self.status_bottom = (200 * scale * self.scale_y_1080)
         self.status_overlay.hide()
-        # Load Settings
-        self._load_misc_settings()
-    def _refresh_screen_dimensions(self):
-        """
-        Re-query mss for the primary monitor's current resolution and update all
-        screen-dimension instance variables.  Call this whenever the capture monitor
-        changes (hot-plug, resolution switch, etc.) so that _get_areas, the capture pipelines,
-        and the fish-overlay layout all use the correct pixel dimensions.
-        Invalidating _thread_local forces the capture pipelines to rebuild its cached
-        monitor dict on the next capture call.
-        """
-        with MSS() as _sct:
-            if len(_sct.monitors) > 1:
-                _m = _sct.monitors[1]
-            else:
-                _m = _sct.monitors[0]
-        self.SCREEN_WIDTH  = _m["width"]
-        self.SCREEN_HEIGHT = _m["height"]
-        self.SCREEN_LEFT   = _m["left"]
-        self.SCREEN_TOP    = _m["top"]
-        self.SCREEN_SCALE  = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
-        self.scale_x_1440  = self.SCREEN_WIDTH  / 2560
-        self.scale_y_1440  = self.SCREEN_HEIGHT / 1440
-        # Force The Capture Pipelines To Rebuild The Threadlocal Monitor Dict.
-        self._thread_local = threading.local()
-    # Save Config
-    def _get_prompt_defaults(self):
-        defaults = {}
-        index_path = os.path.join(UI_PATH, "index.html")
-        try:
-            with open(index_path, "r", encoding="utf-8") as f:
-                html = f.read()
-        except Exception:
-            return defaults
+        self._ensure_default_config()
+    def _html_attr(self, attrs, name):
+        match = re.search(
+            r"""\b""" + re.escape(name) + r"""\s*=\s*(?:['"]([^'"]*)['"]|([^\s>]+))""",
+            attrs,
+            re.IGNORECASE,
+        )
+        if not match:
+            return None
+        return (match.group(1) if match.group(1) is not None else match.group(2) or "").strip()
 
-        input_pattern = re.compile(r"<input\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))" r"(?=[^>]*\bplaceholder\s*=\s*['\"]([^'\"]*)['\"])[^>]*>", re.IGNORECASE,)
-        for field_id, placeholder in input_pattern.findall(html):
-            prompt = placeholder.strip()
-            defaults[field_id] = prompt
-        select_pattern = re.compile(r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL,)
-        option_pattern = re.compile(r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE,)
-        for field_id, body in select_pattern.findall(html):
-            match = option_pattern.search(body)
-            if match:
-                defaults[field_id] = match.group(1).strip()
-        return defaults
+
+    def _get_prompt_defaults(self):
+        """Defaults from index.html placeholders, value attributes, and first options."""
+        global _PROMPT_DEFAULTS
+        if _PROMPT_DEFAULTS is not None:
+            return dict(_PROMPT_DEFAULTS)
+
+        defaults = {}
+        try:
+            with open(UI_PATH / "index.html", "r", encoding="utf-8") as file:
+                html = file.read()
+        except Exception:
+            _PROMPT_DEFAULTS = {}
+            return {}
+
+        try:
+            for attrs in re.findall(r"<input\b([^>]*)>", html, flags=re.IGNORECASE):
+                field_id = self._html_attr(attrs, "id")
+                if not field_id or field_id == "config_list" or field_id.startswith("_"):
+                    continue
+                input_type = (self._html_attr(attrs, "type") or "text").lower()
+                if input_type == "range" or field_id.endswith("_slider"):
+                    continue
+                if input_type == "checkbox":
+                    defaults[field_id] = bool(re.search(r"\bchecked\b", attrs, re.IGNORECASE))
+                    continue
+                if input_type in ("button", "submit", "file", "image", "hidden"):
+                    continue
+                value = self._html_attr(attrs, "value")
+                placeholder = self._html_attr(attrs, "placeholder")
+                if value is not None and value != "":
+                    defaults[field_id] = value
+                elif placeholder is not None and placeholder != "":
+                    defaults[field_id] = placeholder
+        except Exception:
+            pass
+
+        try:
+            select_pattern = re.compile(
+                r"<select\b([^>]*)>(.*?)</select>",
+                re.IGNORECASE | re.DOTALL,
+            )
+            option_pattern = re.compile(
+                r"<option\b([^>]*)>",
+                re.IGNORECASE,
+            )
+            for attrs, body in select_pattern.findall(html):
+                field_id = self._html_attr(attrs, "id")
+                if not field_id or field_id == "config_list" or field_id.startswith("_"):
+                    continue
+                chosen = None
+                first = None
+                for option_attrs in option_pattern.findall(body):
+                    option_value = self._html_attr(option_attrs, "value")
+                    if option_value is None:
+                        continue
+                    if first is None:
+                        first = option_value
+                    if re.search(r"\bselected\b", option_attrs, re.IGNORECASE):
+                        chosen = option_value
+                        break
+                defaults[field_id] = chosen if chosen is not None else (first or "")
+        except Exception:
+            pass
+
+        defaults.setdefault("start_key", "f5")
+        defaults.setdefault("area_selector_key", "f6")
+        defaults.setdefault("stop_key", "f7")
+        _PROMPT_DEFAULTS = defaults
+        return dict(defaults)
+
 
     def _get_saved_default_config(self):
         default_path = os.path.join(CONFIGS_PATH, "Default", "config.json")
         try:
-            with open(default_path, "r") as f:
-                data = json.load(f)
+            with open(default_path, "r", encoding="utf-8") as file:
+                data = json.load(file)
             return data if isinstance(data, dict) else {}
-
         except Exception:
             return {}
+
 
     def _get_config_defaults(self):
         defaults = self._get_saved_default_config()
         defaults.update(self._get_prompt_defaults())
         return defaults
 
+
+    def _is_blank_setting(self, value):
+        if value is None:
+            return True
+        if isinstance(value, str) and value.strip() == "":
+            return True
+        return False
+
+
     def _fill_blank_settings(self, settings):
-        clean_settings = dict(settings or {})
-        defaults = self._get_config_defaults()
-        for key, value in list(clean_settings.items()):
-            if isinstance(value, str) and value.strip() == "" and key in defaults:
-                clean_settings[key] = defaults[key]
-        return clean_settings
+        """Fill missing or empty keys from Default config + HTML placeholders.
 
-    def _load_settings_data(self, config_name):
-        config_path = os.path.join(CONFIGS_PATH, config_name, "config.json")
-        with open(config_path, "r") as f:
-            settings = json.load(f)
-        settings = self._fill_blank_settings(settings)
-        return settings, config_path
-
-    def _is_global_settings_enabled(self, settings=None):
-        """Return True if Global Settings is currently enabled."""
-        source = settings if settings is not None else self.vars
-        value = source.get("global_settings", "off")
-        if isinstance(value, bool):
-            return value
-
-        return str(value).strip().lower() in ("on", "true", "1", "yes")
-
-    def _color_setting_keys(self):
-        """Keys treated as per-config color settings (excluded from Global Settings)."""
-        return set(self.get_default_colors().keys())
-
-    def _non_color_settings(self, settings):
-        """Return a copy of settings with color-related keys removed."""
-        color_keys = self._color_setting_keys()
-        return {k: v for k, v in (settings or {}).items() if k not in color_keys}
-
-    def _propagate_global_settings(self, settings, only_flag=False):
-        """Write shared settings into every config, preserving each config's colors.
-        When only_flag is True, only the global_settings checkbox value is synced
-        (used when Global Settings is turned off so the flag stays consistent).
+        A single bad key is skipped so one corrupt value cannot wipe the rest.
         """
-        if only_flag:
-            keys_to_write = {
-                "global_settings": (settings or {}).get("global_settings", "off")
-            }
-        else:
-            keys_to_write = self._non_color_settings(settings)
-        if not keys_to_write:
+        filled = {}
+        try:
+            defaults = self._get_config_defaults()
+        except Exception:
+            defaults = {}
+
+        try:
+            for key, value in defaults.items():
+                try:
+                    if key and not str(key).startswith("_") and not str(key).endswith("_slider") and key != "config_list":
+                        filled[key] = value
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        try:
+            incoming = settings if isinstance(settings, dict) else {}
+            for key, value in incoming.items():
+                try:
+                    if not key or str(key).startswith("_") or str(key).endswith("_slider") or key == "config_list":
+                        continue
+                    if self._is_blank_setting(value):
+                        continue
+                    filled[key] = value
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        return filled
+
+
+    def _safe_config_name(self, name):
+        name = str(name or "").strip()
+        name = os.path.basename(name)
+        if name.lower().endswith(".json"):
+            name = name[:-5]
+        name = name.replace("\\", "").replace("/", "").strip()
+        return name
+
+
+    def _config_folder(self, config_name):
+        return os.path.join(CONFIGS_PATH, config_name)
+
+
+    def _config_file(self, config_name):
+        return os.path.join(self._config_folder(config_name), "config.json")
+
+
+    def _ensure_default_config(self):
+        os.makedirs(CONFIGS_PATH, exist_ok=True)
+        names = [
+            folder
+            for folder in os.listdir(CONFIGS_PATH)
+            if os.path.isdir(os.path.join(CONFIGS_PATH, folder))
+        ]
+        if names:
             return
 
-        color_keys = self._color_setting_keys()
-        for name in self.list_configs():
-            try:
-                folder = os.path.join(CONFIGS_PATH, name)
-                config_path = os.path.join(folder, "config.json")
-                existing = {}
-                if os.path.exists(config_path):
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        existing = json.load(f)
-                    if not isinstance(existing, dict):
-                        existing = {}
-                merged = dict(existing)
-                merged.update(keys_to_write)
-                # Preserve Perconfig Colors (In Case A Key Was Mistakenly Included)
-                for ck in color_keys:
-                    if ck in existing:
-                        merged[ck] = existing[ck]
-                os.makedirs(folder, exist_ok=True)
-                with open(config_path, "w", encoding="utf-8") as f:
-                    json.dump(merged, f, indent=4)
-            except Exception:
-                continue
+        folder = self._config_folder("Default")
+        os.makedirs(folder, exist_ok=True)
+        path = self._config_file("Default")
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as file:
+                json.dump({}, file, indent=4)
 
-    def save_settings(self, config_name, settings, text="Settings saved"):
+    # Stop pywebview from walking this object when it is used as js_api
+    # (Window.native.AccessibilityObject.Bounds recursion / WebView2 COM).
+    _serializable = False
+
+    def close_window(self):
+        win = window
+        if win is None and webview.windows:
+            win = webview.windows[0]
+        _schedule_webview_destroy(win)
+
+    def minimize_window(self):
+        win = window
+        if win is None and webview.windows:
+            win = webview.windows[0]
+        if win is None:
+            return
         try:
-            if not config_name:
-                return {"success": False, "error": "No config selected."}
+            win.minimize()
+        except Exception:
+            pass
 
-            self.active_config = config_name
-            folder = os.path.join(CONFIGS_PATH,config_name)
-            os.makedirs(folder, exist_ok=True)
-            settings = self._fill_blank_settings(settings)
-            self.vars.update(settings)
-            self.current_config = config_name
-            self.save_last_config(config_name)
-            config_path = os.path.join(folder, "config.json")
-            with open(config_path, "w") as f:
-                json.dump(settings,f,indent=4)
-            # Global Settings: Share Every Setting Except Colors Across All Configs.
-            # When Turned Off, Still Keep The Global_Settings Flag Itself In Sync
-            # So Switching Configs Does Not Reenable It From An Old File.
-            if self._is_global_settings_enabled(settings):
-                self._propagate_global_settings(settings, only_flag=False)
-            else:
-                self._propagate_global_settings(settings, only_flag=True)
-            self.save_misc_settings()
-            self.set_status(text)
-            return {"success": True}
+    _HOTKEY_LABELS = {
+        "start_key": "Start Key",
+        "area_selector_key": "Area Selector Key",
+        "stop_key": "Stop Key",
+    }
 
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+    def rebind_hotkeys(self, hotkey):
+        """Arm rebind. on_key_press sees hotkey_state == 1 and ignores start/stop/area."""
+        name = str(hotkey or "").strip()
+        if name not in self._HOTKEY_LABELS:
+            self.hotkey_state = 0
+            self.rebind_target = None
+            self.set_status("Unknown hotkey")
+            return
+        self.rebind_target = name
+        self.hotkey_state = 1
+        self.set_status(f"Rebind {self._HOTKEY_LABELS[name]}: press any key")
 
-    # Load Config
-    def load_settings(self, config_name):
+    def _finish_hotkey_rebind(self, key):
+        target = self.rebind_target
+        self.hotkey_state = 0
+        self.rebind_target = None
+        key = str(key or "").strip().lower()
+        if not target or target not in self._HOTKEY_LABELS or not key:
+            self.set_status("Hotkey rebind cancelled")
+            return
+        if not isinstance(self.vars, dict):
+            self.vars = {}
+        self.vars[target] = key
         try:
-            if not config_name:
-                return {"success": False, "error": "No config selected."}
+            self.save_settings(self.current_config, self.vars)
+        except Exception:
+            pass
+        label = self._HOTKEY_LABELS[target]
+        try:
+            window.evaluate_js(
+                "window.applyHotkey && window.applyHotkey("
+                + json.dumps(target) + ", " + json.dumps(key) + ")"
+            )
+        except Exception:
+            pass
+        self.set_status(f"{label} set to {key.upper()}")
 
-            self.active_config = config_name
-            settings, config_path = self._load_settings_data(config_name)
-            # If Global Settings Is Active (In The Session Or The Loaded File), Keep
-            # Noncolor Values Shared And Only Swap In This Config'S Colors.
-            was_global = self._is_global_settings_enabled(self.vars)
-            file_global = self._is_global_settings_enabled(settings)
-            if was_global or file_global:
-                color_keys = self._color_setting_keys()
-                shared = self._non_color_settings(self.vars) if was_global else self._non_color_settings(settings)
-                # Always Force The Flag On So It Stays Consistent Across Configs
-                shared["global_settings"] = "on"
-                merged = dict(settings)
-                merged.update(shared)
-                # Ensure Colors Still Come From The Config Being Loaded
-                for ck in color_keys:
-                    if ck in settings:
-                        merged[ck] = settings[ck]
-                settings = merged
-            with open(config_path, "w") as f:
-                json.dump(settings,f,indent=4)
-            self.vars = settings.copy()
-            self.current_config = config_name
-            self.save_last_config(config_name)
-            self._load_misc_settings()
-            return {"success": True, "settings": settings}
-
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    # List Configs
     def list_configs(self):
         try:
-            configs = sorted([folder for folder in os.listdir(CONFIGS_PATH) if os.path.isdir(os.path.join(CONFIGS_PATH, folder))])
+            self._ensure_default_config()
+            configs = sorted(
+                [
+                    folder
+                    for folder in os.listdir(CONFIGS_PATH)
+                    if os.path.isdir(os.path.join(CONFIGS_PATH, folder))
+                ]
+            )
             return configs
-
         except Exception:
             return []
-
-    # Settings State
-    def update_settings(self, settings):
-        self.vars.update(settings)
-        return {"success": True}
 
     def get_last_config(self):
         try:
             if os.path.exists(LAST_CONFIG):
-                with open(LAST_CONFIG, "r") as f:
-                    data = json.load(f)
-                return data.get("last_config", "")
-
+                with open(LAST_CONFIG, "r", encoding="utf-8") as file:
+                    data = json.load(file)
+                if isinstance(data, dict):
+                    return data.get("last_config", "") or ""
         except Exception:
             pass
-
         return ""
 
     def save_last_config(self, config_name):
+        config_name = self._safe_config_name(config_name)
+        if not config_name:
+            return False
         try:
             data = {}
             if os.path.exists(LAST_CONFIG):
-                with open(LAST_CONFIG, "r") as f:
-                    data = json.load(f)
+                try:
+                    with open(LAST_CONFIG, "r", encoding="utf-8") as file:
+                        loaded = json.load(file)
+                    if isinstance(loaded, dict):
+                        data = loaded
+                except Exception:
+                    data = {}
             data["last_config"] = config_name
-            with open(LAST_CONFIG, "w") as f:
-                json.dump(data, f, indent=4)
-        except Exception as e:
-            self.set_status(f"Error saving last config: {e}")
+            os.makedirs(EDITABLE_PATH, exist_ok=True)
+            with open(LAST_CONFIG, "w", encoding="utf-8") as file:
+                json.dump(data, file, indent=4)
+            return True
+        except Exception:
+            return False
+
     def resolve_config_name(self, config_name):
         configs = self.list_configs()
-        if config_name in configs:
-            return config_name
-
+        wanted = self._safe_config_name(config_name)
+        if wanted in configs:
+            return wanted
         for name in configs:
-            if name.lower() == str(config_name).lower():
+            if name.lower() == wanted.lower():
                 return name
-
+        last = self._safe_config_name(self.get_last_config())
+        if last in configs:
+            return last
         return configs[0] if configs else ""
 
-    def load_settings_into_vars(self, config_name):
-        config_name = self.resolve_config_name(config_name)
-        if not config_name:
-            return
-
+    def save_settings(self, file_name=None, settings=None):
         try:
-            settings, config_path = self._load_settings_data(config_name)
-            with open(config_path, "w") as f:
-                json.dump(settings,f,indent=4)
-            self.vars = settings
+            # JS may call save_settings(settings) with a single dict.
+            if settings is None and isinstance(file_name, dict):
+                settings = file_name
+                file_name = None
+
+            # Pull live UI data when settings are not supplied (save_settings called alone).
+            if settings is None:
+                try:
+                    js_data = window.evaluate_js(
+                        "typeof collectSettingsData === 'function' ? collectSettingsData() : null"
+                    )
+                    if isinstance(js_data, dict):
+                        settings = js_data
+                    elif isinstance(js_data, str) and js_data.strip():
+                        try:
+                            parsed = json.loads(js_data)
+                            if isinstance(parsed, dict):
+                                settings = parsed
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            if not isinstance(settings, dict):
+                return {"success": False, "error": "Settings must be an object."}
+
+            if not file_name:
+                file_name = self.get_last_config() or "Default"
+
+            config_name = self.resolve_config_name(file_name) or self._safe_config_name(file_name)
+            if not config_name:
+                return {"success": False, "error": "No config selected."}
+
+            folder = self._config_folder(config_name)
+            os.makedirs(folder, exist_ok=True)
+            settings = self._fill_blank_settings(settings)
+            config_path = self._config_file(config_name)
+            with open(config_path, "w", encoding="utf-8") as file:
+                json.dump(settings, file, indent=4)
+            self.vars = self._settings_for_vars(settings)
             self.current_config = config_name
             self.save_last_config(config_name)
-        except Exception as e:
-            self.set_status(f"Error loading config: {e}")
-    def get_startup_config(self):
-        config_name = self.resolve_config_name(self.current_config)
-        if not config_name:
-            return {
+            self.save_misc_settings()
+            return {"success": True, "config_name": config_name}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
 
-                "success": False,
-                "error": "No configs found."
-            }
-        result = self.load_settings(config_name)
-        if result.get("success"):
-            result["config_name"] = config_name
+    def load_settings(self, config_name=None):
+        settings = {}
+        name = ""
+        try:
+            name = self.resolve_config_name(config_name)
+        except Exception:
+            name = ""
+
+        if name:
+            config_path = self._config_file(name)
+            try:
+                if os.path.exists(config_path):
+                    with open(config_path, "r", encoding="utf-8") as file:
+                        loaded = json.load(file)
+                    if isinstance(loaded, dict):
+                        settings = loaded
+            except Exception:
+                settings = {}
+
+        settings = self._fill_blank_settings(settings)
+        self.vars = self._settings_for_vars(settings)
+        if name:
+            self.current_config = name
+
+        if name:
+            try:
+                self.save_last_config(name)
+            except Exception:
+                pass
+            try:
+                os.makedirs(self._config_folder(name), exist_ok=True)
+                with open(self._config_file(name), "w", encoding="utf-8") as file:
+                    json.dump(settings, file, indent=4)
+            except Exception:
+                pass
+
+        result = dict(settings)
+        if name:
+            result["_config_name"] = name
+            result["config_name"] = name
+        result["_success"] = True
+        result["success"] = True
+        # Nested copy so the UI can read colors without the wrapper keys.
+        result["settings"] = self._settings_for_vars(settings)
+        self._load_misc_settings()
         return result
 
-    # Delete Config
-    def delete_config(self, config_name):
-        try:
-            folder = os.path.join(CONFIGS_PATH, config_name)
-            config_path = os.path.join(folder, "config.json")
-            if os.path.exists(config_path):
-                os.remove(config_path)
-            if os.path.exists(folder):
-                os.rmdir(folder)
-            return { "success": True }
-
-        except Exception as e:
-            return { "success": False, "error": str(e) }
 
     def _load_misc_settings(self):
         """Load miscellaneous settings from last_config.json."""
@@ -2407,7 +2626,7 @@ class Api:
 
         # Hotkeys
         if "start_key" in self.vars and "area_selector_key" in self.vars and "stop_key" in self.vars:
-            # Case 1: Hotkeys Are In Self.Vars
+            # Case 1: Hotkeys Are In self.vars
             pass
 
         elif "start_key" in data and "area_selector_key" in data and "stop_key" in data:
@@ -2416,7 +2635,7 @@ class Api:
             self.vars["area_selector_key"] = data["area_selector_key"]
             self.vars["stop_key"] = data["stop_key"]
         else:
-            # Case 3: Hotkeys Are Not In Self.Vars And Data
+            # Case 3: Hotkeys Are Not In self.vars And Data
             self.vars["start_key"] = "F5"
             self.vars["area_selector_key"] = "F6"
             self.vars["stop_key"] = "F7"
@@ -2459,234 +2678,20 @@ class Api:
         data["stop_key"] = self.vars["stop_key"]
         with open(path, "w") as f:
             json.dump(data, f, indent=4)
-    def open_base_folder(self):
-        open_base_folder()
-    def get_default_settings(self):
-        return self._get_config_defaults()
 
-    def get_default_colors(self):
-        default_settings = self.get_default_settings()
-        color_keys = [
-            "left_color",
-            "right_color",
-            "arrow_color",
-            "fish_color",
-            "left_tolerance",
-            "right_tolerance",
-            "arrow_tolerance",
-            "fish_tolerance",
-            "shake_color",
-            "shake_tolerance",
-            "green_cast_color",
-            "green_cast_tolerance",
-            "white_cast_color",
-            "white_cast_tolerance",
-            "pinion_notes_color",
-            "pinion_notes_tolerance",
-            "sovereign_recharge_color",
-            "sovereign_recharge_tolerance",
-            "friends_color",
-            "friends_tolerance",
-        ]
-        return {
-
-            key: default_settings[key]
-            for key in color_keys
-            if key in default_settings
-        }
-    def reset_settings(self, config_name):
-        try:
-            config_folder = os.path.join(
-                CONFIGS_PATH,
-                config_name
-            )
-            config_path = os.path.join(
-                config_folder,
-                "config.json"
-            )
-            os.makedirs(
-                config_folder,
-                exist_ok=True
-            )
-            existing_config = {}
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
-                    existing_config = json.load(f)
-            # Full Defaults
-            default_settings = self.get_default_settings()
-            # Preserve Colors
-            for color_key in self.get_default_colors().keys():
-                if color_key in existing_config:
-                    default_settings[color_key] = (
-                        existing_config[color_key]
-                    )
-            # Keep The Current Global Settings Flag (Do Not Force It Off On Reset)
-            if "global_settings" in existing_config:
-                default_settings["global_settings"] = existing_config["global_settings"]
-            elif "global_settings" in self.vars:
-                default_settings["global_settings"] = self.vars["global_settings"]
-            with open(config_path, "w") as f:
-                json.dump(
-                    default_settings,
-                    f,
-                    indent=4
-                )
-            # When Global Settings Is On, Reset Noncolor Settings Across Every Config
-            # While Still Preserving Each Config'S Own Colors.
-            if self._is_global_settings_enabled(default_settings):
-                self._propagate_global_settings(default_settings, only_flag=False)
-            self.message_box_javascript("Settings reset to default")
-            return {
-
-                "success": True
-            }
-        except Exception as e:
-            self.message_box_javascript(f"Error resetting settings: {e}")
-            return {
-
-                "success": False,
-                "error": str(e)
-            }
-    def reset_colors(self, config_name):
-        try:
-            config_folder = os.path.join(
-                CONFIGS_PATH,
-                config_name
-            )
-            config_path = os.path.join(
-                config_folder,
-                "config.json"
-            )
-            os.makedirs(
-                config_folder,
-                exist_ok=True
-            )
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
-                    config_data = json.load(f)
-            else:
-                config_data = {}
-            # Reset Only Colors
-            config_data.update(
-                self.get_default_colors()
-            )
-            with open(config_path, "w") as f:
-                json.dump(
-                    config_data,
-                    f,
-                    indent=4
-                )
-            self.message_box_javascript("Colors reset to default")
-            return {
-
-                "success": True
-            }
-        except Exception as e:
-            self.message_box_javascript(f"Error resetting colors: {e}")
-            return {
-
-                "success": False,
-                "error": str(e)
-            }
-    def reset_areas(self):
-        """Reset areas to default"""
-        try:
-            config_path = os.path.join( EDITABLE_PATH, "last_config.json" )
-            if not os.path.exists(config_path):
-                return { "success": True }
-            with open(config_path, "r") as f:
-                config_data = json.load(f)
-            # Remove Saved Custom Areas
-            config_data.pop("bar_areas", None)
-            with open(config_path, "w") as f:
-                json.dump(config_data, f, indent=4)
-            # Also Reset The Inmemory Areas So They Take Effect Immediately.
-            # Use Area_Config Defaults (Ratios) Rather Than {} So Get_Areas And
-            # Any Code That Inspects Bar_Areas Directly Still See Valid Geometry.
-            if hasattr(self, "bar_areas"):
-                self.bar_areas = {
-                    name: dict(AREA_CONFIG[name]["default"])
-                    for name in AREA_ORDER
-                }
-            self.message_box_javascript("Areas reset to default")
-            return {"success": True}
-
-        except Exception as e:
-            self.message_box_javascript(f"Error resetting areas: {e}")
-            return {
-
-                "success": False,
-                "error": str(e)
-            }
-    def import_config(self, config_name, settings):
-        try:
-            if not config_name:
-                return {"success": False, "error": "No config name provided."}
-
-            if config_name in (".", "..") or "/" in config_name or "\\" in config_name:
-                return {"success": False, "error": "Invalid config name."}
-
-            folder = os.path.join(CONFIGS_PATH, config_name)
-            os.makedirs(folder, exist_ok=True)
-            settings = self._fill_blank_settings(settings)
-            config_path = os.path.join(folder, "config.json")
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(settings, f, indent=4)
-            return {"success": True}
-
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def select_import_config(self):
-        try:
-            path = webview.windows[0].create_file_dialog(
-                webview.FileDialog.OPEN,
-                allow_multiple=False,
-                file_types=("JSON files (*.json)",)
-            )
-            if not path:
-                return {"success": False, "cancelled": True}
-
-            if isinstance(path, (list, tuple)):
-                path = path[0]
-            with open(path, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-            return {
-
-                "success": True,
-                "settings": settings,
-                "filename": os.path.basename(path)
-            }
-        except json.JSONDecodeError:
-            return {
-
-                "success": False,
-                "error": "Invalid config file."
-            }
-        except Exception as e:
-            return {
-
-                "success": False,
-                "error": str(e)
-            }
-    def export_config(self, settings):
-        try:
-            path = webview.windows[0].create_file_dialog(
-                webview.FileDialog.SAVE,
-                save_filename=f"{self.current_config}.json"
-            )
-            if not path:
-                return {"success": False, "error": "Cancelled"}
-
-            if isinstance(path, (list, tuple)):
-                path = path[0]
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(settings, f, indent=4)
-            self.message_box_javascript(f"Exported {self.current_config}.json")
-            return {"success": True, "path": path}
-
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+    def _settings_for_vars(self, settings):
+        """Copy config values into self.vars. Skip UI-only and private keys."""
+        cleaned = {}
+        if not isinstance(settings, dict):
+            return cleaned
+        for key, value in settings.items():
+            try:
+                if not key or str(key).startswith("_") or str(key).endswith("_slider") or key == "config_list":
+                    continue
+                cleaned[key] = value
+            except Exception:
+                continue
+        return cleaned
 
     def open_link(self, url):
         """Open a URL in the default web browser."""
@@ -2836,17 +2841,17 @@ class Api:
     # Area Selector
     def open_area_selector(self):
         # Build Current Areas From Bar_Areas Or Area_Config Defaults (All Keys, Including Appraisal)
+        self.status_overlay.hide()
         areas = {}
         for name in AREA_ORDER:
             a = self.bar_areas.get(name)
             areas[name] = a if isinstance(a, dict) else dict(AREA_CONFIG[name]["default"])
         if hasattr(self, "area_selector") and self.area_selector and self.area_selector.is_open():
-            self.area_selector.hide()
-            self.status_overlay.show(self.status_left, self.status_top, self.status_right, self.status_bottom)
+            self.area_selector.request_save_and_close()
         else:
-            self.status_overlay.hide()
+            self.save_settings()
             self.area_selector.show()
-            self.area_selector.update_all(areas)
+            self.area_selector.update(areas, self.vars)
     # Debug Screenshots
     def take_debug_screenshot(self):
         """
@@ -2886,6 +2891,10 @@ class Api:
 
         self.set_status(f"Saved debug screenshots ({', '.join(saved)})")
     # Eyedropper
+    def select_ratio(self, field_id=None):
+        """Point picker stub. UI calls this from selectRatio."""
+        print("Test")
+
     def start_eyedropper(self, color_key=None):
         """Open the color picker overlay.
         color_key (optional): settings field name to write the result into
@@ -2935,63 +2944,61 @@ class Api:
 
     def on_key_press(self, key):
         key = self.normalize_key(key)
+        # Rebind capture: hotkeys stay disabled until the next key is stored.
+        if self.hotkey_state == 1:
+            self._finish_hotkey_rebind(key)
+            return
+        self.save_settings()
         start_key, area_selector_key, stop_key = self._get_hotkeys()
         automation_mode = self.vars["automation_mode"]
-        if not automation_mode == "disabled":
-            if key == start_key:
-                window.hide()
-                if self.macro_running == True:
-                    return
+        if key == start_key:
+            window.hide()
+            if self.macro_running == True:
+                return
 
+            else:
+                # Set Flag Before Starting Threads To Avoid Race Where
+                # The Capture Thread Starts, Sees Macro_Runningfalse, And Exits Immediately.
+                self.macro_running = True
+                # Save Current Settings To Config Before Starting
+                self.save_settings(self.current_config, self.vars)
+                # Start the camera thread first
+                if dxcam is not None:
+                    self.camera = dxcam.create(output_color="BGR")
+                    self.camera.start(target_fps=60)
                 else:
-                    # Set Flag Before Starting Threads To Avoid Race Where
-                    # The Capture Thread Starts, Sees Macro_Runningfalse, And Exits Immediately.
-                    self.macro_running = True
-                    # Save Current Settings To Config Before Starting
-                    self.save_settings(self.current_config, self.vars)
-                    # Start the camera thread first
-                    if dxcam is not None:
-                        self.camera = dxcam.create(output_color="BGR")
-                        self.camera.start(target_fps=60)
-                    else:
-                        if sys.platform == "darwin":
-                            if _SCK_AVAILABLE:
-                                target = self.capture_loop_screencapturekit
-                            else:
-                                target = self.capture_loop_quartz
+                    if sys.platform == "darwin":
+                        if _SCK_AVAILABLE:
+                            target = self.capture_loop_screencapturekit
                         else:
-                            target = self.capture_loop_mss
-                        self.capture_thread = threading.Thread(target=target, daemon=True)
-                        self.capture_thread.start()
-                    # Now start the fishing thread
-                    if automation_mode == "fishing":
-                        self.macro_thread = threading.Thread(target=self.start_fishing, daemon=True)
-                    elif automation_mode == "harpoon_gun":
-                        self.macro_thread = threading.Thread(target=self.start_fishing_harpoon, daemon=True)
-                    elif automation_mode == "appraisal":
-                        self.macro_thread = threading.Thread(target=self.start_appraisal, daemon=True)
-                    elif automation_mode == "enchant":
-                        self.macro_thread = threading.Thread(target=self.start_enchantment, daemon=True)
-                    elif automation_mode == "angler":
-                        self.macro_thread = threading.Thread(target=self.start_angler, daemon=True)
-                    elif automation_mode == "treasure_appraisal":
-                        self.macro_thread = threading.Thread(target=self.start_treasure_appraisal, daemon=True)
-                    self.macro_thread.start()
-            elif key == area_selector_key:
-                # Guard To Prevent Area Selector From Being Opened The Second The Macro Started
-                if self.macro_running == True:
-                    return
+                            target = self.capture_loop_quartz
+                    else:
+                        target = self.capture_loop_mss
+                    self.capture_thread = threading.Thread(target=target, daemon=True)
+                    self.capture_thread.start()
+                # Now start the fishing thread
+                if automation_mode == "fishing":
+                    self.macro_thread = threading.Thread(target=self.start_fishing, daemon=True)
+                elif automation_mode == "harpoon_gun":
+                    self.macro_thread = threading.Thread(target=self.start_fishing_harpoon, daemon=True)
+                elif automation_mode == "appraisal":
+                    self.macro_thread = threading.Thread(target=self.start_appraisal, daemon=True)
+                elif automation_mode == "enchant":
+                    self.macro_thread = threading.Thread(target=self.start_enchantment, daemon=True)
+                elif automation_mode == "angler":
+                    self.macro_thread = threading.Thread(target=self.start_angler, daemon=True)
+                elif automation_mode == "treasure_appraisal":
+                    self.macro_thread = threading.Thread(target=self.start_treasure_appraisal, daemon=True)
+                self.macro_thread.start()
+        elif key == area_selector_key:
+            # Guard To Prevent Area Selector From Being Opened The Second The Macro Started
+            if self.macro_running == True:
+                return
 
-                self.open_area_selector()
-            elif key == stop_key:
-                window.show()
-                self.stop_macro()
-        else:
-            self.save_settings(self.current_config, self.vars, f"Pressed: {key}")
-            start_key, area_selector_key, stop_key = self._get_hotkeys()
-            self.status_overlay.set_line(1, "Start Key: ", start_key.upper())
-            self.status_overlay.set_line(2, "Area Selector Key: ", area_selector_key.upper())
-            self.status_overlay.set_line(3, "Stop Key: ", stop_key.upper())
+            self.open_area_selector()
+        elif key == stop_key:
+            window.show()
+            self.stop_macro()
     def _string_to_key(self, key_string):
         key_string = key_string.strip().lower()
         # Try Special Keys
@@ -3672,6 +3679,29 @@ class Api:
 
         return None, None
 
+    def pixel_search_matrix(self, frame, color_id, tolerance_id, mode=0):
+        searched = set()
+        loop_count = 1
+        while True:
+            try:
+                color_id2 = self.vars[f"{color_id}_{loop_count}"]
+                tolerance_id2 = self.vars[f"{tolerance_id}_{loop_count}"]
+            except KeyError:
+                # No more numbered entries -> try the base color once
+                color_id2 = self.vars.get(color_id)
+                tolerance_id2 = self.vars.get(tolerance_id)
+
+            if color_id2 is None:
+                return None, None
+            if color_id2 in searched:
+                return None, None
+            searched.add(color_id2)
+
+            x, y = self.pixel_search(frame, color_id2, tolerance_id2, mode)
+            if x is not None and y is not None:
+                return x, y
+            loop_count += 1
+
     def find_color_cluster(self, frame, target_color_hex, tolerance=8, min_area=10):
         """
         Find the largest color cluster and return its center.
@@ -4190,7 +4220,7 @@ class Api:
     def test_logging(self):
         logging_mode = self.vars["logging_mode"].capitalize()
         self.send_logging(f"**{logging_mode} is working**", "Macro Stopped")
-    def send_logging(self, text, loop_count, catch_rate=-1):
+    def send_logging(self, text, loop_count):
         logging_mode = self.vars["logging_mode"].lower()
         if logging_mode == "disabled":
             self.set_status("⚠ Logging is disabled.")
@@ -4207,46 +4237,96 @@ class Api:
         if logging_mode == "screenshot":
             thread = threading.Thread(
                 target=self._discord_screenshot_worker,
-                args=(webhook_url, f"{text}\n", loop_count, catch_rate),
+                args=(webhook_url, f"{text}\n", loop_count),
                 daemon=True
             )
         elif logging_mode == "file":
             thread = threading.Thread(
                 target=self._debug_log_worker,
-                args=(text, loop_count, catch_rate),
+                args=(text, loop_count),
                 daemon=True
             )
         else:
             thread = threading.Thread(
                 target=self._discord_text_worker,
-                args=(webhook_url, f"{text}\n", loop_count, catch_rate),
+                args=(webhook_url, f"{text}\n", loop_count),
                 daemon=True
             )
         thread.start()
         thread.join()  # Wait for Discord/file log to finish before continuing
-    def _discord_text_worker(self, webhook_url, message_prefix, loop_count, catch_rate):
-        """Worker function to send text webhook."""
+
+    def _format_duration(self, seconds):
+        if seconds is None or seconds < 0:
+            return "N/A"
+        seconds = int(seconds)
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        s = seconds % 60
+        if h > 0:
+            return f"{h}h {m}m {s}s"
+        if m > 0:
+            return f"{m}m {s}s"
+        return f"{s}s"
+
+    def _build_discord_embed(self, message_prefix, loop_count, include_image=False):
+        """Build a rich Discord embed matching the Cycle Checkpoint style."""
+        clean_title = (message_prefix or "").replace("**", "").replace("\n", " ").strip()
+        if not clean_title:
+            clean_title = "Update"
+        title = f"Solar Fishing | {clean_title}"
+
+        # Extract a numeric cycle if present (e.g. "Cycle #1440" -> "1440")
+        cycle_display = str(loop_count)
+        m = re.search(r"#?\s*(\d+)", str(loop_count))
+        if m:
+            cycle_display = m.group(1)
+        elif getattr(self, "current_cycle", 0):
+            cycle_display = str(self.current_cycle)
+
+        running = "N/A"
+        if getattr(self, "session_start", None):
+            running = self._format_duration(time.time() - self.session_start)
+
+        catch_pct = int(getattr(self, "catch_rate", 0.0) * 100)
+        perfect_pct = int(getattr(self, "perfect_catch_rate", 0.0) * 100)
+        catch_display = f"{catch_pct}% | {perfect_pct}% Perfect"
+
+        rod = getattr(self, "current_rod_name", None) or "Default"
+
+        embed = {
+            "title": title,
+            "description": "**Fishing update**\nFishing session update",
+            "color": 0x5865F2,
+            "fields": [
+                {"name": "Rod", "value": str(rod), "inline": False},
+                {"name": "Current Cycle", "value": cycle_display, "inline": True},
+                {"name": "Running time", "value": running, "inline": True},
+                {"name": "Catch Rate", "value": catch_display, "inline": True},
+            ],
+            "footer": {"text": f"Solar Fishing V{APP_VERSION}"},
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        if include_image:
+            embed["image"] = {"url": "attachment://screenshot.png"}
+        return embed
+
+    def _discord_text_worker(self, webhook_url, message_prefix, loop_count):
+        """Worker function to send text webhook as a rich embed."""
         logging_name = self.vars["logging_name"]
         try:
-            if catch_rate == -1:
-                catch_rate = "N/A"
             payload = {
-                'content': f'{message_prefix}🎣 Cycle Completed\n🔄 {loop_count}\nCatch rate: {catch_rate}\n🕐 {time.strftime("%Y-%m-%d %H:%M:%S")}',
-                'username': logging_name,
-                'embeds': [{
-                    'description': f'{loop_count}',
-                    'color': 0x5865F2,
-                    'timestamp': time.strftime("%Y-%m-%dT%H:%M:%S")
-                }]
+                "username": logging_name,
+                "embeds": [self._build_discord_embed(message_prefix, loop_count, include_image=False)],
             }
             response = requests.post(webhook_url, json=payload, timeout=10)
-            if response.status_code == 200 or response.status_code == 204:
+            if response.status_code in (200, 204):
                 self.set_status(f"Discord text sent ({loop_count})")
             else:
                 self.set_status(f"Error: Discord text failed: {response.status_code}")
         except Exception as e:
             self.set_status(f"Error sending Discord text: {e}")
-    def _discord_screenshot_worker(self, webhook_url, message_prefix, loop_count, catch_rate):
+
+    def _discord_screenshot_worker(self, webhook_url, message_prefix, loop_count):
         logging_name = self.vars["logging_name"]
         try:
             screenshot = self.capture_single_frame()
@@ -4259,21 +4339,27 @@ class Api:
                 screenshot = cv2.cvtColor(screenshot, cv2.COLOR_BGRA2BGR)
             _, buffer = cv2.imencode(".png", screenshot)
             img_byte_arr = io.BytesIO(buffer.tobytes())
-            files = {'file': ('screenshot.png', img_byte_arr, 'image/png')}
-            if catch_rate == -1:
-                catch_rate = "N/A"
+
+            embed = self._build_discord_embed(message_prefix, loop_count, include_image=True)
             payload = {
-                'content': f'{message_prefix}🎣 **Cycle Completed**\n🔄 {loop_count}\n🎯 Catch rate: {catch_rate}\n🕐 {time.strftime("%Y-%m-%d %H:%M:%S")}',
-                'username': logging_name
+                "username": logging_name,
+                "embeds": [embed],
             }
-            response = requests.post(webhook_url, data=payload, files=files, timeout=10)
+            files = {"file": ("screenshot.png", img_byte_arr, "image/png")}
+            response = requests.post(
+                webhook_url,
+                data={"payload_json": json.dumps(payload)},
+                files=files,
+                timeout=15,
+            )
             if response.status_code in (200, 204):
                 self.set_status(f"Discord screenshot sent ({loop_count})")
             else:
                 self.set_status(f"Error: Discord screenshot failed: {response.status_code}")
         except Exception as e:
             self.set_status(f"Error sending Discord screenshot: {e}")
-    def _debug_log_worker(self, text, loop_count, catch_rate):
+
+    def _debug_log_worker(self, text, loop_count):
         """Write debug logs to a text file."""
         try:
             # Use Base Path For Logs
@@ -4290,7 +4376,6 @@ class Api:
                 f"🎣 {text}\n"
                 f"🔄 {loop_count}\n"
                 f"🕐 {timestamp}\n"
-                f"🎯 Catch rate: {catch_rate}\n"
                 "==========\n\n"
             )
             with open(log_file, "a", encoding="utf-8") as f:
@@ -4404,7 +4489,7 @@ class Api:
                     self.stop_macro("")
                 if round(attempts) == attempts and logging_mode != "disabled":
                     if attempts == logging_cycle:
-                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
+                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}")
                     logging_cycle = logging_cycle + attempts
         except Exception as e:
             time.sleep(0.2)
@@ -4518,7 +4603,7 @@ class Api:
                     self.stop_macro("")
                 if round(attempts) == attempts and logging_mode != "disabled":
                     if attempts == logging_cycle:
-                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
+                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}")
                     logging_cycle = logging_cycle + attempts
         except Exception as e:
             time.sleep(0.2)
@@ -4624,7 +4709,7 @@ class Api:
                     self.stop_macro("")
                 if round(attempts) == attempts and logging_mode != "disabled":
                     if attempts == logging_cycle:
-                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}", -1)
+                        self.send_logging("**Attempts Checkpoint**", f"Attempt #{attempts}")
                     logging_cycle = logging_cycle + attempts
             self.set_status("Macro Stopped")
         except Exception as e:
@@ -4672,7 +4757,6 @@ class Api:
             return
 
         # Areas
-        backpack_left, backpack_top, _, _, backpack_width, backpack_height = self.get_areas("backpack")
         quest_left, quest_top, quest_right, quest_bottom, _, _ = self.get_areas("angler_quest")
         backpack_slot = str(self.vars["backpack_slot"])
         # Delays
@@ -4874,12 +4958,13 @@ class Api:
             # 1. Core Config & Modes
             scale = get_scale_factor()
             self.macro_running = True
+            self.session_start = time.time()
             casting_mode = self.vars["casting_mode"].lower()
             shake_mode = self.vars["shake_mode"].lower()
             logging_mode = self.vars["logging_mode"].lower()
             fishing_profile = self.vars["fishing_profile"].lower()
             sovereign_recharge = self.vars["sovereign_recharge"]
-            click_after_minigame = self.vars["click_after_minigame"].lower()
+            click_after_minigame = self.vars["click_after_minigame"]
             target_time = self.vars["target_time"].lower()
             logging_cycle = int(self.vars["logging_cycle"])
             hunt_cycles = int(self.vars["hunt_cycles"])
@@ -4888,11 +4973,11 @@ class Api:
             minimum_percentage = float(self.vars["minimum_percentage"].strip("%"))
             maximum_percentage = float(self.vars["maximum_percentage"].strip("%"))
             # 2. Hotkey & Inventory Slots
-            bag_slot = str(self.vars["bag_slot"])
-            rod_slot = str(self.vars["rod_slot"])
-            sundial_slot = str(self.vars["sundial_slot"])
-            target_slot = str(self.vars["target_slot"])
-            target_slot2 = str(self.vars["target_slot2"])
+            equipment_bag_slot = str(self.vars["equipment_bag_slot"])
+            fishing_rod_slot = str(self.vars["fishing_rod_slot"])
+            sundial_totem_slot = str(self.vars["sundial_totem_slot"])
+            totem_1_slot = str(self.vars["totem_1_slot"])
+            totem_2_slot = str(self.vars["totem_2_slot"])
             relic_slot = str(self.vars["relic_slot"])
             # 3. Delays & Timings
             select_rod_duration = float(self.vars["select_rod_duration"])
@@ -4950,8 +5035,8 @@ class Api:
                 moon_resized = self.auto_crop_template(moon)
             except:
                 self.set_status("Error: Can't find sun.png and moon.png. Auto Totem is disabled.")
-                self.send_logging("Error: Can't find sun.png and moon.png. Auto Totem is disabled.", 0, -1)
-                auto_totem = "off"
+                self.send_logging("Error: Can't find sun.png and moon.png. Auto Totem is disabled.", 0)
+                auto_totem = False
             # 7. Internal Tracking State
             self.scan_delay = 0.1
             self.current_cycle = 0
@@ -4973,13 +5058,15 @@ class Api:
                 pass
 
             # Catch Metrics (0 - Success, 1 - Failed, 2 - N/A Initial State)
-            self.catch_success = 2
+            self.fish_caught = 2
+            self.perfect_catch = 2
             self.catch_rate = 0.0
             successful_catches = 0
+            perfect_catches = 0
             logging_cycle2 = logging_cycle
             hunt_cycles2 = hunt_cycles
             # Fish Overlay
-            if fish_overlay == "on":
+            if fish_overlay == True:
                 # Position The Overlay Just Above Or Below The Fish Bar So It Does
                 # Not Cover The Actual Minigame.  Show() Expects (Left, Top, Width,
                 # Height) In Physical Pixels — Not Right/Bottom.
@@ -4999,7 +5086,7 @@ class Api:
             else:
                 self.fish_overlay.hide()
             # Status Overlay
-            if status_overlay == "on":
+            if status_overlay == True:
                 # Position The Status Overlay At The Top Left, But Avoiding The macOS Menu Offset.
                 self.status_overlay.show(self.status_left, self.status_top, self.status_right, self.status_bottom)
             else:
@@ -5014,15 +5101,15 @@ class Api:
                 self.status_overlay.set_main_status("Resetting Statistics")
                 self.set_status("Resetting statistics")
                 self.capture_id = 0
-                if auto_refresh == "on":
+                if auto_refresh == True:
                     time.sleep(delay_before_casting)
-                    self._send_key(bag_slot)
+                    self._send_key(equipment_bag_slot)
                     self.interruptible_sleep(select_rod_duration)
-                    self._send_key(rod_slot)
+                    self._send_key(fishing_rod_slot)
                     self.interruptible_sleep(delay_after_casting / 2)
                 self.set_status("Using Utilities")
                 # Auto Buy Bait
-                if auto_buy_bait == "on":
+                if auto_buy_bait == True:
                     if bait_cycles == self.current_cycle:
                         self._send_key(buy_bait_slot, bait_move_time)
                         self._click_at(HALF_WIDTH, HALF_HEIGHT)
@@ -5046,7 +5133,7 @@ class Api:
                         self._send_key(fishing_slot, bait_move_time)
                         bait_cycles = self.current_cycle + bait_cycles
                 # Auto Totem
-                if auto_totem == "on":
+                if auto_totem == True:
                     self.status_overlay.set_main_status("Auto Totem")
                     self.set_status("Auto Totem")
                     time.sleep(0.1)
@@ -5058,7 +5145,7 @@ class Api:
                         moon_found, _, moon_confidence = self.image_search_totem(totem, moon_resized)
                         if sun_found == False and moon_found == False:
                             current_time = None
-                            self.send_logging("**Sundial Failed**", f"Cycle #{self.current_cycle}", "N/A")
+                            self.send_logging("**Sundial Failed**", f"Cycle #{self.current_cycle}")
                         elif sun_found == True:
                             current_time = "Day"
                         elif moon_found == True:
@@ -5069,28 +5156,28 @@ class Api:
                             else:
                                 current_time = "Night"
                         if not target_time == current_time:
-                            self._send_key(sundial_slot)
+                            self._send_key(sundial_totem_slot)
                             self._click_at(shake_x, shake_y)
                             self.interruptible_sleep(sundial_delay)
-                            self.send_logging("**Sundial Success**", f"Cycle #{self.current_cycle}", "N/A")
-                    self._send_key(target_slot)
+                            self.send_logging("**Sundial Success**", f"Cycle #{self.current_cycle}")
+                    self._send_key(totem_1_slot)
                     self._click_at(shake_x, shake_y)
                     self.interruptible_sleep(totem_delay)
-                    if second_totem == "on":
-                        self._send_key(target_slot2)
+                    if second_totem == True:
+                        self._send_key(totem_2_slot)
                         self._click_at(shake_x, shake_y)
                         self.interruptible_sleep(totem_delay)
-                    self._send_key(rod_slot)
+                    self._send_key(fishing_rod_slot)
                     time.sleep(delay_after_casting / 4)
-                if auto_reconnect == "on":
+                if auto_reconnect == True:
                     self.status_overlay.set_main_status("Auto Reconnect")
                     self._auto_reconnect(shake_x, shake_y)
-                if hunt_detect == "on":
+                if hunt_detect == True:
                     self.status_overlay.set_main_status("Hunt Detect")
                     if self.current_cycle == hunt_cycles:
                         self.hunt_detect(current_hunt)
                         hunt_cycles = hunt_cycles2 + self.current_cycle
-                if sovereign_recharge == "on":
+                if sovereign_recharge == True:
                     self.status_overlay.set_main_status("Sovereign Recharge")
                     sovereign_img = self.capture_frame[sovereign_top:sovereign_bottom, sovereign_left:sovereign_right]
                     sovereign_right2, _ = self.pixel_search(sovereign_img, sovereign_recharge_color, sovereign_recharge_tolerance)
@@ -5098,7 +5185,7 @@ class Api:
                         distance = round(abs(sovereign_right2 - sovereign_left) / sovereign_width, 2)
                         while distance < maximum_percentage:
                             if distance < minimum_percentage:
-                                self._send_key(rod_slot)
+                                self._send_key(fishing_rod_slot)
                                 time.sleep(0.1)
                                 self._send_key(relic_slot)
                                 self._click_at(enchantment_click_position_x, enchantment_click_position_y)
@@ -5155,7 +5242,8 @@ class Api:
                     else:
                         self._execute_shake_click(shake_mode)
                     time.sleep(self.scan_delay)
-                # Minigame — Sets Self.Catch_Success = 0 At Start; Flips To 1 If Fish Ever Leaves The Bar
+                # Minigame
+                # Set self.fish_caught and self.perfect_catch to defaults before entering
                 time.sleep(animation_delay)
                 if self.macro_running == True:
                     self.set_status("Playing Bar Minigame")
@@ -5170,7 +5258,7 @@ class Api:
                         self.enter_minigame_lullaby()
                     else:
                         self._enter_minigame()
-                    if click_after_minigame == "on":
+                    if click_after_minigame == True:
                         try:
                             time.sleep(select_rod_duration)
                             minigame_click_positions = minigame_click_position.replace(" ", "").split(",")
@@ -5187,13 +5275,15 @@ class Api:
                             pass
 
                 # Update Catch Rate After The Minigame Finishes
-                if self.catch_success == 0:
+                if self.perfect_catch == 0:
+                    perfect_catches += 1
+                if self.fish_caught == 0:
                     successful_catches += 1
                 self.catch_rate = successful_catches / self.current_cycle
-                catch_rate_percentage = int(self.catch_rate * 100)
+                self.perfect_catch_rate = perfect_catches / self.current_cycle
                 if logging_mode != "disabled":
                     if self.current_cycle == logging_cycle:
-                        self.send_logging("**Cycle Checkpoint**", f"Cycle #{self.current_cycle}", catch_rate_percentage)
+                        self.send_logging("**Cycle Checkpoint**", f"Cycle #{self.current_cycle}")
                         logging_cycle = logging_cycle2 + self.current_cycle
             self.stop_macro("")
             return
@@ -5213,7 +5303,7 @@ class Api:
             if IS_COMPILED == False:
                 print(full_error)
             else:
-                self.send_logging(f"Error at line {error_line}: {e}", 0, -1)
+                self.send_logging(f"Error at line {error_line}: {e}", 0)
             self.macro_running = False
             self.stop_macro(f"Error at line {error_line}: {e}")
             return
@@ -5574,7 +5664,7 @@ class Api:
                         if moving_toward_green and local_distance > 0:
                             time_to_impact = local_distance / abs(velocity_y)
                             self.status_overlay.set_line(3, "Time To Impact: ", round(time_to_impact, 2))
-                            # Bounce/Miss Detection: If Tti Suddenly Grows When Very Close, We Passed Green
+                            # Bounce/Miss Detection: If time_to_impact Suddenly Grows When Very Close, We Passed Green
                             bounce_threshold = 40 * scaling_factor
                             if last_time_to_impact is not None and local_distance < bounce_threshold:
                                 if time_to_impact > last_time_to_impact * 1.3:
@@ -5748,13 +5838,13 @@ class Api:
         shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("shake")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
         # Colors
-        left_color = self.vars["left_color"]
+        bar_color = self.vars["bar_color"]
         right_color = self.vars["right_color"]
         arrow_color = self.vars["arrow_color"]
         fish_color = self.vars["fish_color"]
         friend_color = self.vars["friends_color"]
         # Tolerance
-        left_tolerance = int(self.vars["left_tolerance"])
+        bar_tolerance = int(self.vars["bar_tolerance"])
         right_tolerance = int(self.vars["right_tolerance"])
         arrow_tolerance = int(self.vars["arrow_tolerance"])
         fish_tolerance = int(self.vars["fish_tolerance"])
@@ -5781,9 +5871,9 @@ class Api:
         current_note_positions = {}
         initial_note_positions = {}
         # Resize Overlay
-        left_offset = shake_left - int(shake_width / 3.8)
+        leftime_offset = shake_left - int(shake_width / 3.8)
         overlay_width = int(shake_width / 4)
-        self.fish_overlay.resize(left_offset, shake_top, overlay_width, shake_height)
+        self.fish_overlay.resize(leftime_offset, shake_top, overlay_width, shake_height)
         time.sleep(0.5)
         while self.macro_running:
             # Check If Dxcam Is Available
@@ -5878,7 +5968,7 @@ class Api:
                 detected = False
 
                 for color, tolerance in (
-                    (left_color, left_tolerance),
+                    (bar_color, bar_tolerance),
                     (right_color, right_tolerance),
                     (arrow_color, arrow_tolerance),
                     (fish_color, fish_tolerance),
@@ -5936,7 +6026,7 @@ class Api:
         fish_x = int((fish_left + fish_right) / 2)
         fish_y = int((fish_top + fish_bottom) / 2)
         fish_overlay = self.vars["fish_overlay"]
-        if fish_overlay == "on":
+        if fish_overlay == True:
             # Position The Overlay Just Above Or Below The Fish Bar So It Does
             # Not Cover The Actual Minigame.  Show() Expects (Left, Top, Width,
             # Height) In Physical Pixels — Not Right/Bottom.
@@ -5954,20 +6044,20 @@ class Api:
                 overlay_height,
             )
         # Colors
-        left_color = self.vars["left_color"]
+        bar_color = self.vars["bar_color"]
         right_color = self.vars["right_color"]
         arrow_color = self.vars["arrow_color"]
         fish_color = self.vars["fish_color"]
         friends_color = self.vars["friends_color"]
         # Tolerance
         try:
-            left_tolerance = int(self.vars["left_tolerance"])
+            bar_tolerance = int(self.vars["bar_tolerance"])
             right_tolerance = int(self.vars["right_tolerance"])
             arrow_tolerance = int(self.vars["arrow_tolerance"])
             fish_tolerance = int(self.vars["fish_tolerance"])
             friends_tolerance = int(self.vars["friends_tolerance"])
         except:
-            left_tolerance = 8
+            bar_tolerance = 8
             right_tolerance = 8
             arrow_tolerance = 8
             fish_tolerance = 4
@@ -6004,12 +6094,12 @@ class Api:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
             self.fish_overlay.clear()
             fish_x, fish_y = self.pixel_search(fish_img, fish_color, fish_tolerance)
-            left_x, left_y = self.pixel_search(fish_img, left_color, left_tolerance)
+            left_x, left_y = self.pixel_search(fish_img, bar_color, bar_tolerance)
             right_x, right_y = self.pixel_search(fish_img, right_color, right_tolerance, 1)
             if left_x == None:
                 left_x, left_y = self.pixel_search(fish_img, right_color, right_tolerance)
             if right_x == None:
-                right_x, right_y = self.pixel_search(fish_img, left_color, left_tolerance, 1)
+                right_x, right_y = self.pixel_search(fish_img, bar_color, bar_tolerance, 1)
             if left_x is None or right_x is None:
                 detection_source = 1
                 # Bars Not Found  Scan For Arrows
@@ -6076,7 +6166,7 @@ class Api:
                     time.sleep(self.scan_delay)
                     continue
 
-            if lock_cursor == "on":
+            if lock_cursor == True:
                 mouse_controller.position = (int(fish_x / scale), int(fish_y / scale))
             # Draw
             if left_x is not None:
@@ -6122,7 +6212,7 @@ class Api:
         shake_x = int((shake_left + shake_right) / 2)
         shake_y = int((shake_top + shake_bottom) / 2)
         fish_overlay = self.vars["fish_overlay"]
-        if fish_overlay == "on":
+        if fish_overlay == True:
             # Position The Overlay Just Above Or Below The Fish Bar So It Does
             # Not Cover The Actual Minigame.  Show() Expects (Left, Top, Width,
             # Height) In Physical Pixels — Not Right/Bottom.
@@ -6140,20 +6230,20 @@ class Api:
                 overlay_height,
             )
         # Colors
-        left_color = self.vars["left_color"]
+        bar_color = self.vars["bar_color"]
         right_color = self.vars["right_color"]
         arrow_color = self.vars["arrow_color"]
         fish_color = self.vars["fish_color"]
         friends_color = self.vars["friends_color"]
         # Tolerance
         try:
-            left_tolerance = int(self.vars["left_tolerance"])
+            bar_tolerance = int(self.vars["bar_tolerance"])
             right_tolerance = int(self.vars["right_tolerance"])
             arrow_tolerance = int(self.vars["arrow_tolerance"])
             fish_tolerance = int(self.vars["fish_tolerance"])
             friends_tolerance = int(self.vars["friends_tolerance"])
         except:
-            left_tolerance = 8
+            bar_tolerance = 8
             right_tolerance = 8
             arrow_tolerance = 8
             fish_tolerance = 4
@@ -6210,9 +6300,9 @@ class Api:
             if fish_x2 is None:
                 fish_detected2 = False
             # Left And Right Bar Detection
-            left_x1, left_y1 = self.pixel_search(fish_img, left_color, left_tolerance)
+            left_x1, left_y1 = self.pixel_search(fish_img, bar_color, bar_tolerance)
             right_x1, right_y1 = self.pixel_search(fish_img, right_color, right_tolerance, 1)
-            left_x2, left_y2 = self.pixel_search(fish_img2, left_color, left_tolerance)
+            left_x2, left_y2 = self.pixel_search(fish_img2, bar_color, bar_tolerance)
             right_x2, right_y2 = self.pixel_search(fish_img2, right_color, right_tolerance, 1)
             bar_detected = True
             bar_detected2 = True
@@ -6275,9 +6365,9 @@ class Api:
                 bag_spam_cycle = 0
             if bag_spam_cycle == 5:
                 bag_spam_cycle = 0
-                if bag_spam == "on":
+                if bag_spam == True:
                     self._send_key(bag_slot)
-                if lock_cursor == "on":
+                if lock_cursor == True:
                     mouse_controller.position = (int(shake_x / scale), int(shake_y / scale))
             # Restore From Cache
             self.fish_overlay.clear()
@@ -6302,7 +6392,7 @@ class Api:
             right_boundary1 = fish_right - boundary1
             left_boundary2 = fish_left2 + boundary2
             right_boundary2 = fish_right2 - boundary2
-            if fish_overlay == "on":
+            if fish_overlay == True:
                 self.fish_overlay.draw_box(
                     x1=left_x1, y1=fish_height*0.15, x2=right_x1, y2=fish_height*0.85,
                 )
@@ -6389,7 +6479,7 @@ class Api:
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
         # Area Calculations
         fish_overlay = self.vars["fish_overlay"]
-        if fish_overlay == "on":
+        if fish_overlay == True:
             fish_center = int((lullaby_top + lullaby_bottom) / 2)
             if fish_center > HALF_HEIGHT:
                 fish_top_overlay = lullaby_top - fish_height - fish_height
@@ -6404,23 +6494,23 @@ class Api:
                 overlay_height,
             )
         # Colors
-        left_color = self.vars["left_color"]
+        bar_color = self.vars["bar_color"]
         right_color = self.vars["right_color"]
         arrow_color = self.vars["arrow_color"]
         fish_color = self.vars["fish_color"]
         friends_color = self.vars["friends_color"]
         # Convert Hex → Bgr Once (Capture Frames Are Bgr)
-        left_bgr = np.array(self._hex_to_bgr(left_color), dtype=np.int16)
+        left_bgr = np.array(self._hex_to_bgr(bar_color), dtype=np.int16)
         right_bgr = np.array(self._hex_to_bgr(right_color), dtype=np.int16)
         # Tolerance
         try:
-            left_tolerance = int(self.vars["left_tolerance"])
+            bar_tolerance = int(self.vars["bar_tolerance"])
             right_tolerance = int(self.vars["right_tolerance"])
             arrow_tolerance = int(self.vars["arrow_tolerance"])
             fish_tolerance = int(self.vars["fish_tolerance"])
             friends_tolerance = int(self.vars["friends_tolerance"])
         except:
-            left_tolerance = 8
+            bar_tolerance = 8
             right_tolerance = 8
             arrow_tolerance = 8
             fish_tolerance = 4
@@ -6470,7 +6560,7 @@ class Api:
                 left_diff = np.abs(lullaby_pixels - left_bgr)
                 right_diff = np.abs(lullaby_pixels - right_bgr)
                 initial_left_mask = np.all(
-                    left_diff <= left_tolerance,
+                    left_diff <= bar_tolerance,
                     axis=2
                 )
                 initial_right_mask = np.all(
@@ -6540,7 +6630,7 @@ class Api:
                 # Create Current Color Masks Only Inside The Small Area
                 current_pixels = lullaby_img2.astype(np.int16)
                 current_left_mask = np.all(
-                    np.abs(current_pixels - left_bgr) <= left_tolerance,
+                    np.abs(current_pixels - left_bgr) <= bar_tolerance,
                     axis=2
                 )
                 current_right_mask = np.all(
@@ -6635,10 +6725,9 @@ class Api:
         shake_x = int((shake_left + shake_right) / 2)
         shake_y = int((shake_top + shake_bottom) / 2)
         fish_center_x_relative = fish_width / 2
-        fish_center_x = fish_center_x_relative + fish_left
         fish_center_y = int((fish_top + fish_bottom) / 2)
         fish_overlay = self.vars["fish_overlay"]
-        if fish_overlay == "on":
+        if fish_overlay == True:
             # Position The Overlay Just Above Or Below The Fish Bar So It Does
             # Not Cover The Actual Minigame.  Show() Expects (Left, Top, Width,
             # Height) In Physical Pixels — Not Right/Bottom.
@@ -6655,7 +6744,7 @@ class Api:
                 overlay_height,
             )
         # Colors
-        left_color = self.vars["left_color"]
+        bar_color = self.vars["bar_color"]
         right_color = self.vars["right_color"]
         arrow_color = self.vars["arrow_color"]
         fish_color = self.vars["fish_color"]
@@ -6663,14 +6752,14 @@ class Api:
         friends_color = self.vars["friends_color"]
         # Tolerance
         try:
-            left_tolerance = int(self.vars["left_tolerance"])
+            bar_tolerance = int(self.vars["bar_tolerance"])
             right_tolerance = int(self.vars["right_tolerance"])
             arrow_tolerance = int(self.vars["arrow_tolerance"])
             fish_tolerance = int(self.vars["fish_tolerance"])
             pinion_notes_tolerance = int(self.vars["pinion_notes_tolerance"])
             friends_tolerance = int(self.vars["friends_tolerance"])
         except:
-            left_tolerance = 8
+            bar_tolerance = 8
             right_tolerance = 8
             arrow_tolerance = 8
             fish_tolerance = 4
@@ -6678,7 +6767,7 @@ class Api:
             friends_tolerance = 5
         # Minigame Settings
         scale = get_scale_factor()
-        bag_slot = str(self.vars["bag_slot"])
+        bag_slot = str(self.vars["equipment_bag_slot"])
         bag_spam = self.vars["bag_spam"]
         lock_cursor = self.vars["lock_cursor"]
         fishing_mode = self.vars["fishing_mode"].lower()
@@ -6720,7 +6809,6 @@ class Api:
         note_x = 0
         note_y_ratio = 0
         time_delta = 0
-        mouse_delay_counter = 0
         # Failsafe & Previous Frame Tracking (History)
         last_capture_id = 0
         last_fish_x = fish_center_x_relative
@@ -6743,16 +6831,6 @@ class Api:
         last_valid_noiseform_color = None
         zone_x = None
         time.sleep(0.1)
-        # Load Templates for Image Search
-        try:
-            if fishing_mode == "image":
-                left_template = cv2.imread(os.path.join(CONFIGS_PATH, self.active_config, "left_bar.png"))
-                right_template = cv2.imread(os.path.join(CONFIGS_PATH, self.active_config, "right_bar.png"))
-                left_template2 = cv2.imread(os.path.join(CONFIGS_PATH, self.active_config, "left_bar2.png"))
-                right_template2 = cv2.imread(os.path.join(CONFIGS_PATH, self.active_config, "right_bar2.png"))
-                fish_template = cv2.imread(os.path.join(CONFIGS_PATH, self.active_config, "fish.png"))
-        except:
-            fishing_mode = "color" # Fallback
         # Loop
         while self.macro_running:
             current_time = time.perf_counter()
@@ -6788,7 +6866,7 @@ class Api:
                 fish_detected = False
             # Bar Detection (Color Or Line)
             if fishing_mode == "color":
-                left_x, left_y = self.pixel_search(fish_img, left_color, left_tolerance)
+                left_x, left_y = self.pixel_search(fish_img, bar_color, bar_tolerance)
                 # Only scan the bar size once every 10 times the scan delay
                 right_bar_cycle += time_delta
                 if right_bar_cycle > (self.scan_delay * 10):
@@ -6803,7 +6881,7 @@ class Api:
                 if left_x == None:
                     left_x, left_y = self.pixel_search(fish_img, right_color, right_tolerance)
                 if right_x == None:
-                    right_x, right_y = self.pixel_search(fish_img, left_color, left_tolerance, 1)
+                    right_x, right_y = self.pixel_search(fish_img, bar_color, bar_tolerance, 1)
                 # print(f"Raw coordinates: {left_x}, {right_x}, {fish_x}")
                 # Check If We Should Scan For Arrows
                 if left_x is not None and right_x is not None:
@@ -7054,38 +7132,24 @@ class Api:
                     bar_center = (left_x + right_x) / 2.0
                 if fish_x is not None:
                     fish_detected = True
-            elif fishing_mode == "image":
-                try:
-                    left_x, left_y, left_confidence = self.image_search(fish_img, left_template)
-                    right_x, right_y, right_confidence = self.image_search(fish_img, right_template)
-                    if left_x is None:
-                        left_x, left_y, left_confidence = self.image_search(fish_img, left_template2)
-                    if right_x is None:
-                        right_x, right_y, right_confidence = self.image_search(fish_img, right_template2)
-                    fish_x, fish_y, fish_confidence = self.image_search(fish_img, fish_template)
-                    bar_detected = True if left_x is not None and right_x is not None else False
-                    fish_detected = True if fish_x is not None else False
-                    print(left_x, right_x, fish_x)
-                    try:
-                        bar_center = int((left_x + right_x) / 2)
-                        bar_size = right_x - left_x
-                        print(f"Calculation success: {bar_center} and {bar_size}")
-                    except:
-                        bar_center = 0
-                        bar_size = 0
-                        print("Calculation failed: 0 and 0")
-                except:
-                    fishing_mode == "color"
             # Friend And Fish Restart
             if restart_method == "friend_area":
                 friend_x, friend_y = self.pixel_search(friend_img, friends_color, friends_tolerance)
                 if friend_x is not None and friend_y is not None:
+                    # Catch fails if fish stays off the bar and minigame ended
+                    if left_x is not None and right_x is not None and fish_x is not None:
+                        if not (left_x <= fish_x <= right_x):
+                            self.fish_caught = 1
                     self.interruptible_sleep(restart_delay)
                     return
 
             else:
                 try:
                     if fish_x is None:
+                        # Catch fails if fish stays off the bar and minigame ended
+                        if left_x is not None and right_x is not None and fish_x is not None:
+                            if not (left_x <= fish_x <= right_x):
+                                self.fish_caught = 1
                         self.interruptible_sleep(restart_delay)
                         return
 
@@ -7100,9 +7164,9 @@ class Api:
             bag_spam_cycle += 1
             if bag_spam_cycle == 5:
                 bag_spam_cycle = 0
-                if bag_spam == "on":
+                if bag_spam == True:
                     self._send_key(bag_slot, float(self.scan_delay / 3))
-                if lock_cursor == "on":
+                if lock_cursor == True:
                     mouse_controller.position = (int(shake_x / scale), int(shake_y / scale))
             # Restore From Cache
             self.fish_overlay.clear()
@@ -7157,7 +7221,7 @@ class Api:
                         fish_x = note_x
                 else:
                     note_y_ratio = 0.0
-                self.status_overlay.set_line(3, "Note Position: ", note_y_ratio)
+                self.status_overlay.set_line(3, "Note Ratio: ", round(note_y_ratio, 2))
                 # print("Note Ratio: ", note_y_ratio, " Pinion Ratio: ", pinion_note_ratio)
                 # print("Fish: ", fish_x, " Note: ", note_x)
             else:
@@ -7202,7 +7266,7 @@ class Api:
                 bar_size = right_x - left_x
                 bar_center = (left_x + right_x) / 2.0
             # Fish Overlay
-            if fish_overlay == "on":
+            if fish_overlay == True:
                 if fishing_mode == "color":
                     self.fish_overlay.draw_box(
                         x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green",
@@ -7236,15 +7300,6 @@ class Api:
             time_delta = current_time - last_time
             if time_delta < 0.001:
                 time_delta = 0.001
-            # Reset PID state after switched targets to note
-            if fishing_profile == "notes":
-                if fish_x == note_x:
-                    if last_fish_x != note_x:
-                        last_error = 0
-            elif fishing_profile == "shapes":
-                if fish_x == zone_x:
-                    if last_fish_x != zone_x:
-                        last_error = 0
             # print("(left_x - last_left_x) / time_delta:", (left_x - last_left_x) / self.scan_delay)
             if fish_x is not None:
                 error = fish_x - bar_center
@@ -7266,10 +7321,9 @@ class Api:
                         p_term = int(error / p_term_multiplier) * kp
                         d_term = ((error - last_error) / time_delta) * kd
                         control_signal = p_term + d_term
-                        # print("error - last_error: ", error - last_error)
-                        # print("time_delta: ", time_delta)
-                        # print("p_term: ", p_term)
-                        # print("d_term: ", d_term)
+                        # Tracking Override: If notes are detected use simple tracking
+                        if fishing_profile == "notes" and not left_x <= fish_x <= right_x:
+                            control_signal = error
                         last_error = error
                 elif controller_mode == "steady":
                     # Steady: Asymmetric Pd Controller With Asymmetric Damping
@@ -7285,12 +7339,19 @@ class Api:
                             (bar_velocity > 0 and error > 0)
                             or (bar_velocity < 0 and error < 0)
                         )
-                        if note_y_ratio > pinion_note_ratio:
-                            steady_kd_multiplier = 0.5
-                        elif error_magnitude_decreasing and bar_moving_toward_target:
+                        if error_magnitude_decreasing and bar_moving_toward_target:
                             steady_kd_multiplier = 5.0
                         else:
                             steady_kd_multiplier = 0.2
+                        # Tracking Override: If notes are detected the KD multiplier 
+                        # is calculated based on error
+                        if fishing_profile == "notes":
+                            pinion_error = min(300, abs(error))
+                            pinion_error_ratio = abs(pinion_error - 300) / 60
+                            if pinion_error_ratio < 0.5:
+                                steady_kd_multiplier = 0
+                            else:
+                                steady_kd_multiplier = pinion_error_ratio
                         d_term = ((error - last_error) / time_delta) * kd * steady_kd_multiplier
                         control_signal = p_term + d_term
                         last_error = error
@@ -7339,13 +7400,6 @@ class Api:
                         control_signal = -30
                     # Calculate Stopping Distance Based On Relative Velocity
                     stopping_distance2 = abs(relative_velocity) * stopping_distance
-                    # Debug
-                    # print("raw_bar_velocity: ", round(raw_bar_velocity, 2), "raw_target_velocity: ", round(raw_target_velocity, 2))
-                    # print("time_delta: ", round(time_delta, 2))
-                    # print("color_check_bar_velocity: ", round(color_check_bar_velocity, 2))
-                    # print("color_check_target_velocity: ", round(color_check_target_velocity, 2))
-                    # print("relative_velocity: ", round(relative_velocity, 2))
-                    # print("stopping_distance: ", round(stopping_distance2, 2))
                     if left_x <= fish_x <= right_x:
                         # On-bar: Use Stopping-distance / Counter-thrust Logic
                         if error > stopping_distance2:
@@ -7392,16 +7446,7 @@ class Api:
                 last_bar_center = bar_center
                 last_bar_size = bar_size
             if fish_detected == True:
-                # Notes/shapes override fish_x onto a special target.
-                # Do not cache that override as last_fish_x, so the real
-                # fish position is restored when the note/zone disappears
-                # and PID last_error can reset on the switch.
-                tracking_override = (
-                    (fishing_profile == "notes" and note_x is not None and fish_x == note_x)
-                    or (fishing_profile == "shapes" and zone_x is not None and fish_x == zone_x)
-                )
-                if not tracking_override:
-                    last_fish_x = fish_x
+                last_fish_x = fish_x
             last_time = current_time
             # Cleanup
             is_initial_run = False
@@ -7462,9 +7507,9 @@ def check_setup_guide():
     try:
         with open(os.path.join(UI_PATH, "index.html"), "r", encoding="utf-8-sig") as file:
             lines = file.readline().strip()
-        with open(os.path.join(UI_PATH, "style.css"), "r", encoding="utf-8-sig") as file:
+        with open(os.path.join(UI_PATH, "styles.css"), "r", encoding="utf-8-sig") as file:
             lines = file.readline().strip()
-        with open(os.path.join(UI_PATH, "app.js"), "r", encoding="utf-8-sig") as file:
+        with open(os.path.join(UI_PATH, "script.js"), "r", encoding="utf-8-sig") as file:
             lines = file.readline().strip()
     except FileNotFoundError:
         open_folder_choice = messagebox.askyesno("Missing Files", """Your installation is missing the images or UI folder.
@@ -7475,7 +7520,7 @@ def check_setup_guide():
         return False
 
     try:
-        with open(os.path.join(UI_PATH, "app.js"), "r", encoding="utf-8-sig") as file:
+        with open(os.path.join(UI_PATH, "script.js"), "r", encoding="utf-8-sig") as file:
             # Read First Two Lines
             lines = [file.readline().strip() for _ in range(3)]
             # Parse First Line For App_Version
@@ -7535,9 +7580,12 @@ window = webview.create_window(
     f"Solar Fishing V{APP_VERSION}",
     os.path.join(UI_PATH, "index.html"),
     js_api=api,
+    width=800,
+    height=600,
+    frameless=True,
+    easy_drag=False,
+    focus=True,
     text_select=True,
-    width=1000,
-    height=700
 )
 window.events.closed += on_closed
 webview.start()

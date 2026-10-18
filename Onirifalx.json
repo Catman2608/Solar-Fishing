@@ -1,0 +1,23 @@
+{
+  "format": "alware-custom-rod",
+  "version": 1,
+  "name": "Onirifalx",
+  "profile": {
+    "fish_hex": "#000000",
+    "fish_hex_2": "",
+    "fish_hex_3": "",
+    "bar_left_hex": "#B3E3FD",
+    "bar_left_hex_2": "",
+    "bar_left_hex_3": "",
+    "bar_right_hex": "#5A7CA8",
+    "bar_right_hex_2": "",
+    "bar_right_hex_3": "",
+    "detection_mode": "Color",
+    "fish_min_height": "5",
+    "fish_tolerance": "0",
+    "bar_tolerance": "10",
+    "bar_bar_tolerance": "0",
+    "bar_right_tolerance": "3",
+    "bar_color_pair_3_enabled": false
+  }
+}
