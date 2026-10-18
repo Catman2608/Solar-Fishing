@@ -1,0 +1,20 @@
+{
+    "last_config": "Pinion Aria",
+    "bar_areas": {
+        "shake": null,
+        "fish": null,
+        "friend": null,
+        "totem": null,
+        "sovereign": null,
+        "noiseform": null,
+        "lullaby": null,
+        "chat": null,
+        "treasure_appraisal": null,
+        "appraisal_hotbar": null,
+        "enchantment": null,
+        "angler_quest": null
+    },
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7"
+}

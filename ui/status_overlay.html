@@ -32,13 +32,23 @@
         box-sizing: border-box;
     }
 
+    .status-main-text {
+        color: #f3f4f6;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .status-panel {
         width: 100%;
         height: 100%;
         padding: 12px 14px;
         background: rgba(30, 30, 40, 0.9);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 0px;  /* Remove rounded corners */
+        border-radius: 2px;
         display: flex;
         flex-direction: column;
         box-sizing: border-box;
@@ -55,40 +65,20 @@
     .status-main {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 7px 10px;
+        height: 26px;
+        padding: 0 12px;
         margin-bottom: 10px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 8px;
+        background: #3a3220;
+        border: none;
+        border-radius: 3px;
         flex-shrink: 0;
-    }
-
-    .status-dot {
-        width: 8px;
-        height: 8px;
-        background-color: #10b981;
-        border-radius: 50%;
-        box-shadow: 0 0 8px #10b981;
-        flex-shrink: 0;
-        animation: status-pulse 2s infinite ease-in-out;
-    }
-
-    .status-main-text {
-        color: #9ca3af;
-        font-size: 13px;
-        font-weight: 500;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
 
     .status-lines {
         display: flex;
         flex-direction: column;
         gap: 5px;
-        flex: 1;
-        justify-content: center;
+        /* removed flex: 1 and justify-content: center */
     }
 
     .status-line {
@@ -129,11 +119,10 @@
     <div class="status-panel">
 
         <div id="status-title" class="status-title">
-            Solar Fishing V5.12
+            Solar Fishing V5.2
         </div>
 
         <div class="status-main">
-            <span class="status-dot"></span>
             <span id="status-label" class="status-main-text">
                 Macro Stopped
             </span>
@@ -153,6 +142,11 @@
             <div class="status-line">
                 <span id="status-line3-label" class="status-label">Stop Key</span>
                 <span id="status-line3" class="status-value">F7</span>
+            </div>
+
+            <div class="status-line">
+                <span id="status-line4-label" class="status-label">Screenshot Key</span>
+                <span id="status-line4" class="status-value">F8</span>
             </div>
         </div>
 
@@ -175,12 +169,13 @@ window.statusOverlay = {
     },
 
     clear() {
-        this.setTitle("Solar Fishing V5.12");
+        this.setTitle("Solar Fishing V5.2");
         this.setMainStatus("Macro Stopped");
 
         this.setLine(1, "Start Key", "F5");
         this.setLine(2, "Area Selector Key", "F6");
         this.setLine(3, "Stop Key", "F7");
+        this.setLine(4, "Screenshot Key", "F8");
     }
 };
 

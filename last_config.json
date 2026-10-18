@@ -1,87 +1,35 @@
 {
     "last_config": "Default",
-    "start_key": "F5",
-    "area_selector_key": "F6",
-    "stop_key": "F7",
-    "last_rod": "Basic Rod",
     "bar_areas": {
         "shake": {
-            "x": 0.10462083333333333,
-            "y": 0.13787037037037037,
-            "width": 0.7917,
-            "height": 0.6963
+            "x": 0.1041,
+            "y": 0.0963,
+            "width": 0.7916999999999998,
+            "height": 0.7245
         },
         "fish": {
-            "x": 0.2995041666666667,
-            "y": 0.8416185185185185,
-            "width": 0.40417916666666664,
-            "height": 0.0389
+            "x": 0.2844,
+            "y": 0.8294,
+            "width": 0.4297,
+            "height": 0.0404
         },
         "friend": {
-            "x": 0.002516666666666667,
-            "y": 0.9055222222222221,
+            "x": 0.004600000000000001,
+            "y": 0.893,
             "width": 0.0355,
-            "height": 0.0817
+            "height": 0.08500000000000002
         },
-        "totem": {
-            "x": 0.9509208333333333,
-            "y": 0.869388888888889,
-            "width": 0.0234,
-            "height": 0.049
-        },
-        "sovereign": {
-            "x": 0.2844,
-            "y": 0.8184,
-            "width": 0.4297,
-            "height": 0.0185
-        },
-        "noiseform": {
-            "x": 0.4222,
-            "y": 0.3543,
-            "width": 0.2056,
-            "height": 0.2762
-        },
-        "lullaby": {
-            "x": 0.4222,
-            "y": 0.7043,
-            "width": 0.1556,
-            "height": 0.136
-        },
-        "chat": {
-            "x": 0.003,
-            "y": 0.0683,
-            "width": 0.2536,
-            "height": 0.3323
-        },
-        "backpack": {
-            "x": 0.3373,
-            "y": 0.6108,
-            "width": 0.3254,
-            "height": 0.2656
-        },
-        "treasure_appraisal": {
-            "x": 0.3343,
-            "y": 0.4156,
-            "width": 0.3385,
-            "height": 0.1629
-        },
-        "appraisal_hotbar": {
-            "x": 0.5529,
-            "y": 0.8905,
-            "width": 0.0373,
-            "height": 0.06189999999999999
-        },
-        "enchantment": {
-            "x": 0.3061,
-            "y": 0.3932,
-            "width": 0.36489999999999995,
-            "height": 0.1674
-        },
-        "angler_quest": {
-            "x": 0.0139,
-            "y": 0.5006,
-            "width": 0.2316,
-            "height": 0.1276
-        }
-    }
+        "totem": null,
+        "sovereign": null,
+        "noiseform": null,
+        "lullaby": null,
+        "chat": null,
+        "treasure_appraisal": null,
+        "appraisal_hotbar": null,
+        "enchantment": null,
+        "angler_quest": null
+    },
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7"
 }
