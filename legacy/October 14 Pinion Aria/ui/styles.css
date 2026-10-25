@@ -157,8 +157,8 @@ body {
 button,
 select,
 input {
-    font-family: inherit;
-    color: inherit;
+    font-family: var(--font-family);
+    color: var(--font-family);
     color-scheme: dark;
 }
 
@@ -320,7 +320,7 @@ input {
     background: transparent;
     color: var(--text-muted);
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     text-align: left;
     cursor: pointer;
@@ -401,7 +401,7 @@ input {
 
 .config-section label {
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     color: var(--text-muted);
     white-space: nowrap;
@@ -417,7 +417,7 @@ input {
     background: var(--bg-input);
     color: var(--text-primary);
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     outline: none;
 
@@ -498,7 +498,7 @@ input {
     content: "•";
     margin-left: 10px;
     color: var(--text-subtle);
-    font-weight: 300;
+    font-weight: 450;
 }
 
 .panel-header .description {
@@ -506,7 +506,7 @@ input {
     min-width: 0;
     margin: 0;
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     line-height: 1.35;
     color: var(--text-secondary);
@@ -578,7 +578,7 @@ input {
 
 .text label {
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     color: var(--text-label);
     white-space: nowrap;
@@ -634,7 +634,7 @@ input {
     outline: none;
     width: 120px;
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     transition: all 0.2s ease;
     margin-left: auto;
@@ -658,7 +658,7 @@ input {
 
 .switch2 p {
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     color: var(--text-label);
 }
@@ -727,7 +727,7 @@ input {
 .dropdown label,
 .hotkey-row span {
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     color: var(--text-label);
 }
@@ -741,7 +741,7 @@ select {
     background-color: var(--bg-input);
     color: var(--text-primary);
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     outline: none;
 
@@ -869,7 +869,7 @@ select option {
     border-radius: 2px;
     background: #5a5a5a;
     color: #ffffff;
-    font: inherit;
+    font: var(--font-family);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.4px;
@@ -894,7 +894,7 @@ select option {
     border-radius: 2px;
     background: #3a3a3a;
     color: #f1f1f1;
-    font: inherit;
+    font: var(--font-family);
     font-size: 12px;
     font-weight: 600;
     text-align: center;
@@ -956,7 +956,7 @@ select option {
 .slider-row > p {
     flex: 0 0 132px;
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     color: var(--text-label);
     white-space: nowrap;
@@ -1027,7 +1027,7 @@ select option {
     background: var(--bg-input);
     color: var(--text-primary);
     font-size: 12px;
-    font-weight: 300;
+    font-weight: 450;
     letter-spacing: 0.3px;
     text-align: right;
     outline: none;

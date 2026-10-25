@@ -28,6 +28,7 @@ const canvas = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
 let shapes = [];
 let boxes = {};
+let robloxRect = null;
 let drag = null;
 let lastIpc = 0;
 let saveRequested = false;
@@ -207,6 +208,23 @@ function draw() {
         ctx.fillStyle = "white";
         for (const [px, py] of points) ctx.fillRect(px - HANDLE / 2, py - HANDLE / 2, HANDLE, HANDLE);
     }
+    // Cyan outline for the detected Roblox window (or full-screen fallback)
+    if (robloxRect) {
+        const r = robloxRect;
+        const rw = r.width != null ? r.width : (r.w || 0);
+        const rh = r.height != null ? r.height : (r.h || 0);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = r.color || "#00FFFF";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(r.x, r.y, rw, rh);
+        if (r.label) {
+            ctx.font = "bold 13px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            ctx.fillStyle = r.color || "#00FFFF";
+            ctx.fillText(r.label, r.x + rw / 2, Math.max(13, b.y - 5));
+        }
+    }
     ctx.globalAlpha = 1;
 }
 
@@ -307,6 +325,10 @@ window.addEventListener("blur", () => { drag = null; });
 window.fishOverlay = {
     setBoxes(value) {
         boxes = value || {};
+        draw();
+    },
+    setRobloxRect(value) {
+        robloxRect = value || null;
         draw();
     },
     draw(shape) {

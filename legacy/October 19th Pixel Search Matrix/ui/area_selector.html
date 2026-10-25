@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+        width: 100%;
+        height: 100%;
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        user-select: none;
+        background: #000;
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        cursor: crosshair;
+    }
+</style>
+</head>
+<body>
+<canvas id="overlay"></canvas>
+<script>
+const canvas = document.getElementById("overlay");
+const ctx = canvas.getContext("2d");
+let shapes = [];
+let boxes = {};
+let drag = null;
+let lastIpc = 0;
+let saveRequested = false;
+const MIN_SIZE = 12;
+const HANDLE = 10;
+let screenshotImg = null;
+let screenshotReady = false;
+
+function handleAt(x, y, b) {
+    if (!b) return null;
+    const w = b.width != null ? b.width : (b.w || 0);
+    const h = b.height != null ? b.height : (b.h || 0);
+    const points = {
+        nw: [b.x, b.y], n: [b.x + w / 2, b.y], ne: [b.x + w, b.y],
+        w: [b.x, b.y + h / 2], e: [b.x + w, b.y + h / 2],
+        sw: [b.x, b.y + h], s: [b.x + w / 2, b.y + h], se: [b.x + w, b.y + h]
+    };
+    for (const [name, [hx, hy]] of Object.entries(points))
+        if (Math.abs(x - hx) <= HANDLE + 3 && Math.abs(y - hy) <= HANDLE + 3) return name;
+    return null;
+}
+
+function boxAt(x, y) {
+    const names = Object.keys(boxes).reverse();
+    for (const name of names) {
+        const b = boxes[name];
+        if (!b) continue;
+        const w = b.width != null ? b.width : (b.w || 0);
+        const h = b.height != null ? b.height : (b.h || 0);
+        if (x >= b.x && x <= b.x + w && y >= b.y && y <= b.y + h) return name;
+    }
+    return null;
+}
+
+function cursorFor(handle) {
+    return {
+        nw: "nw-resize", n: "n-resize", ne: "ne-resize",
+        w: "w-resize", e: "e-resize",
+        sw: "sw-resize", s: "s-resize", se: "se-resize"
+    }[handle] || "default";
+}
+
+window.addEventListener("pywebviewready", () => {
+    try {
+        pywebview.api.window_ready(
+            window.screenX,
+            window.screenY,
+            window.innerWidth,
+            window.innerHeight
+        );
+    } catch (e) {}
+    loadScreenshot();
+});
+
+function loadScreenshot() {
+    if (!window.pywebview || !pywebview.api || !pywebview.api.get_screenshot_data) return;
+    pywebview.api.get_screenshot_data().then(dataUrl => {
+        if (!dataUrl) {
+            screenshotReady = false;
+            draw();
+            return;
+        }
+        const img = new Image();
+        img.onload = () => {
+            screenshotImg = img;
+            screenshotReady = true;
+            draw();
+        };
+        img.onerror = () => {
+            screenshotReady = false;
+            draw();
+        };
+        img.src = dataUrl;
+    }).catch(() => {
+        screenshotReady = false;
+        draw();
+    });
+}
+
+// Called from Python after window_ready as a secondary trigger
+window.__applyScreenshot = function () {
+    loadScreenshot();
+};
+
+function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, window.innerWidth || 1);
+    const h = Math.max(1, window.innerHeight || 1);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+}
+
+function draw() {
+    const w = window.innerWidth || canvas.width || 1;
+    const h = window.innerHeight || canvas.height || 1;
+    ctx.clearRect(0, 0, w, h);
+
+    if (screenshotReady && screenshotImg) {
+        ctx.drawImage(screenshotImg, 0, 0, w, h);
+    } else {
+        ctx.fillStyle = "#1a1a1a";
+        ctx.fillRect(0, 0, w, h);
+    }
+
+    for (const shape of shapes) {
+        const x = Math.min(shape.x1, shape.x2);
+        const y = Math.min(shape.y1, shape.y2);
+        const width = Math.abs(shape.x2 - shape.x1);
+        const height = Math.abs(shape.y2 - shape.y1);
+
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = shape.color;
+        ctx.fillRect(x, y, width, height);
+
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = shape.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, width, height);
+
+        if (shape.show_bar_center) {
+            const center_x = x + width / 2;
+            ctx.beginPath();
+            ctx.moveTo(center_x, y);
+            ctx.lineTo(center_x, y + height);
+            ctx.strokeStyle = "gray";
+            ctx.lineWidth = 4;
+            ctx.stroke();
+        }
+
+        // Label
+        if (shape.label) {
+            ctx.font = "bold 13px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            ctx.fillStyle = shape.color;
+            ctx.fillText(shape.label, x + width / 2, Math.max(13, y - 5));
+        }
+
+        // Corner / edge handles
+        const points = [
+            [x, y], [x + width / 2, y], [x + width, y],
+            [x, y + height / 2], [x + width, y + height / 2],
+            [x, y + height], [x + width / 2, y + height], [x + width, y + height]
+        ];
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "white";
+        for (const [px, py] of points) {
+            const hx = px - HANDLE / 2;
+            const hy = py - HANDLE / 2;
+            ctx.fillRect(hx, hy, HANDLE, HANDLE);
+            ctx.strokeRect(hx, hy, HANDLE, HANDLE);
+        }
+    }
+    for (const b of Object.values(boxes)) {
+        if (!b) continue;
+        const bw = b.width != null ? b.width : (b.w || 0);
+        const bh = b.height != null ? b.height : (b.h || 0);
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = b.color || "#00aaff";
+        ctx.fillRect(b.x, b.y, bw, bh);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = b.color || "#00aaff";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(b.x, b.y, bw, bh);
+        if (b.label) {
+            ctx.font = "bold 13px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            ctx.fillStyle = b.color || "#00aaff";
+            ctx.fillText(b.label, b.x + bw / 2, Math.max(13, b.y - 5));
+        }
+        const points = [[b.x, b.y], [b.x + bw / 2, b.y], [b.x + bw, b.y],
+            [b.x, b.y + bh / 2], [b.x + bw, b.y + bh / 2],
+            [b.x, b.y + bh], [b.x + bw / 2, b.y + bh], [b.x + bw, b.y + bh]];
+        ctx.fillStyle = "white";
+        for (const [px, py] of points) ctx.fillRect(px - HANDLE / 2, py - HANDLE / 2, HANDLE, HANDLE);
+    }
+    ctx.globalAlpha = 1;
+}
+
+canvas.addEventListener("mousemove", e => {
+    const x = e.clientX, y = e.clientY;
+    if (drag) {
+        const b = boxes[drag.name], o = drag.original;
+        if (!b || !o) { drag = null; return; }
+        const dx = x - drag.x, dy = y - drag.y, h = drag.handle;
+        const ow = o.width != null ? o.width : (o.w || 0);
+        const oh = o.height != null ? o.height : (o.h || 0);
+        if (h === "move") {
+            b.x = o.x + dx;
+            b.y = o.y + dy;
+        } else {
+            if (h.includes("w")) { b.x = o.x + dx; b.width = ow - dx; }
+            if (h.includes("e")) b.width = ow + dx;
+            if (h.includes("n")) { b.y = o.y + dy; b.height = oh - dy; }
+            if (h.includes("s")) b.height = oh + dy;
+            if ((b.width || 0) < MIN_SIZE) {
+                if (h.includes("w")) b.x = o.x + ow - MIN_SIZE;
+                b.width = MIN_SIZE;
+            }
+            if ((b.height || 0) < MIN_SIZE) {
+                if (h.includes("n")) b.y = o.y + oh - MIN_SIZE;
+                b.height = MIN_SIZE;
+            }
+        }
+        draw();
+        return;
+    }
+    const name = boxAt(x, y), b = name && boxes[name], h = b && handleAt(x, y, b);
+    canvas.style.cursor = h ? cursorFor(h) : (name ? "move" : "default");
+});
+
+canvas.addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    if (e.target.closest && e.target.closest("#panel")) return;
+    const name = boxAt(e.clientX, e.clientY);
+    if (!name) return;
+    const b = boxes[name];
+    drag = {
+        name,
+        handle: handleAt(e.clientX, e.clientY, b) || "move",
+        x: e.clientX, y: e.clientY,
+        original: { ...b }
+    };
+});
+
+function finishDrag() {
+    if (!drag) return;
+    drag = null;
+    lastIpc = 0;
+}
+
+function saveAndClose() {
+    if (saveRequested) return;
+    if (!window.pywebview || !pywebview.api || !pywebview.api.save_areas) {
+        console.error("Area selector save API is unavailable.");
+        return;
+    }
+    const out = {};
+    for (const [name, b] of Object.entries(boxes)) {
+        if (!b) continue;
+        out[name] = {
+            x: b.x,
+            y: b.y,
+            width: b.width != null ? b.width : (b.w || 0),
+            height: b.height != null ? b.height : (b.h || 0)
+        };
+    }
+    saveRequested = true;
+    try {
+        const result = pywebview.api.save_areas(out);
+        if (result && typeof result.catch === "function") {
+            result.catch(error => {
+                saveRequested = false;
+                console.error("Failed to save area selector boxes:", error);
+            });
+        }
+    } catch (error) {
+        saveRequested = false;
+        console.error("Failed to save area selector boxes:", error);
+    }
+}
+
+document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+        e.preventDefault();
+        saveAndClose();
+    }
+});
+
+window.addEventListener("beforeunload", saveAndClose);
+window.addEventListener("mouseup", finishDrag);
+window.addEventListener("blur", () => { drag = null; });
+
+window.fishOverlay = {
+    setBoxes(value) {
+        boxes = value || {};
+        draw();
+    },
+    draw(shape) {
+        shapes.push(shape);
+        draw();
+    },
+    clear() {
+        shapes = [];
+        draw();
+    },
+    saveAndClose
+};
+
+window.addEventListener("resize", resize);
+resize();
+</script>
+</body>
+</html>

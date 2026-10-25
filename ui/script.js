@@ -1,6 +1,12 @@
 const APP_VERSION = "5.2";
 const BETA_VERSION = "0";
 const DEVELOPER = "Catman2608";
+
+// Expose for Python version check via evaluate_js
+window.APP_VERSION = APP_VERSION;
+window.BETA_VERSION = BETA_VERSION;
+window.DEVELOPER = DEVELOPER;
+
 const validHexColor = /^#([0-9A-F]{3}|[0-9A-F]{6})$/i;
 
 let currentConfig = "";
@@ -26,6 +32,24 @@ document.querySelectorAll(".tab-button").forEach((button) => {
 
 function _pyApi() {
     return window.pywebview && window.pywebview.api ? window.pywebview.api : null;
+}
+
+
+async function detectRoblox() {
+    const api = _pyApi();
+    if (!api || typeof api.detect_roblox !== "function") {
+        setStatus("Detect Roblox not available");
+        return;
+    }
+    try {
+        const info = await api.detect_roblox();
+        if (info && typeof info.left !== "undefined") {
+            setStatus(`Roblox: left=${info.left}, top=${info.top}, width=${info.width}, height=${info.height}`);
+        }
+    } catch (e) {
+        setStatus("Error detecting Roblox window");
+        console.error(e);
+    }
 }
 
 async function closeWindow() {
@@ -820,7 +844,7 @@ function createColorOption(group, index) {
         <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('${colorId}')" title="Add color" aria-label="Add color" style="display: none;">
             <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
         </button>
-        <button class="color-icon-btn" type="button" onclick="removeColor('${colorId}')" title="Remove color" aria-label="Remove color">
+        <button class="color-icon-btn remove-color-btn" type="button" onclick="removeColor('${colorId}')" title="Remove color" aria-label="Remove color">
             <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
         </button>
     `;
@@ -870,10 +894,17 @@ function updateColorButtons(group) {
     const container = document.getElementById(group.containerId);
     if (!container) return;
     const options = container.querySelectorAll(".color-option");
+    const single = options.length <= 1;
     options.forEach((option, i) => {
         const addBtn = option.querySelector(".add-color-btn");
         if (addBtn) {
             addBtn.style.display = (i === options.length - 1) ? "" : "none";
+        }
+        // Hide delete when there is only one color — it does nothing.
+        const removeBtn = option.querySelector(".remove-color-btn")
+            || option.querySelector("button[onclick^='removeColor']");
+        if (removeBtn) {
+            removeBtn.style.display = single ? "none" : "";
         }
     });
 }
@@ -947,23 +978,31 @@ function hexBrightness(hex) {
 }
 
 function updateAccentColor() {
-    const leftElement = document.getElementById("bar_color");
-    const rightElement = document.getElementById("right_color");
+    // Sample from bar color inputs: bar_color, bar_color_2, bar_color_3, ...
+    // Falls back to fish_color then arrow_color if no valid bar colors exist.
+    const barColors = [];
+    const first = document.getElementById("bar_color");
+    if (first) barColors.push(first);
+    
+    // Find any additional bar color inputs (bar_color_2, bar_color_3, ...)
+    let i = 2;
+    while (true) {
+        const el = document.getElementById(`bar_color_${i}`);
+        if (!el) break;
+        barColors.push(el);
+        i++;
+    }
+
+    const getVal = (el) => el ? (el.value || el.placeholder || "").trim() : "";
     const fishElement = document.getElementById("fish_color");
-    
-    // Safely get values
     const arrowElement = document.getElementById("arrow_color");
-    const left = leftElement ? (leftElement.value || leftElement.placeholder || "").trim() : "";
-    const right = rightElement ? (rightElement.value || rightElement.placeholder || "").trim() : "";
-    const fish = fishElement ? (fishElement.value || fishElement.placeholder || "").trim() : "";
-    const arrow = arrowElement ? (arrowElement.value || arrowElement.placeholder || "").trim() : "";
-    
-    // Normalize colors
-    const normalizedLeft = normalizeHexColor(left);
-    const normalizedRight = normalizeHexColor(right);
-    const normalizedFish = normalizeHexColor(fish);
-    const normalizedArrow = normalizeHexColor(arrow);
-    
+
+    const normalizedBar = barColors
+        .map(el => normalizeHexColor(getVal(el)))
+        .filter(Boolean);
+    const normalizedFish = normalizeHexColor(getVal(fishElement));
+    const normalizedArrow = normalizeHexColor(getVal(arrowElement));
+
     // Helper: is a color too neutral (white/gray/black)?
     function isTooNeutral(hex) {
         if (!hex) return true;
@@ -976,39 +1015,33 @@ function updateAccentColor() {
         const isBlack = brightness < 15;
         return isWhite || isBlack || isGray;
     }
-    
-    const leftValid = !isTooNeutral(normalizedLeft);
-    const rightValid = !isTooNeutral(normalizedRight);
-    const fishValid = !isTooNeutral(normalizedFish);
-    const arrowValid = !isTooNeutral(normalizedArrow);
-    
+
+    // Filter to only "usable" bar colors
+    const usable = normalizedBar.filter(hex => !isTooNeutral(hex));
+
     let leftGradient = "#fa6b35";
     let rightGradient = "#fa6b35";
-    let accentColor = "#fa6b35"; // Always a valid hex color
+    let accentColor = "#fa6b35";
     let isGradient = false;
-    
-    if (leftValid && rightValid) {
-        // Both sides valid → gradient
-        leftGradient = normalizedLeft;
-        rightGradient = normalizedRight;
-        accentColor = normalizedLeft; // Use left color for accent
+
+    if (usable.length >= 2) {
+        // Two or more usable bar colors → gradient using first two
+        leftGradient = usable[0];
+        rightGradient = usable[1];
+        accentColor = usable[0];
         isGradient = true;
-    } else if (leftValid) {
-        // Only left valid → static
-        leftGradient = normalizedLeft;
-        rightGradient = normalizedLeft;
-        accentColor = normalizedLeft;
-    } else if (rightValid) {
-        // Only right valid → static
-        leftGradient = normalizedRight;
-        rightGradient = normalizedRight;
-        accentColor = normalizedRight;
-    } else if (fishValid) {
-        // Fallback to fish
+    } else if (usable.length === 1) {
+        // Only one usable bar color → static
+        leftGradient = usable[0];
+        rightGradient = usable[0];
+        accentColor = usable[0];
+    } else if (!isTooNeutral(normalizedFish)) {
+        // Fallback to fish color
         leftGradient = normalizedFish;
         rightGradient = normalizedFish;
         accentColor = normalizedFish;
-    } else if (arrowValid) {
+    } else if (!isTooNeutral(normalizedArrow)) {
+        // Fallback to arrow color
         leftGradient = normalizedArrow;
         rightGradient = normalizedArrow;
         accentColor = normalizedArrow;
@@ -1018,47 +1051,26 @@ function updateAccentColor() {
         rightGradient = "#fa6b35";
         accentColor = "#fa6b35";
     }
-    
+
     // Apply CSS variables
     document.documentElement.style.setProperty("--left-gradient", leftGradient);
     document.documentElement.style.setProperty("--right-gradient", rightGradient);
     document.documentElement.style.setProperty("--accent-color", accentColor);
-    
+
     // Glow version – use left color if gradient, otherwise the static color
-    const glowBase = isGradient ? normalizedLeft : accentColor;
-    const r = parseInt(glowBase.substr(1,2), 16);
-    const g = parseInt(glowBase.substr(3,2), 16);
-    const b = parseInt(glowBase.substr(5,2), 16);
-    document.documentElement.style.setProperty(
-        "--accent-glow",
-        `rgba(${r}, ${g}, ${b}, 0.4)`
-    );
-    document.documentElement.style.setProperty(
-        "--focus-glow",
-        `rgba(${r}, ${g}, ${b}, 0.28)`
-    );
-    document.documentElement.style.setProperty(
-        "--focus-ring",
-        `rgba(${r}, ${g}, ${b}, 0.75)`
-    );
-    document.documentElement.style.setProperty(
-        "--border-soft",
-        `rgba(${r}, ${g}, ${b}, 0.3)`
-    );
-    document.documentElement.style.setProperty(
-        "--border-medium",
-        `rgba(${r}, ${g}, ${b}, 0.25)`
-    );
-    document.documentElement.style.setProperty(
-        "--border-strong",
-        `rgba(${r}, ${g}, ${b}, 0.35)`
-    );
+    const glowBase = isGradient ? leftGradient : accentColor;
+    const r = parseInt(glowBase.substr(1, 2), 16);
+    const g = parseInt(glowBase.substr(3, 2), 16);
+    const b = parseInt(glowBase.substr(5, 2), 16);
+    document.documentElement.style.setProperty("--accent-glow", `rgba(${r}, ${g}, ${b}, 0.4)`);
+    document.documentElement.style.setProperty("--focus-glow", `rgba(${r}, ${g}, ${b}, 0.28)`);
+    document.documentElement.style.setProperty("--focus-ring", `rgba(${r}, ${g}, ${b}, 0.75)`);
+    document.documentElement.style.setProperty("--border-soft", `rgba(${r}, ${g}, ${b}, 0.3)`);
+    document.documentElement.style.setProperty("--border-medium", `rgba(${r}, ${g}, ${b}, 0.25)`);
+    document.documentElement.style.setProperty("--border-strong", `rgba(${r}, ${g}, ${b}, 0.35)`);
     document.documentElement.style.setProperty("--scrollbar-thumb", accentColor);
-    document.documentElement.style.setProperty(
-        "--scrollbar-thumb-hover",
-        rightGradient
-    );
-    
+    document.documentElement.style.setProperty("--scrollbar-thumb-hover", rightGradient);
+
     // Update button text contrast
     updateButtonContrast();
 }
@@ -1114,9 +1126,14 @@ async function selectRatio(target) {
    BOTTOM BANNER
    ========================= */
 
+let _bannerConfirmHandler = null;
+let _bannerCancelHandler = null;
+
 function hideBanner() {
     const banner = document.getElementById("bottom-banner");
     if (banner) banner.classList.add("hidden");
+    _bannerConfirmHandler = null;
+    _bannerCancelHandler = null;
 }
 
 function showBanner() {
@@ -1124,47 +1141,109 @@ function showBanner() {
     if (banner) banner.classList.remove("hidden");
 }
 
-function showUpdateBanner() {
+function showUpdateBanner(options = {}) {
     const title = document.getElementById("banner-title");
     const notice = document.getElementById("banner-notice");
     const dialogue = document.getElementById("banner-dialogue");
     const actions = document.getElementById("banner-actions");
 
-    if (title) title.textContent = "Update Available";
-    if (notice) notice.textContent = "A new version of Solar Fishing is available. Choose an option below.";
+    const titleText = options.title || "Update Available";
+    const noticeText = options.notice || "A new version of Solar Fishing is available. Choose an option below.";
+
+    if (title) title.textContent = titleText;
+    if (notice) notice.textContent = noticeText;
     if (dialogue) dialogue.classList.add("hidden");
 
+    _bannerConfirmHandler = options.onConfirm || null;
+    _bannerCancelHandler = options.onCancel || null;
+
     if (actions) {
-        actions.innerHTML = `
-            <button type="button" class="btn-ghost" onclick="hideBanner()">Skip this version</button>
-            <button type="button" class="btn-secondary" onclick="hideBanner()">Remind me later</button>
-            <button type="button" class="btn-primary" onclick="hideBanner()">Install update</button>
-        `;
+        if (options.buttons && Array.isArray(options.buttons)) {
+            actions.innerHTML = options.buttons.map((btn, i) => {
+                const cls = btn.class || "btn-secondary";
+                const label = btn.label || "OK";
+                return `<button type="button" class="${cls}" data-banner-btn="${i}">${label}</button>`;
+            }).join("");
+            actions.querySelectorAll("[data-banner-btn]").forEach((el) => {
+                const idx = Number(el.getAttribute("data-banner-btn"));
+                const btn = options.buttons[idx];
+                el.addEventListener("click", () => {
+                    if (typeof btn.onClick === "function") {
+                        btn.onClick();
+                    }
+                    hideBanner();
+                });
+            });
+        } else {
+            actions.innerHTML = `
+                <button type="button" class="btn-ghost" id="banner-cancel-btn">Cancel</button>
+                <button type="button" class="btn-primary" id="banner-confirm-btn">Confirm</button>
+            `;
+            const cancelBtn = document.getElementById("banner-cancel-btn");
+            const confirmBtn = document.getElementById("banner-confirm-btn");
+            if (cancelBtn) {
+                cancelBtn.addEventListener("click", () => {
+                    if (typeof _bannerCancelHandler === "function") _bannerCancelHandler();
+                    hideBanner();
+                });
+            }
+            if (confirmBtn) {
+                confirmBtn.addEventListener("click", () => {
+                    if (typeof _bannerConfirmHandler === "function") _bannerConfirmHandler();
+                    hideBanner();
+                });
+            }
+        }
     }
 
     showBanner();
 }
 
-function showDialogueBanner() {
+function showDialogueBanner(options = {}) {
     const title = document.getElementById("banner-title");
     const notice = document.getElementById("banner-notice");
     const dialogue = document.getElementById("banner-dialogue");
     const input = document.getElementById("banner-input");
     const actions = document.getElementById("banner-actions");
 
-    if (title) title.textContent = "Dialogue";
-    if (notice) notice.textContent = "Enter a value and confirm.";
+    const titleText = options.title || "Dialogue";
+    const noticeText = options.notice || "Enter a value and confirm.";
+    const placeholder = options.placeholder || "Enter a value...";
+
+    if (title) title.textContent = titleText;
+    if (notice) notice.textContent = noticeText;
     if (dialogue) dialogue.classList.remove("hidden");
     if (input) {
-        input.value = "";
+        input.value = options.value || "";
+        input.placeholder = placeholder;
         setTimeout(() => input.focus(), 50);
     }
 
+    _bannerConfirmHandler = options.onConfirm || null;
+    _bannerCancelHandler = options.onCancel || null;
+
     if (actions) {
         actions.innerHTML = `
-            <button type="button" class="btn-ghost" onclick="hideBanner()">Cancel</button>
-            <button type="button" class="btn-primary" onclick="confirmDialogue()">Confirm</button>
+            <button type="button" class="btn-ghost" id="banner-cancel-btn">Cancel</button>
+            <button type="button" class="btn-primary" id="banner-confirm-btn">Confirm</button>
         `;
+        const cancelBtn = document.getElementById("banner-cancel-btn");
+        const confirmBtn = document.getElementById("banner-confirm-btn");
+        if (cancelBtn) {
+            cancelBtn.addEventListener("click", () => {
+                if (typeof _bannerCancelHandler === "function") _bannerCancelHandler();
+                hideBanner();
+            });
+        }
+        if (confirmBtn) {
+            confirmBtn.addEventListener("click", () => {
+                const value = input ? input.value.trim() : "";
+                if (typeof _bannerConfirmHandler === "function") {
+                    _bannerConfirmHandler(value);
+                }
+                hideBanner();
+            });
+        }
     }
 
     showBanner();
@@ -1173,7 +1252,435 @@ function showDialogueBanner() {
 function confirmDialogue() {
     const input = document.getElementById("banner-input");
     const value = input ? input.value.trim() : "";
-    // Placeholder — wire this to whatever action you need
-    console.log("Dialogue confirmed with:", value);
+    if (typeof _bannerConfirmHandler === "function") {
+        _bannerConfirmHandler(value);
+    }
     hideBanner();
+}
+
+/**
+ * Custom bottom-banner replacement for window.alert / window.confirm.
+ * Returns a Promise that resolves to true/false (askyesno) or null (ok).
+ * Called from Python via evaluate_js; result is delivered by calling
+ * pywebview.api.message_box_result(...).
+ */
+function showMessageBoxBanner(message, type = "ok") {
+    const safeMessage = String(message || "").replace(/\\n/g, "\n");
+    const title = type === "askyesno" ? "Confirm" : "Notice";
+
+    return new Promise((resolve) => {
+        const finish = (value) => {
+            resolve(value);
+            try {
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.message_box_result === "function") {
+                    window.pywebview.api.message_box_result(value);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+        if (type === "askyesno") {
+            showUpdateBanner({
+                title: title,
+                notice: safeMessage,
+                buttons: [
+                    { label: "No", class: "btn-ghost", onClick: () => finish(false) },
+                    { label: "Yes", class: "btn-primary", onClick: () => finish(true) }
+                ]
+            });
+        } else {
+            showUpdateBanner({
+                title: title,
+                notice: safeMessage,
+                buttons: [
+                    { label: "OK", class: "btn-primary", onClick: () => finish(null) }
+                ]
+            });
+        }
+    });
+}
+
+/* =========================
+   CONFIG / ROD ACTIONS
+   ========================= */
+
+function isColorSetting(key) {
+    if (!key) return false;
+    const k = String(key).toLowerCase();
+    return k.includes("color") || k.includes("tolerance");
+}
+
+async function RefreshConfigs() {
+    const preferred = selectedConfigName();
+    const configs = await refreshConfigs(preferred);
+    setStatus("Configs refreshed" + (configs && configs.length ? ` (${configs.length})` : ""));
+}
+
+async function AddRod() {
+    // Save current settings first
+    try {
+        await saveSettings();
+    } catch (error) {
+        console.error(error);
+    }
+
+    showDialogueBanner({
+        title: "Add Rod",
+        notice: "Enter a name for the new rod configuration.",
+        placeholder: "Rod name...",
+        onConfirm: async (name) => {
+            name = String(name || "").trim();
+            if (!name) {
+                showUpdateBanner({
+                    title: "Invalid Name",
+                    notice: "Please enter a non-empty rod name.",
+                    buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                });
+                return;
+            }
+            // Basic safety
+            if (/[\\/:*?"<>|]/.test(name)) {
+                showUpdateBanner({
+                    title: "Invalid Name",
+                    notice: "Rod name contains invalid characters.",
+                    buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                });
+                return;
+            }
+
+            const api = _pyApi();
+            if (!api || typeof api.list_configs !== "function") {
+                return;
+            }
+
+            let existing = [];
+            try {
+                existing = await api.list_configs();
+            } catch (e) {
+                existing = [];
+            }
+            if (Array.isArray(existing) && existing.some(c => String(c).toLowerCase() === name.toLowerCase())) {
+                showUpdateBanner({
+                    title: "Name Exists",
+                    notice: `A configuration named "${name}" already exists.`,
+                    buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                });
+                return;
+            }
+
+            // Create by saving current settings under the new name
+            try {
+                await saveSettings(name);
+                await refreshConfigs(name);
+                currentConfig = name;
+                setStatus("Added rod: " + name);
+            } catch (error) {
+                console.error(error);
+                showUpdateBanner({
+                    title: "Error",
+                    notice: "Failed to create the new rod configuration.",
+                    buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                });
+            }
+        }
+    });
+}
+
+async function DeleteRod() {
+    const name = selectedConfigName();
+    if (!name) {
+        return;
+    }
+    if (name.toLowerCase() === "default") {
+        showUpdateBanner({
+            title: "Cannot Delete",
+            notice: "The Default configuration cannot be deleted.",
+            buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+        });
+        return;
+    }
+
+    showUpdateBanner({
+        title: "Delete Rod",
+        notice: `Are you sure you want to delete the configuration "${name}"? This cannot be undone.`,
+        buttons: [
+            { label: "Cancel", class: "btn-ghost", onClick: () => {} },
+            {
+                label: "Delete",
+                class: "btn-primary",
+                onClick: async () => {
+                    const api = _pyApi();
+                    if (!api || typeof api.delete_config !== "function") {
+                        return;
+                    }
+                    try {
+                        const result = await api.delete_config(name);
+                        if (result && result.success) {
+                            const configs = await refreshConfigs();
+                            const next = configs && configs.length ? configs[0] : "Default";
+                            await loadSettings(next);
+                            setStatus("Deleted rod: " + name);
+                        } else {
+                            showUpdateBanner({
+                                title: "Error",
+                                notice: (result && result.error) || "Failed to delete configuration.",
+                                buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                            });
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        showUpdateBanner({
+                            title: "Error",
+                            notice: "Failed to delete configuration.",
+                            buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                        });
+                    }
+                }
+            }
+        ]
+    });
+}
+
+async function ResetSettings() {
+    const name = selectedConfigName();
+    showUpdateBanner({
+        title: "Reset Settings",
+        notice: `Reset all settings for "${name}" to defaults? Colors will be kept.`,
+        buttons: [
+            { label: "Cancel", class: "btn-ghost", onClick: () => {} },
+            {
+                label: "Reset",
+                class: "btn-primary",
+                onClick: async () => {
+                    try {
+                        // Preserve current color-related settings
+                        const current = collectSettings();
+                        const colorSettings = {};
+                        Object.entries(current).forEach(([key, value]) => {
+                            if (isColorSetting(key)) {
+                                colorSettings[key] = value;
+                            }
+                        });
+
+                        // Reset everything to HTML defaults
+                        resetFieldsToDefaults();
+
+                        // Re-apply preserved colors
+                        if (Object.keys(colorSettings).length) {
+                            applySettings(colorSettings, false);
+                        }
+
+                        // Make sure color groups rebuild correctly
+                        if (typeof ensureAllColorGroups === "function") {
+                            ensureAllColorGroups(collectSettings());
+                        }
+                        if (typeof updateColorPreviews === "function") {
+                            updateColorPreviews();
+                        }
+                        if (typeof updateAccentColor === "function") {
+                            updateAccentColor();
+                        }
+
+                        await saveSettings(name);
+                        setStatus("Settings reset (colors kept): " + name);
+                    } catch (error) {
+                        console.error(error);
+                        showUpdateBanner({
+                            title: "Error",
+                            notice: "Failed to reset settings.",
+                            buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                        });
+                    }
+                }
+            }
+        ]
+    });
+}
+
+async function OpenFolder() {
+    const api = _pyApi();
+    if (!api || typeof api.open_base_folder !== "function") {
+        setStatus("Open folder unavailable");
+        return;
+    }
+    try {
+        const result = await api.open_base_folder();
+        if (result && result.success) {
+            setStatus("Opened configs folder");
+        } else {
+            showUpdateBanner({
+                title: "Open Folder",
+                notice: (result && result.error) || "Could not open the folder.",
+                buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+            });
+        }
+    } catch (error) {
+        console.error(error);
+        showUpdateBanner({
+            title: "Open Folder",
+            notice: "Could not open the folder.",
+            buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+        });
+    }
+}
+
+function _suggestConfigNameFromFile(filename) {
+    let name = String(filename || "").trim();
+    if (name.toLowerCase().endsWith(".json")) {
+        name = name.slice(0, -5);
+    }
+    name = name.replace(/[\\/:*?"<>|]/g, "").trim();
+    return name || "Imported";
+}
+
+async function ImportConfigs() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.style.display = "none";
+    document.body.appendChild(input);
+
+    input.addEventListener("change", async () => {
+        const file = input.files && input.files[0];
+        document.body.removeChild(input);
+        if (!file) {
+            return;
+        }
+
+        let text = "";
+        try {
+            text = await file.text();
+        } catch (error) {
+            showUpdateBanner({
+                title: "Import Failed",
+                notice: "Could not read the selected file.",
+                buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+            });
+            return;
+        }
+
+        let settings = null;
+        try {
+            settings = JSON.parse(text);
+        } catch (error) {
+            showUpdateBanner({
+                title: "Import Failed",
+                notice: "The file is not valid JSON.",
+                buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+            });
+            return;
+        }
+
+        if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+            showUpdateBanner({
+                title: "Import Failed",
+                notice: "Config file must contain a JSON object.",
+                buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+            });
+            return;
+        }
+
+        const suggested = _suggestConfigNameFromFile(file.name);
+
+        showDialogueBanner({
+            title: "Import Config",
+            notice: "Choose a name for the imported configuration.",
+            placeholder: "Config name...",
+            value: suggested,
+            onConfirm: async (name) => {
+                name = String(name || "").trim();
+                if (!name) {
+                    showUpdateBanner({
+                        title: "Invalid Name",
+                        notice: "Please enter a non-empty config name.",
+                        buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                    });
+                    return;
+                }
+                if (/[\\/:*?"<>|]/.test(name)) {
+                    showUpdateBanner({
+                        title: "Invalid Name",
+                        notice: "Config name contains invalid characters.",
+                        buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                    });
+                    return;
+                }
+
+                const api = _pyApi();
+                if (!api || typeof api.save_settings !== "function") {
+                    return;
+                }
+
+                let existing = [];
+                try {
+                    if (typeof api.list_configs === "function") {
+                        existing = await api.list_configs();
+                    }
+                } catch (e) {
+                    existing = [];
+                }
+                if (Array.isArray(existing) && existing.some(c => String(c).toLowerCase() === name.toLowerCase())) {
+                    showUpdateBanner({
+                        title: "Name Exists",
+                        notice: `A configuration named "${name}" already exists.`,
+                        buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                    });
+                    return;
+                }
+
+                try {
+                    const result = await api.save_settings(name, settings);
+                    if (result && result.success === false) {
+                        showUpdateBanner({
+                            title: "Import Failed",
+                            notice: result.error || "Could not save the imported config.",
+                            buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                        });
+                        return;
+                    }
+                    await refreshConfigs(name);
+                    currentConfig = name;
+                    await loadSettings(name);
+                    setStatus("Imported: " + name);
+                } catch (error) {
+                    console.error(error);
+                    showUpdateBanner({
+                        title: "Import Failed",
+                        notice: "Could not save the imported config.",
+                        buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                    });
+                }
+            }
+        });
+    }, { once: true });
+
+    input.click();
+}
+
+async function ExportConfigs() {
+    const name = selectedConfigName() || "config";
+    let settings = {};
+    try {
+        settings = collectSettingsData();
+    } catch (error) {
+        settings = collectSettings();
+    }
+
+    const safeName = String(name).replace(/[\\/:*?"<>|]/g, "").trim() || "config";
+    const filename = safeName + ".json";
+    const json = JSON.stringify(settings, null, 4);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    setStatus("Exported: " + filename);
 }
