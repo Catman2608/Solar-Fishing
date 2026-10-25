@@ -63,31 +63,101 @@
         <symbol id="i-close" viewBox="0 0 24 24">
             <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </symbol>
+
+        <!-- Sidebar icons -->
+        <symbol id="i-overview" viewBox="0 0 24 24">
+            <circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M5.5 20.5c0-3.2 2.8-5.5 6.5-5.5s6.5 2.3 6.5 5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+
+        <symbol id="i-cast" viewBox="0 0 24 24">
+            <path d="M5 19L13 7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M13 7c3.5-1.5 7 1 7 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <circle cx="20" cy="11.5" r="1.1" fill="currentColor"/>
+        </symbol>
+
+        <symbol id="i-shake" viewBox="0 0 24 24">
+            <path d="M12 3.5c-2.8 4.5-5.5 7.5-5.5 10.2a5.5 5.5 0 0 0 11 0c0-2.7-2.7-5.7-5.5-10.2z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+        </symbol>
+
+        <symbol id="i-fish" viewBox="0 0 24 24">
+            <rect x="3.5" y="8" width="17" height="9.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M8 12.5h3.5M9.75 10.8v3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <circle cx="15.5" cy="11" r="0.9" fill="currentColor"/>
+            <circle cx="17.5" cy="14" r="0.9" fill="currentColor"/>
+        </symbol>
+
+        <symbol id="i-automation" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="2.8" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 4v2.2M12 17.8V20M4 12h2.2M17.8 12H20M6.3 6.3l1.6 1.6M16.1 16.1l1.6 1.6M6.3 17.7l1.6-1.6M16.1 7.9l1.6-1.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+
+        <symbol id="i-utilities" viewBox="0 0 24 24">
+            <path d="M4 8h16v11H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M8 8V6.5h8V8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M4 13h16" fill="none" stroke="currentColor" stroke-width="1.7"/>
+        </symbol>
+
+        <symbol id="i-faq" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M9.8 9.8a2.3 2.3 0 0 1 4.4 0.8c0 1.4-2.2 1.8-2.2 3.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <circle cx="12" cy="16.2" r="0.7" fill="currentColor"/>
+        </symbol>
+
+        <symbol id="i-about" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M12 11.2v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <circle cx="12" cy="8.2" r="0.8" fill="currentColor"/>
+        </symbol>
         </defs>
     </svg>
     <!-- Title Bar -->
-    <div class="title-bar">
+    <div class="title-bar pywebview-drag-region">
         <div class="title-left">
             <div class="window-controls">
                 <button class="window-control window-close" aria-label="Close" title="Close" onclick="closeWindow()"></button>
                 <button class="window-control window-minimize" aria-label="Minimize" title="Minimize" onclick="minimizeWindow()"></button>
             </div>
-            <div class="logo">Solar Fishing V5.2</div>
-            <div class="status">Beta 1</div>
+            <div class="logo pywebview-drag-region">Solar Fishing V5.2</div>
+            <div class="status pywebview-drag-region">Beta 1</div>
         </div>
-        <div id="status_label" class="status-label">Preview Mode</div>
+        <div id="status_label" class="status-label pywebview-drag-region">Preview Mode</div>
     </div>
     <div class="app-layout">
         <!-- Sidebar -->
         <div class="sidebar">
-            <button class="tab-button active" data-tab="overview">Overview</button>
-            <button class="tab-button" data-tab="cast">Cast</button>
-            <button class="tab-button" data-tab="shake">Shake</button>
-            <button class="tab-button" data-tab="minigame">Fish</button>
-            <button class="tab-button" data-tab="other_automation">Other Automation</button>
-            <button class="tab-button" data-tab="utilities">Utilities</button>
-            <button class="tab-button" data-tab="faq">FAQ</button>
-            <button class="tab-button" data-tab="about">About</button>
+            <button class="tab-button active" data-tab="overview">
+                <svg class="icon" aria-hidden="true"><use href="#i-overview"></use></svg>
+                Overview
+            </button>
+            <button class="tab-button" data-tab="cast">
+                <svg class="icon" aria-hidden="true"><use href="#i-cast"></use></svg>
+                Cast
+            </button>
+            <button class="tab-button" data-tab="shake">
+                <svg class="icon" aria-hidden="true"><use href="#i-shake"></use></svg>
+                Shake
+            </button>
+            <button class="tab-button" data-tab="minigame">
+                <svg class="icon" aria-hidden="true"><use href="#i-fish"></use></svg>
+                Fish
+            </button>
+            <button class="tab-button" data-tab="other_automation">
+                <svg class="icon" aria-hidden="true"><use href="#i-automation"></use></svg>
+                Other Automation
+            </button>
+            <button class="tab-button" data-tab="utilities">
+                <svg class="icon" aria-hidden="true"><use href="#i-utilities"></use></svg>
+                Utilities
+            </button>
+            <button class="tab-button" data-tab="faq">
+                <svg class="icon" aria-hidden="true"><use href="#i-faq"></use></svg>
+                FAQ
+            </button>
+            <button class="tab-button" data-tab="about">
+                <svg class="icon" aria-hidden="true"><use href="#i-about"></use></svg>
+                About
+            </button>
         </div>
         <!-- Right of sidebar: config bar on top, main content below -->
         <div class="content-column">
@@ -97,23 +167,26 @@
             <select name="config_list" id="config_list" onchange="switchConfig(this.value)">
                 <option value="default">Default</option>
             </select>
-            <button id="add-rod" onclick="AddRod()" title="Add" aria-label="Add">
+            <button id="add-rod" onclick="AddRod()" title="Add Rod" aria-label="Add Rod">
                 <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
             </button>
-            <button id="delete-rod" title="Delete" aria-label="Delete">
+            <button id="delete-rod" onclick="DeleteRod()" title="Delete Rod" aria-label="Delete Rod">
                 <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
             </button>
-            <button id="open-folder" title="Open folder" aria-label="Open folder">
+            <button id="open-folder" onclick="OpenFolder()" title="Open folder" aria-label="Open folder">
                 <svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>
             </button>
-            <button id="import-configs" title="Import" aria-label="Import">
+            <button id="import-configs" onclick="ImportConfigs()" title="Import" aria-label="Import">
                 <svg class="icon" aria-hidden="true"><use href="#i-import"></use></svg>
             </button>
-            <button id="export-configs" title="Export" aria-label="Export">
+            <button id="export-configs" onclick="ExportConfigs()" title="Export" aria-label="Export">
                 <svg class="icon" aria-hidden="true"><use href="#i-export"></use></svg>
             </button>
-            <button id="refresh-configs" title="Refresh" aria-label="Refresh">
+            <button id="refresh-configs" onclick="RefreshConfigs()" title="Refresh Configs" aria-label="Refresh Configs">
                 <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>
+            </button>
+            <button id="reset-settings" onclick="ResetSettings()" title="Reset Settings" aria-label="Reset Settings">
+                <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
             </button>
         </div>
         <!-- Main GUI -->
@@ -150,9 +223,7 @@
                         <option value="shapes">Shapes (Noiseform)</option>
                     </select>
                 </div>
-                <button class="secondary-button" type="button">Detect Roblox</button>
-                <button class="secondary-button" type="button" onclick="showUpdateBanner()">Update Banner</button>
-                <button class="secondary-button" type="button" onclick="showDialogueBanner()">Dialogue Banner</button>
+                <button class="secondary-button" type="button" id="detect_roblox_btn" onclick="detectRoblox()">Detect Roblox</button>
 
                 <section class="panel open">
                     <div class="panel-header">
@@ -1237,7 +1308,54 @@
             </div>
 
             <div id="about" class="tab-content">
-                <!-- About content -->
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>About this macro</h2>
+                        <p class="description">Credits and acknowledgements for Solar Fishing.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="credits">
+                            <div class="credit-item">
+                                <img src="Catman.png" alt="Catman2608" class="credit-avatar">
+                                <div class="credit-text">
+                                    <div class="credit-name">Catman2608</div>
+                                    <div class="credit-role">Creator</div>
+                                </div>
+                            </div>
+                            <div class="credit-item">
+                                <img src="AsphaltCake.png" alt="Asphalt Cake" class="credit-avatar">
+                                <div class="credit-text">
+                                    <div class="credit-name">Asphalt Cake</div>
+                                    <div class="credit-role">Precision/Lines mode control method, adapted from IRUS IDIOTPROOF/IRUS COMET</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="disclaimer">
+                            <strong>IMPORTANT DISCLAIMER:</strong>
+                            <p>Any person claiming to be part of this project or its development is most likely lying. Be cautious of fake contributors or impersonators.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Resources</h2>
+                        <p class="description">Official community, website, and source code links.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="resource-links">
+                            <a href="https://catman2608.github.io/PyWare-Backend/" target="_blank" rel="noopener">Official Website</a>
+                            <a href="https://discord.gg/aMZY8yrF8r" target="_blank" rel="noopener">Join Solar Macros Discord Server</a>
+                            <a href="https://github.com/Catman2608/Solar-Fishing" target="_blank" rel="noopener">Source Code</a>
+                            <a href="https://docs.google.com/document/d/1ZTDFi4jwSnJE1jq3bT1yNnnX3V-ohEOvXNOm6P1dPNU" target="_blank" rel="noopener">Minigame Guide</a>
+                            <a href="https://docs.google.com/document/d/1WwWWMR-eN-R-GO42IioToHpWTgiXkLoiNE_4NeE-GsU" target="_blank" rel="noopener">Upcoming Features</a>
+                            <a href="https://www.youtube.com/@HexaTitanGaming" target="_blank" rel="noopener">Catman's YouTube Channel</a>
+                            <a href="https://www.youtube.com/@AsphaltCake" target="_blank" rel="noopener">Asphalt Cake's YouTube Channel</a>
+                        </div>
+                    </div>
+                </section>
             </div>
 
         </div>

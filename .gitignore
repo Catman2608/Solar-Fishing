@@ -1,2 +1,4 @@
+*.exe
+*.dll
+*.bin
 DeepFish.ahk
-debug_shake.png

@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Fishing V5.2</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- SVG icons -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+        <defs>
+        <symbol id="i-picker" viewBox="0 0 24 24">
+            <path d="M14.5 4.5l5 5-8.2 8.2a2.6 2.6 0 0 1-3.7 0l-1.3-1.3a2.6 2.6 0 0 1 0-3.7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M12.2 6.8l5 5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+            <path d="M5.2 18.8l2.2-2.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </symbol>
+
+        <symbol id="i-reset" viewBox="0 0 24 24">
+            <path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M19 5.5V10h-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+
+        <symbol id="i-crosshair" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="6.1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M12 2.4v3.2M12 18.4v3.2M2.4 12h3.2M18.4 12h3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M12 9.2v5.6M9.2 12h5.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="1.15" fill="currentColor"/>
+        </symbol>
+
+        <symbol id="i-add" viewBox="0 0 24 24">
+            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+
+        <symbol id="i-trash" viewBox="0 0 24 24">
+            <path d="M3 6h18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M6 6l1 14h10l1-14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M9 6V4h6v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </symbol>
+
+        <symbol id="i-folder" viewBox="0 0 24 24">
+            <path d="M3 7h6l2 2h10v10H3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </symbol>
+
+        <symbol id="i-import" viewBox="0 0 24 24">
+            <path d="M12 3v12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5 21h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+
+        <symbol id="i-export" viewBox="0 0 24 24">
+            <path d="M12 15V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M7 8l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5 21h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+
+        <symbol id="i-refresh" viewBox="0 0 24 24">
+            <path d="M20 11a8 8 0 0 0-14.5-4L3 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M3 4v6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 13a8 8 0 0 0 14.5 4L21 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M21 20v-6h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="i-close" viewBox="0 0 24 24">
+            <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+        </defs>
+    </svg>
+    <!-- Title Bar -->
+    <div class="title-bar pywebview-drag-region">
+        <div class="title-left">
+            <div class="window-controls">
+                <button class="window-control window-close" aria-label="Close" title="Close" onclick="closeWindow()"></button>
+                <button class="window-control window-minimize" aria-label="Minimize" title="Minimize" onclick="minimizeWindow()"></button>
+            </div>
+            <div class="logo pywebview-drag-region">Solar Fishing V5.2</div>
+            <div class="status pywebview-drag-region">Beta 1</div>
+        </div>
+        <div id="status_label" class="status-label pywebview-drag-region">Preview Mode</div>
+    </div>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <button class="tab-button active" data-tab="overview">Overview</button>
+            <button class="tab-button" data-tab="cast">Cast</button>
+            <button class="tab-button" data-tab="shake">Shake</button>
+            <button class="tab-button" data-tab="minigame">Fish</button>
+            <button class="tab-button" data-tab="other_automation">Other Automation</button>
+            <button class="tab-button" data-tab="utilities">Utilities</button>
+            <button class="tab-button" data-tab="faq">FAQ</button>
+            <button class="tab-button" data-tab="about">About</button>
+        </div>
+        <!-- Right of sidebar: config bar on top, main content below -->
+        <div class="content-column">
+        <!-- Config Section -->
+        <div class="config-section">
+            <label for="config_list">Active Configuration:</label>
+            <select name="config_list" id="config_list" onchange="switchConfig(this.value)">
+                <option value="default">Default</option>
+            </select>
+            <button id="add-rod" onclick="AddRod()" title="Add" aria-label="Add">
+                <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+            </button>
+            <button id="delete-rod" title="Delete" aria-label="Delete">
+                <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+            </button>
+            <button id="open-folder" title="Open folder" aria-label="Open folder">
+                <svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>
+            </button>
+            <button id="import-configs" title="Import" aria-label="Import">
+                <svg class="icon" aria-hidden="true"><use href="#i-import"></use></svg>
+            </button>
+            <button id="export-configs" title="Export" aria-label="Export">
+                <svg class="icon" aria-hidden="true"><use href="#i-export"></use></svg>
+            </button>
+            <button id="refresh-configs" title="Refresh" aria-label="Refresh">
+                <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>
+            </button>
+        </div>
+        <!-- Main GUI -->
+        <div class="main-area">
+            <div id="overview" class="tab-content active">
+                <div class="switch2">
+                    <p>Global Settings</p>
+                    <label class="switch">
+                        <input id="global_settings" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="dropdown">
+                    <label for="automation_mode">Automation Mode:</label>
+                    <select name="automation_mode" id="automation_mode" onchange="syncModeTabs(activeSidebarTab())">
+                        <option value="fishing">Fishing</option>
+                        <option value="harpoon_gun">Harpoon Gun (Shake Only)</option>
+                        <option value="appraisal">Appraisal</option>
+                        <option value="treasure_appraisal">Treasure Appraisal</option>
+                        <option value="enchant">Enchant</option>
+                        <option value="angler">Angler</option>
+                        <option value="disabled">Disabled</option>
+                    </select>
+                </div>
+                <div class="dropdown">
+                    <label for="fishing_profile">Fishing Profile:</label>
+                    <select name="fishing_profile" id="fishing_profile">
+                        <option value="normal">Normal</option>
+                        <option value="notes">Notes (Pinion)</option>
+                        <option value="reverse">Reverse (Dreambreaker)</option>
+                        <option value="dual">Dual (Bellona)</option>
+                        <option value="lanes">4 Lanes (Tranquility)</option>
+                        <option value="metronome">Metronome (Lullaby)</option>
+                        <option value="shapes">Shapes (Noiseform)</option>
+                    </select>
+                </div>
+                <button class="secondary-button" type="button">Detect Roblox</button>
+                <button class="secondary-button" type="button" onclick="showUpdateBanner()">Update Banner</button>
+                <button class="secondary-button" type="button" onclick="showDialogueBanner()">Dialogue Banner</button>
+
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Hotkeys</h2>
+                        <p class="description">Configure keyboard shortcuts for controlling Solar Fishing and its features.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="hotkey-row">
+                            <span>Start Key</span>
+                            <input id="start_key" type="hidden" value="f5">
+                            <button class="key-btn" id="start_key_btn" onclick="rebindHotkeys('start_key')" type="button">F5</button>
+                        </div>
+                        <div class="hotkey-row">
+                            <span>Area Selector Key</span>
+                            <input id="area_selector_key" type="hidden" value="f6">
+                            <button class="key-btn" id="area_selector_key_btn" onclick="rebindHotkeys('area_selector_key')" type="button">F6</button>
+                        </div>
+                        <div class="hotkey-row">
+                            <span>Stop Key</span>
+                            <input id="stop_key" type="hidden" value="f7">
+                            <button class="key-btn" id="stop_key_btn" onclick="rebindHotkeys('stop_key')" type="button">F7</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Basic Options</h2>
+                        <p class="description">General settings that affect overall macro behavior.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="switch2">
+                            <p>Auto Zoom</p>
+                            <label class="switch">
+                                <input id="auto_zoom" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="switch2">
+                            <p>Auto Refresh</p>
+                            <label class="switch">
+                                <input id="auto_refresh" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="switch2">
+                            <p>Fish Overlay</p>
+                            <label class="switch">
+                                <input id="fish_overlay" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="switch2">
+                            <p>Status Overlay</p>
+                            <label class="switch">
+                                <input id="status_overlay" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="switch2">
+                            <p>Bag Spam</p>
+                            <label class="switch">
+                                <input id="bag_spam" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="switch2">
+                            <p>Lock Cursor</p>
+                            <label class="switch">
+                                <input id="lock_cursor" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="cast" class="tab-content">
+                <div class="dropdown">
+                    <label for="casting_mode">Casting Mode:</label>
+                    <select name="casting_mode" id="casting_mode" onchange="updateCastingMode()">
+                        <option value="normal">Normal</option>
+                        <option value="perfect">Perfect</option>
+                    </select>
+                </div>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Color Options</h2>
+                        <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <input type="text" id="green_cast_color_count" style="display: none;" value="1">
+                        <div id="green_cast-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>Green Cast</p>
+                                <input id="green_cast_color" class="color-stripe" type="text" placeholder="#64a04c" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="green_cast_tolerance" class="tolerance-input" type="number" placeholder="16">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('green_cast_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('green_cast_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('green_cast_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('green_cast_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="text" id="white_cast_color_count" style="display: none;" value="1">
+                        <div id="white_cast-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>White Cast</p>
+                                <input id="white_cast_color" class="color-stripe" type="text" placeholder="#d4d3ca" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="white_cast_tolerance" class="tolerance-input" type="number" placeholder="20">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('white_cast_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('white_cast_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('white_cast_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('white_cast_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Normal Cast Settings</h2>
+                        <p class="description">Adjust the timing and behavior of normal casting.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="slider-row">
+                            <label for="select_rod_duration">Select Rod Duration</label>
+                            <input class="range-input" id="select_rod_duration_slider" type="range" min="0" max="5" step="0.05" value="0.2" data-target="select_rod_duration">
+                            <input class="slider-value" id="select_rod_duration" type="text" inputmode="decimal" value="0.2" data-slider="select_rod_duration_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="delay_before_casting">Delay</label>
+                            <input class="range-input" id="delay_before_casting_slider" type="range" min="0" max="5" step="0.05" value="0.2" data-target="delay_before_casting">
+                            <input class="slider-value" id="delay_before_casting" type="text" inputmode="decimal" value="0.2" data-slider="delay_before_casting_slider">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="slider-row">
+                            <label for="cast_duration">Duration</label>
+                            <input class="range-input" id="cast_duration_slider" type="range" min="0" max="5" step="0.05" value="0.5" data-target="cast_duration">
+                            <input class="slider-value" id="cast_duration" type="text" inputmode="decimal" value="0.5" data-slider="cast_duration_slider">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="slider-row">
+                            <label for="delay_after_casting">Delay</label>
+                            <input class="range-input" id="delay_after_casting_slider" type="range" min="0" max="5" step="0.05" value="0.5" data-target="delay_after_casting">
+                            <input class="slider-value" id="delay_after_casting" type="text" inputmode="decimal" value="0.5" data-slider="delay_after_casting_slider">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open" id="perfect-cast-card">
+                    <div class="panel-header">
+                        <h2>Perfect Cast Settings</h2>
+                        <p class="description">Configure Perfect Cast behavior, including timing, detection, and release settings.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="dropdown">
+                            <label for="perfect_cast_method">Perfect Cast Method:</label>
+                            <select name="perfect_cast_method" id="perfect_cast_method">
+                            <option value="velocity">Velocity-based</option>
+                            <option value="simple">Simple</option>
+                            <option value="prediction">Prediction</option>
+                            </select>
+                        </div>
+                        <div class="text">
+                            <label>Fall Scan Timeout</label>
+                            <input id=fall_scan_timeout type="text" placeholder="5">
+                        </div>
+                        <div class="text">
+                            <label>Cast Scan Delay</label>
+                            <input id=cast_scan_delay type="text" placeholder="0.01">
+                        </div>
+                        <div class="text">
+                            <label>Release Delay (Simple)</label>
+                            <input id=release_delay_simple type="text" placeholder="0">
+                        </div>
+                        <div class="text">
+                            <label>Perfect Cast Threshold (Simple)</label>
+                            <input id=perfect_threshold type="text" placeholder="95.5">
+                        </div>
+                        <!-- Perfect Cast Sliders -->
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_700">Under 700px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_700_slider" type="range" min="-0.5" max="1" step="0.01" value="0.1" data-target="perfect_cast_timing_700">
+                            <input class="slider-value" id="perfect_cast_timing_700" type="text" inputmode="decimal" value="0.1" placeholder="0.1" data-slider="perfect_cast_timing_700_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_800">700-800 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_800_slider" type="range" min="-0.5" max="1" step="0.01" value="0.08" data-target="perfect_cast_timing_800">
+                            <input class="slider-value" id="perfect_cast_timing_800" type="text" inputmode="decimal" value="0.08" data-slider="perfect_cast_timing_800_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_900">800-900 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_900_slider" type="range" min="-0.5" max="1" step="0.01" value="0.06" data-target="perfect_cast_timing_900">
+                            <input class="slider-value" id="perfect_cast_timing_900" type="text" inputmode="decimal" value="0.06" data-slider="perfect_cast_timing_900_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_1000">900-1000 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_1000_slider" type="range" min="-0.5" max="1" step="0.01" value="0.04" data-target="perfect_cast_timing_1000">
+                            <input class="slider-value" id="perfect_cast_timing_1000" type="text" inputmode="decimal" value="0.04" data-slider="perfect_cast_timing_1000_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_1100">1000-1100 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_1100_slider" type="range" min="-0.5" max="1" step="0.01" value="0.02" data-target="perfect_cast_timing_1100">
+                            <input class="slider-value" id="perfect_cast_timing_1100" type="text" inputmode="decimal" value="0.02" data-slider="perfect_cast_timing_1100_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_1200">1100-1200 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_1200_slider" type="range" min="-0.5" max="1" step="0.01" value="0" data-target="perfect_cast_timing_1200">
+                            <input class="slider-value" id="perfect_cast_timing_1200" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1200_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_1300">1200-1300 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_1300_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.02" data-target="perfect_cast_timing_1300">
+                            <input class="slider-value" id="perfect_cast_timing_1300" type="text" inputmode="decimal" value="-0.02" data-slider="perfect_cast_timing_1300_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_1400">1300-1400 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_1400_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.04" data-target="perfect_cast_timing_1400">
+                            <input class="slider-value" id="perfect_cast_timing_1400" type="text" inputmode="decimal" value="-0.04" data-slider="perfect_cast_timing_1400_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_1500">1400-1500 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_1500_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.06" data-target="perfect_cast_timing_1500">
+                            <input class="slider-value" id="perfect_cast_timing_1500" type="text" inputmode="decimal" value="-0.06" data-slider="perfect_cast_timing_1500_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_1600">1500-1600 px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_1600_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.08" data-target="perfect_cast_timing_1600">
+                            <input class="slider-value" id="perfect_cast_timing_1600" type="text" inputmode="decimal" value="-0.08" data-slider="perfect_cast_timing_1600_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="perfect_cast_timing_1600_plus">1600+ px/s</label>
+                            <input class="range-input" id="perfect_cast_timing_1600_plus_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.1" data-target="perfect_cast_timing_1600_plus">
+                            <input class="slider-value" id="perfect_cast_timing_1600_plus" type="text" inputmode="decimal" value="-0.1" data-slider="perfect_cast_timing_1600_plus_slider">
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="shake" class="tab-content">
+                <div class="dropdown">
+                    <label for="shake_mode">Shake Mode:</label>
+                    <select name="shake_mode" id="shake_mode">
+                        <option value="pixel">Pixel</option>
+                        <option value="circle">Circle</option>
+                        <option value="navigation">Navigation</option>
+                    </select>
+                </div>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Color Options</h2>
+                        <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <input type="text" id="shake_color_count" style="display: none;" value="1">
+                        <div id="shake-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>Shake</p>
+                                <input id="shake_color" class="color-stripe" type="text" placeholder="#FFFFFF" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="shake_tolerance" class="tolerance-input" type="number" placeholder="5">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('shake_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('shake_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('shake_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('shake_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Shaking</h2>
+                        <p class="description">Configure shake detection and the behavior used when the game requires shaking.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="slider-row">
+                            <label for="shake_scan_delay">Shake Delay</label>
+                            <input class="range-input" id="shake_scan_delay_slider" type="range" min="0" max="5" step="0.01" value="0.12" data-target="shake_scan_delay">
+                            <input class="slider-value" id="shake_scan_delay" type="text" inputmode="decimal" value="0.12" data-slider="shake_scan_delay_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="shake_failsafe">Shake Failsafe (attempts)</label>
+                            <input class="range-input" id="shake_failsafe_slider" type="range" min="0" max="500" step="1" value="120" data-target="shake_failsafe">
+                            <input class="slider-value" id="shake_failsafe" type="text" inputmode="numeric" value="120" placeholder="120" data-slider="shake_failsafe_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="animation_delay">Animation Delay (seconds)</label>
+                            <input class="range-input" id="animation_delay_slider" type="range" min="0" max="5" step="0.01" value="0.3" data-target="animation_delay">
+                            <input class="slider-value" id="animation_delay" type="text" inputmode="decimal" value="0.3" placeholder="0.3" data-slider="animation_delay_slider">
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="minigame" class="tab-content">
+                <!-- Minigame widgets -->
+                <div class="dropdown">
+                    <label for="fishing_mode">Fishing Mode:</label>
+                    <select name="fishing_mode" id="fishing_mode">
+                        <option value="color">Color</option>
+                        <option value="line">Line</option>
+                    </select>
+                </div>
+                <div class="dropdown">
+                    <label for="controller_mode">Controller Mode:</label>
+                    <select name="controller_mode" id="controller_mode">
+                    <option value="normal">Normal</option>
+                    <option value="steady">Steady</option>
+                    <option value="predictive">Predictive</option>
+                    </select>
+                </div>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Hotbar Settings</h2>
+                        <p class="description">Configure hotbar behavior and item selection.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="text">
+                            <label>Fishing Rod Slot</label>
+                            <input id=fishing_rod_slot type="text" placeholder="1">
+                        </div>
+                        <div class="text">
+                            <label>Equipment Bag Slot</label>
+                            <input id=equipment_bag_slot type="text" placeholder="2">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Color Options</h2>
+                        <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <input type="text" id="bar_color_count" style="display: none;" value="1">
+                        <div id="bar-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>Bar</p>
+                                <input id="bar_color" class="color-stripe" type="text" placeholder="#F1F1F1" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="bar_tolerance" class="tolerance-input" type="number" placeholder="8">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('bar_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('bar_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('bar_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('bar_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="text" id="arrow_color_count" style="display: none;" value="1">
+                        <div id="arrow-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>Arrow</p>
+                                <input id="arrow_color" class="color-stripe" type="text" placeholder="#848587" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="arrow_tolerance" class="tolerance-input" type="number" placeholder="8">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('arrow_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('arrow_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('arrow_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('arrow_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="text" id="fish_color_count" style="display: none;" value="1">
+                        <div id="fish-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>Fish</p>
+                                <input id="fish_color" class="color-stripe" type="text" placeholder="#434B5B" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="fish_tolerance" class="tolerance-input" type="number" placeholder="4">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('fish_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('fish_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('fish_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('fish_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="text" id="pinion_notes_color_count" style="display: none;" value="1">
+                        <div id="pinion_notes-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>Pinion Note</p>
+                                <input id="pinion_notes_color" class="color-stripe" type="text" placeholder="#149604" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="pinion_notes_tolerance" class="tolerance-input" type="number" placeholder="4">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('pinion_notes_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('pinion_notes_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('pinion_notes_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('pinion_notes_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="text" id="friends_color_count" style="display: none;" value="1">
+                        <div id="friends-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>Friend Area</p>
+                                <input id="friends_color" class="color-stripe" type="text" placeholder="#9BFF9B" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="friends_tolerance" class="tolerance-input" type="number" placeholder="4">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('friends_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('friends_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('friends_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('friends_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Controller Settings</h2>
+                        <p class="description">Tune fish tracking, bar control, and controller settings.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="slider-row">
+                            <label for="minigame_scan_delay">Minigame Scan Delay (seconds)</label>
+                            <input class="range-input" id="minigame_scan_delay_slider" type="range" min="0" max="1" step="0.01" value="0.01" data-target="minigame_scan_delay">
+                            <input class="slider-value" id="minigame_scan_delay" type="text" inputmode="decimal" value="0.01" placeholder="0.01" data-slider="minigame_scan_delay_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="restart_delay">Restart Delay (seconds)</label>
+                            <input class="range-input" id="restart_delay_slider" type="range" min="0" max="10" step="0.05" value="1.5" data-target="restart_delay">
+                            <input class="slider-value" id="restart_delay" type="text" inputmode="decimal" value="1.5" placeholder="1.5" data-slider="restart_delay_slider">
+                        </div>
+                        <div class="slider-row">
+                            <label for="bar_ratio_from_side">Bar Ratio From Side</label>
+                            <input class="range-input" id="bar_ratio_from_side_slider" type="range" min="0" max="1" step="0.01" value="0.5" data-target="bar_ratio_from_side">
+                            <input class="slider-value" id="bar_ratio_from_side" type="text" inputmode="decimal" value="0.5" placeholder="0.5" data-slider="bar_ratio_from_side_slider">
+                        </div>
+                        <div class="text">
+                            <label>KP (Proportional)</label>
+                            <input id=kp type="text" placeholder="0.6">
+                        </div>
+                        <div class="text">
+                            <label>KD (Derivative)</label>
+                            <input id=kd type="text" placeholder="0.6">
+                        </div>
+                        <div class="text">
+                            <label>Stopping Distance</label>
+                            <input id=stopping_distance type="text" placeholder="0.6">
+                        </div>
+                        <div class="text">
+                            <label>Velocity Smoothing</label>
+                            <input id=velocity_smoothing type="text" placeholder="0.6">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Special Rods</h2>
+                        <p class="description">Configure behavior for rods with unique mechanics.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="text">
+                            <label>Note Tracking Ratio (Pinion)</label>
+                            <input id=pinion_note_ratio type="text" placeholder="0.3">
+                        </div>
+                        <div class="dropdown">
+                            <label for="tranquility_mode">Tranquility Mode:</label>
+                            <select name="tranquility_mode" id="tranquility_mode">
+                            <option value="rapid">Rapid</option>
+                            <option value="steady">Steady</option>
+                            </select>
+                        </div>
+                        <div class="text">
+                            <label>Note Target Ratio (Tranquility)</label>
+                            <input id=tranquility_note_ratio type="text" placeholder="0.8">
+                        </div>
+                        <div class="text">
+                            <label>Note Target Delay (Tranquility)</label>
+                            <input id=target_delay type="text" placeholder="0">
+                        </div>
+                        <div class="text">
+                            <label>Metronome Padding (Lullaby)</label>
+                            <input id=lullaby_metronome_padding type="text" placeholder="20">
+                        </div>
+                        <div class="text">
+                            <label>Mask Lost Ratio (Lullaby)</label>
+                            <input id=lullaby_mask_lost_ratio type="text" placeholder="0.2">
+                        </div>
+                        <div class="text">
+                            <label>White Color (Noiseform)</label>
+                            <input id=noiseform_white_color type="text" placeholder="222">
+                        </div>
+                        <div class="text">
+                            <label>Black Color (Noiseform)</label>
+                            <input id=noiseform_black_color type="text" placeholder="0">
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="utilities" class="tab-content">
+                <!-- Utility widgets -->
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Hotbar Settings</h2>
+                        <p class="description">Configure hotbar behavior and item selection.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="text">
+                            <label>Sundial Totem Slot</label>
+                            <input id=sundial_totem_slot type="text" placeholder="6">
+                        </div>
+                        <div class="text">
+                            <label>Totem 1 Slot</label>
+                            <input id=totem_1_slot type="text" placeholder="7">
+                        </div>
+                        <div class="text">
+                            <label>Totem 2 Slot</label>
+                            <input id=totem_2_slot type="text" placeholder="5">
+                        </div>
+                        <div class="text">
+                            <label>Mystic Mirror Slot</label>
+                            <input id=mystic_mirror_slot type="text" placeholder="8">
+                        </div>
+                        <div class="text">
+                            <label>Move Left</label>
+                            <input id=buy_bait_slot type="text" placeholder="A">
+                        </div>
+                        <div class="text">
+                            <label>Move Right</label>
+                            <input id=fishing_slot type="text" placeholder="D">
+                        </div>
+                        <div class="text">
+                            <label>Enchant Relic Slot</label>
+                            <input id=relic_slot type="text" placeholder="D">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Color Options</h2>
+                        <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="color-option">
+                            <p>Sovereign Recharge</p>
+                            <input id="sovereign_recharge_color" class="color-stripe" type="text" placeholder="#d994ff" spellcheck="false">
+                            <p>Tolerance</p>
+                            <input id="sovereign_recharge_tolerance" class="tolerance-input" type="number" placeholder="5">
+                            <button class="color-icon-btn" type="button" onclick="pickColor('sovereign_recharge_color')" title="Pick color" aria-label="Pick color">
+                                <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                            </button>
+                            <button class="color-icon-btn" type="button" onclick="resetColor('sovereign_recharge_color')" title="Reset color" aria-label="Reset color">
+                                <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Logging</h2>
+                        <p class="description">Send notifications and status updates to Discord or local files.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="dropdown">
+                            <label for="logging_mode">Logging Mode:</label>
+                            <select name="logging_mode" id="logging_mode">
+                                <option value="Screenshot">Screenshot</option>
+                                <option value="Text">Text</option>
+                                <option value="Disabled">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="text">
+                            <label>Webhook URL</label>
+                            <input id="logging_url" type="text" placeholder="None">
+                        </div>
+                        <div class="text">
+                            <label>User ID</label>
+                            <input id="user_id" type="text" placeholder="None">
+                        </div>
+                        <div class="text">
+                            <label>Webhook Name</label>
+                            <input id="logging_name" type="text" placeholder="Solar Fishing V5">
+                        </div>
+                        <div class="text">
+                            <label>Cycles</label>
+                            <input id="logging_cycle" type="text" placeholder="10">
+                        </div>
+                        <button class="action-button" type="button" onclick="testLogging()">Test Webhook</button>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Auto Totem</h2>
+                        <p class="description">Configure automatic totem selection and usage.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="switch2">
+                            <p>Auto Totem</p>
+                            <label class="switch">
+                                <input id="auto_totem" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="switch2">
+                            <p>Second Totem</p>
+                            <label class="switch">
+                                <input id="second_totem" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="dropdown">
+                            <label for="target_time">Target Time:</label>
+                            <select name="target_time" id="target_time">
+                                <option value="Day">Day</option>
+                                <option value="Night">Night</option>
+                                <option value="Disabled">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="text">
+                            <label>Cycles</label>
+                            <input id="totem_cycles" type="text" placeholder="55">
+                        </div>
+                        <div class="text">
+                            <label>Sundial Delay (seconds)</label>
+                            <input id="sundial_delay" type="text" placeholder="20">
+                        </div>
+                        <div class="text">
+                            <label>Totem Delay (seconds)</label>
+                            <input id="totem_delay" type="text" placeholder="2.5">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Auto Reconnect</h2>
+                        <p class="description">Rejoin the game after disconnects or server errors.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="switch2">
+                            <p>Auto Reconnect</p>
+                            <label class="switch">
+                                <input id="auto_reconnect" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="text">
+                            <label>Threshold</label>
+                            <input id="reconnect_threshold" type="text" placeholder="30">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text">
+                            <label>Wait Time (Seconds)</label>
+                            <input id="reconnect_wait_time" type="text" placeholder="20">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text point-select-row">
+                            <label>Mirror Ratio</label>
+                            <button onclick="selectRatio(mirror_ratio)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="mirror_ratio" value="0.5, 0.5">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Hunt Detect</h2>
+                        <p class="description">Detect hunt events and react automatically.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="switch2">
+                            <p>Hunt Detect</p>
+                            <label class="switch">
+                                <input id="hunt_detect" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="text">
+                            <label>Hunt Fishes (Split by ,)</label>
+                            <input id="hunt_fishes" type="text" placeholder="Megalodon, Kraken">
+                        </div>
+                        <div class="text">
+                            <label>Cycles</label>
+                            <input id="hunt_cycles" type="text" placeholder="20">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Auto Sovereign Recharge</h2>
+                        <p class="description">Configure Gamepass Enchant Positions in Other Utilities, ratio in 0-1 as decimals.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="switch2">
+                            <p>Sovereign Recharge</p>
+                            <label class="switch">
+                                <input id="sovereign_recharge" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="text">
+                            <label>Percentage To Trigger</label>
+                            <input id="minimum_percentage" type="text" placeholder="5">
+                        </div>
+                        <div class="text">
+                            <label>Percentage To Stop</label>
+                            <input id="maximum_percentage" type="text" placeholder="95">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Auto Buy Bait</h2>
+                        <p class="description">Only use this feature if you're fishing in Blox Fruits. All ratios are in Screen X and Y.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="switch2">
+                            <p>Auto Buy Bait</p>
+                            <label class="switch">
+                                <input id="auto_buy_bait" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="text">
+                            <label>Buy Bait Delay (Cycles)</label>
+                            <input id="bait_cycles" type="text" placeholder="100">
+                        </div>
+                        <div class="text">
+                            <label>Move Time (seconds)</label>
+                            <input id="bait_move_time" type="text" placeholder="0.6">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Fisherman Shop Position</label>
+                            <button onclick="selectRatio(auto_buy_bait_1)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="auto_buy_bait_1" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Buy Bait Position</label>
+                            <button onclick="selectRatio(auto_buy_bait_2)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="auto_buy_bait_2" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Bait Position</label>
+                            <button onclick="selectRatio(auto_buy_bait_3)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="auto_buy_bait_3" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Increase Position</label>
+                            <button onclick="selectRatio(auto_buy_bait_4)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="auto_buy_bait_4" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Craft Position</label>
+                            <button onclick="selectRatio(auto_buy_bait_5)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="auto_buy_bait_5" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Back Position</label>
+                            <button onclick="selectRatio(auto_buy_bait_6)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="auto_buy_bait_6" type="text" placeholder="0.5, 0.5">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Compatibility Options</h2>
+                        <p class="description">Improve compatibility with different hardware and game conditions.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="switch2">
+                            <p>Click After Minigame</p>
+                            <label class="switch">
+                                <input id="click_after_minigame" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="text">
+                            <label>Click Position (Screen Ratio seperated by ,)</label>
+                            <input id="minigame_click_position" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text">
+                            <label>Click Amounts</label>
+                            <input id="minigame_click_amounts" type="text" placeholder="2">
+                        </div>
+                        <div class="dropdown">
+                            <label for="detection_method">Detection Method:</label>
+                            <select name="detection_method" id="detection_method">
+                                <option value="friend_area">Friend Area</option>
+                                <option value="fish">Fish</option>
+                            </select>
+                        </div>
+                        <div class="dropdown">
+                            <label for="restart_method">Restart Method:</label>
+                            <select name="restart_method" id="restart_method">
+                                <option value="friend_area">Friend Area</option>
+                                <option value="fish">Fish</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="other_automation" class="tab-content">
+                <!-- Other Utilities widgets -->
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Hotbar Settings</h2>
+                        <p class="description">Configure hotbar behavior and item selection.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="text">
+                            <label>Backpack Slot</label>
+                            <input id=backpack_slot type="text" placeholder="6">
+                        </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Global</h2>
+                        <p class="description">Shared settings used across multiple utility features.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="text">
+                            <label>Tesseract Path (Appraisal, Enchant, Angler)</label>
+                            <input id="tesseract_path" type="text" placeholder="C:\Program Files\Tesseract-OCR\tesseract.exe">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Auto Appraisal</h2>
+                        <p class="description">Automatically appraise caught fish based on your settings.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="dropdown">
+                            <label for="appraisal_mode">Appraisal Mode:</label>
+                            <select name="appraisal_mode" id="appraisal_mode">
+                                <option value="normal">Normal</option>
+                                <option value="gamepass">Gamepass</option>
+                            </select>
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Normal Click X/Y (Screen Ratio seperated by ,)</label>
+                            <button onclick="selectRatio(normal_appraisal_click)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="normal_appraisal_click" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Gamepass Click X/Y 1 (Screen Ratio seperated by ,)</label>
+                            <button onclick="selectRatio(gamepass_appraisal_click)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="gamepass_appraisal_click" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Gamepass Click X/Y 2 (Screen Ratio seperated by ,)</label>
+                            <button onclick="selectRatio(gamepass_appraisal_click_2)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="gamepass_appraisal_click_2" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text">
+                            <label>Delay After Appraisal</label>
+                            <input id="appraisal_delay" type="text" placeholder="0.5">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text">
+                            <label>Mutations (Split by ,)</label>
+                            <input id="appraisal_mutations" type="text" placeholder="Hexed, Abyssal">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Auto Treasure Appraisal</h2>
+                        <p class="description">Configure automatic treasure appraisal and related settings.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="text">
+                            <label>Minimum Multiplier</label>
+                            <input id="minimum_multiplier" type="text" placeholder="0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Text X/Y (Screen Ratio seperated by ,)</label>
+                            <button onclick="selectRatio(treasure_appraisal_text)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="treasure_appraisal_text" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Reappraise X/Y (Screen Ratio seperated by ,)</label>
+                            <button onclick="selectRatio(treasure_appraisal_click)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="treasure_appraisal_click" type="text" placeholder="0.5, 0.5">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Auto Enchant</h2>
+                        <p class="description">Automatically enchant rods using your selected configuration.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="dropdown">
+                            <label for="enchantment_mode">Enchantment Mode:</label>
+                            <select name="enchantment_mode" id="enchantment_mode">
+                                <option value="normal">Normal</option>
+                                <option value="gamepass">Gamepass</option>
+                                <option value="disabled">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="text">
+                            <label>E Delay</label>
+                            <input id="enchantment_e_delay" type="text" placeholder="0.4">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text point-select-row">
+                            <label>Click Position</label>
+                            <button onclick="selectRatio(enchantment_click_position)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="enchantment_click_position" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="text point-select-row">
+                            <label>Click Position 2 (Gamepass)</label>
+                            <button onclick="selectRatio(enchantment_click_position2)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="enchantment_click_position2" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text">
+                            <label>Click Delay</label>
+                            <input id="enchantment_click_delay" type="text" placeholder="2">
+                        </div>
+                        <div class="text">
+                            <label>Click Delay 2</label>
+                            <input id="enchantment_click_delay2" type="text" placeholder="2">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text">
+                            <label>Enchantments (Split by ,)</label>
+                            <input id="enchant_enchants" type="text" placeholder="Steady, Momentum">
+                        </div>
+                        <div class="text">
+                            <label>Click Delay 3</label>
+                            <input id="enchantment_click_delay3" type="text" placeholder="6">
+                        </div>
+                    </div>
+                </section>
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Auto Angler</h2>
+                        <p class="description">Automate interactions with the Angler NPC.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="text">
+                            <label>E Delay</label>
+                            <input id="angler_e_delay" type="text" placeholder="1.5">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text point-select-row">
+                            <label>Accept Quest Click Position</label>
+                            <button onclick="selectRatio(angler_click_position)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="angler_click_position" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text point-select-row">
+                            <label>Backpack Search Click Position</label>
+                            <button onclick="selectRatio(angler_click_position2)" class="secondary-button point-select-picker" type="button" title="Select point" aria-label="Select point">
+                                <svg class="icon" aria-hidden="true"><use href="#i-crosshair"></use></svg>
+                            </button>
+                            <input id="angler_click_position2" type="text" placeholder="0.5, 0.5">
+                        </div>
+                        <div class="arrow">&darr;</div>
+                        <div class="text">
+                            <label>Angler Cooldown</label>
+                            <input id="angler_cooldown" type="text" placeholder="130">
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div id="faq" class="tab-content">
+                <!-- FAQ content -->
+            </div>
+
+            <div id="about" class="tab-content">
+                <!-- About content -->
+            </div>
+
+        </div>
+        </div>
+    </div>
+
+    <!-- Bottom Banner (cookie-style) -->
+    <div id="bottom-banner" class="bottom-banner hidden" role="dialog" aria-modal="false">
+        <div class="banner-inner">
+            <div class="banner-main">
+                <div class="banner-text">
+                    <h3 id="banner-title" class="banner-title">Update Available</h3>
+                    <p id="banner-notice" class="banner-notice">A new version is available.</p>
+                </div>
+                <div id="banner-dialogue" class="banner-dialogue hidden">
+                    <input id="banner-input" class="banner-input" type="text" placeholder="Enter a value..." />
+                </div>
+            </div>
+            <div id="banner-actions" class="banner-actions">
+                <!-- buttons injected by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        document.querySelectorAll(".panel-toggle").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                btn.closest(".panel").classList.toggle("open");
+            });
+        });
+    </script>
+</body>
+</html>
