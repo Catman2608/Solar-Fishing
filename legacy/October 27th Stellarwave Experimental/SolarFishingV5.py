@@ -3480,7 +3480,7 @@ class Api:
                 title_hit = 1 if name in title else 0
                 return (title_hit, area)
             best = max(candidates, key=score)
-            return best["left"], best["top"], best["width"], best["height"]
+            return abs(best["left"]), abs(best["top"]), abs(best["width"]), abs(best["height"])
 
         # Fallback
         try:
@@ -3488,7 +3488,7 @@ class Api:
             sw, sh = pyautogui.size()
         except Exception:
             sw, sh = getattr(self, "SCREEN_WIDTH", 1920), getattr(self, "SCREEN_HEIGHT", 1080)
-        return 0, 0, int(sw), int(sh)
+        return 0, 0, abs(int(sw)), abs(int(sh))
 
     def detect_roblox(self):
         """Called from the Detect Roblox button. Prints and reports window bounds."""
