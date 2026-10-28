@@ -4763,7 +4763,7 @@ class Api:
         cropped = template[y:y+h, x:x+w]
         return cropped
 
-    def image_search_totem(self, screenshot, template, lower_white=200, threshold=0.8):
+    def image_search(self, screenshot, template, lower_white=200, threshold=0.8):
         # 1. Resize Screenshot (Assuming Template Is Already Resized)
         screenshot_cropped = self.auto_crop_template(screenshot)
         template_height, template_width, _ = template.shape # template_height
@@ -4781,26 +4781,6 @@ class Api:
             return True, max_loc, max_val
 
         return False, None, max_val
-
-    def image_search(self, screenshot, template, tolerance=2):
-        # Convert to float for precise calculations
-        screenshot_float = screenshot.astype(np.float32)
-        template_float = template.astype(np.float32)
-        # Match template
-        result = cv2.matchTemplate(
-            screenshot_float,
-            template_float,
-            cv2.TM_CCOEFF_NORMED
-        )
-        # Get the best match
-        _, confidence, _, location = cv2.minMaxLoc(result)
-        # Threshold can be adjusted
-        threshold = 0.8
-        if confidence >= threshold:
-            x, y = location
-            return int(x), int(y), float(confidence)
-
-        return None, None, float(confidence)
 
     def _calculate_speed_and_predict(self, white_positions, timestamps):
         """
@@ -5757,8 +5737,8 @@ class Api:
                         if dxcam is not None:
                             self.capture_frame = self.camera.get_latest_frame()
                         totem = self.capture_frame[totem_top:totem_bottom, totem_left:totem_right]
-                        sun_found, _, sun_confidence = self.image_search_totem(totem, sun_resized)
-                        moon_found, _, moon_confidence = self.image_search_totem(totem, moon_resized)
+                        sun_found, _, sun_confidence = self.image_search(totem, sun_resized)
+                        moon_found, _, moon_confidence = self.image_search(totem, moon_resized)
                         if sun_found == False and moon_found == False:
                             current_time = None
                             self.send_logging("**Sundial Failed**", f"Cycle #{self.current_cycle}")
@@ -7840,7 +7820,7 @@ class Api:
                         )
                     if fish_x is not None:
                         self.fish_overlay.draw_box(
-                            x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 15, y2=overlay_height*0.85, color="red"
+                            x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 10, y2=overlay_height*0.85, color="red"
                         )
                 else:
                     if bar_center > 0 and bar_size > 0 and fish_x > 0:
@@ -7849,7 +7829,7 @@ class Api:
                             show_bar_center=True
                         )
                         self.fish_overlay.draw_box(
-                            x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 15, y2=overlay_height*0.85, color="red",
+                            x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 10, y2=overlay_height*0.85, color="red",
                         )
                     else:
                         for pos in range(len(line_coords)):
