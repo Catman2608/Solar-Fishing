@@ -1,17 +1,17 @@
 {
-    "last_config": "Default",
+    "last_config": "Stellarwave Melody",
     "bar_areas": {
         "shake": {
             "x": 0.10305833333333332,
             "y": 0.10833703703703702,
-            "width": 0.7927416666666666,
-            "height": 0.6726481481481482
+            "width": 0.5677416666666666,
+            "height": 0.36431481481481487
         },
         "fish": {
-            "x": 0.29742083333333336,
-            "y": 0.843288888888889,
-            "width": 0.40834583333333335,
-            "height": 0.03669629629629632
+            "x": 0.181275,
+            "y": 0.6247703703703704,
+            "width": 0.3547,
+            "height": 0.09410370370370372
         },
         "friend": {
             "x": 0.0030375000000000003,
@@ -34,7 +34,7 @@
         "enchantment": null,
         "angler_quest": null
     },
-    "start_key": "f5",
-    "area_selector_key": "f6",
-    "stop_key": "f7"
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7"
 }

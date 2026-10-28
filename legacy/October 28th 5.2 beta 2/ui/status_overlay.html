@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+        user-select: none;
+    }
+
+    .status-overlay {
+        width: 100%;
+        height: 100%;
+        padding: 0px;  /* Remove padding so it fills completely */
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text-primary, #e5e7eb);
+        background: rgba(0, 0, 0, 0.85);
+        box-sizing: border-box;
+    }
+
+    .status-main-text {
+        color: #f3f4f6;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .status-panel {
+        width: 100%;
+        height: 100%;
+        padding: 12px 14px;
+        background: rgba(30, 30, 40, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+
+    .status-title {
+        color: #e5e7eb;
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        flex-shrink: 0;
+    }
+
+    .status-main {
+        display: flex;
+        align-items: center;
+        height: 26px;
+        padding: 0 12px;
+        margin-bottom: 10px;
+        background: #3a3220;
+        border: none;
+        border-radius: 3px;
+        flex-shrink: 0;
+    }
+
+    .status-lines {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        /* removed flex: 1 and justify-content: center */
+    }
+
+    .status-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 12px;
+        padding: 2px 0;
+    }
+
+    .status-label {
+        color: #6b7280;
+    }
+
+    .status-value {
+        color: #9ca3af;
+        text-align: right;
+    }
+
+    @keyframes status-pulse {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+            box-shadow: 0 0 8px currentColor;
+        }
+
+        50% {
+            transform: scale(1.2);
+            opacity: 0.6;
+            box-shadow: 0 0 12px currentColor;
+        }
+    }
+</style>
+</head>
+
+<body>
+<div class="status-overlay">
+    <div class="status-panel">
+
+        <div id="status-title" class="status-title">
+            Solar Fishing V5.2
+        </div>
+
+        <div class="status-main">
+            <span id="status-label" class="status-main-text">
+                Macro Stopped
+            </span>
+        </div>
+
+        <div class="status-lines">
+            <div class="status-line">
+                <span id="status-line1-label" class="status-label">Start Key</span>
+                <span id="status-line1" class="status-value">F5</span>
+            </div>
+
+            <div class="status-line">
+                <span id="status-line2-label" class="status-label">Area Selector Key</span>
+                <span id="status-line2" class="status-value">F6</span>
+            </div>
+
+            <div class="status-line">
+                <span id="status-line3-label" class="status-label">Stop Key</span>
+                <span id="status-line3" class="status-value">F7</span>
+            </div>
+
+            <div class="status-line">
+                <span id="status-line4-label" class="status-label">Screenshot Key</span>
+                <span id="status-line4" class="status-value">F8</span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+window.statusOverlay = {
+    setTitle(title) {
+        document.getElementById("status-title").textContent = title;
+    },
+
+    setMainStatus(status) {
+        document.getElementById("status-label").textContent = status;
+    },
+
+    setLine(number, label, value) {
+        document.getElementById(`status-line${number}-label`).textContent = label;
+        document.getElementById(`status-line${number}`).textContent = value;
+    },
+
+    clear() {
+        this.setTitle("Solar Fishing V5.2");
+        this.setMainStatus("Macro Stopped");
+
+        this.setLine(1, "Start Key", "F5");
+        this.setLine(2, "Area Selector Key", "F6");
+        this.setLine(3, "Stop Key", "F7");
+        this.setLine(4, "Screenshot Key", "F8");
+    }
+};
+
+// Force a reflow to ensure the overlay renders properly
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure the overlay fills its container
+    document.documentElement.style.width = '100%';
+    document.documentElement.style.height = '100%';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+});
+</script>
+
+</body>
+</html>

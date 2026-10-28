@@ -1042,7 +1042,22 @@ AREA_CONFIG = {
     "fish": {
         "color": "#00beff",
         "label": "Fish Box",
-        "default": {"x": 0.2844, "y": 0.8294, "width": 0.4297, "height": 0.0404},
+        "default": {"x": 0.2844, "y": 0.8488, "width": 0.4297, "height": 0.0404},
+    },
+    "fish_1_bellona": {
+        "color": "#00beff",
+        "label": "Fish Box 1 (Bellona)",
+        "default": {"x": 0.0817, "y": 0.8488, "width": 0.3953, "height": 0.0404},
+    },
+    "fish_2_bellona": {
+        "color": "#ff9b00",
+        "label": "Fish Box 2 (Bellona)",
+        "default": {"x": 0.5140, "y": 0.8488, "width": 0.3953, "height": 0.0404},
+    },
+    "fish_tranquility": {
+        "color": "#00beff",
+        "label": "Fish Box (Tranquility)",
+        "default": {"x": 0.3119, "y": 0.1969, "width": 0.377, "height": 0.6561},
     },
     "friend": {
         "color": "#ffed00",
@@ -1275,9 +1290,16 @@ class AreaSelector:
         automation_mode = data["automation_mode"]
         fishing_profile = data["fishing_profile"]
         if automation_mode == "fishing":
-            visible_areas.append("fish")
+            if fishing_profile == "bellona":
+                visible_areas.append("fish_1_bellona")
+                visible_areas.append("fish_2_bellona")
+            elif fishing_profile == "tranquility":
+                visible_areas.append("fish_tranquility")
+            else:
+                visible_areas.append("fish")
             if data["shake_mode"] != "navigation":
-                visible_areas.append("shake")
+                if fishing_profile != "tranquility":
+                    visible_areas.append("shake")
             if data["detection_method"] == "friend_area" or data["restart_method"] == "friend_area":
                 visible_areas.append("friend")
             if data["auto_totem"] == True:
@@ -3458,7 +3480,7 @@ class Api:
                 title_hit = 1 if name in title else 0
                 return (title_hit, area)
             best = max(candidates, key=score)
-            return best["left"], best["top"], best["width"], best["height"]
+            return abs(best["left"]), abs(best["top"]), abs(best["width"]), abs(best["height"])
 
         # Fallback
         try:
@@ -3466,7 +3488,7 @@ class Api:
             sw, sh = pyautogui.size()
         except Exception:
             sw, sh = getattr(self, "SCREEN_WIDTH", 1920), getattr(self, "SCREEN_HEIGHT", 1080)
-        return 0, 0, int(sw), int(sh)
+        return 0, 0, abs(int(sw)), abs(int(sh))
 
     def detect_roblox(self):
         """Called from the Detect Roblox button. Prints and reports window bounds."""
@@ -4452,7 +4474,7 @@ class Api:
             # Allow ±15% Size Difference
             tolerance = median_radius * 0.15
             similar_circles = [
-                (x, y)
+                (int(x), int(y))
                 for (x, y, r) in good_circles
                 if abs(r - median_radius) <= tolerance
             ]
@@ -5825,7 +5847,6 @@ class Api:
                         friend_img = self.capture_frame[friend_top_s:friend_bottom_s, friend_left_s:friend_right_s]
                         friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
                         if friend_x is None or friend_y is None:
-                            cv2.imwrite("debug_full.png", self.capture_frame)
                             break
 
                     else:
@@ -5852,9 +5873,9 @@ class Api:
                     self.status_overlay.set_main_status(f"Playing Bar Minigame ({fishing_profile})")
                     if fishing_profile == "reverse":
                         self._enter_minigame_dreambreaker()
-                    elif fishing_profile == "dual":
+                    elif fishing_profile == "bellona":
                         self._enter_minigame_bellona()
-                    elif fishing_profile == "lanes":
+                    elif fishing_profile == "tranquility":
                         self._enter_minigame_tranquility()
                     elif fishing_profile == "metronome":
                         self.enter_minigame_lullaby()
@@ -6437,33 +6458,50 @@ class Api:
 
     def _enter_minigame_tranquility(self):
         # Areas
-        shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("shake")
+        shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("fish_tranquility")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
         # Minigame Variables
-        tranquility_note_ratio = float(self.vars["tranquility_note_ratio"])
+        tranquility_hit_ratio = float(self.vars["tranquility_hit_ratio"])
         target_delay = float(self.vars["target_delay"])
         tranquility_mode = self.vars["tranquility_mode"].lower()
         self.scan_delay = float(self.vars["minigame_scan_delay"])
         restart_delay = float(self.vars["restart_delay"])
         restart_method = self.vars["restart_method"].lower()
+        self.ever_out = False
+        self.ever_note_out_high = False
         last_capture_id = 0
-        # Get Hotkeys
-        tranquility_key_1 = str(self.vars["tranquility_key_1"])
-        tranquility_key_2 = str(self.vars["tranquility_key_2"])
-        tranquility_key_3 = str(self.vars["tranquility_key_3"])
-        tranquility_key_4 = str(self.vars["tranquility_key_4"])
         # Last Values (Cache)
         is_initial_run = True
-        note_scan_width = int(shake_width / 4.1)
-        half_note_scan_width = int(note_scan_width / 2)
-        # Note Positions (Dict)
-        last_note_positions = {}
-        current_note_positions = {}
-        initial_note_positions = {}
+        tranquility_area_ratio = shake_width / 350
+        tranquility_big_gap = int(tranquility_area_ratio * 80)
+        tranquility_small_gap = int(tranquility_area_ratio * 10)
+        fish_left = []
+        fish_right = []
+        initial_positions = []
+        hit = False
+        current_y = 0
+        init_y = 0
+        last_y = {}
+        for pos in range(4): # Add more later
+            # Relative to overlay origin (shake_left).  Original used absolute
+            # screen coords and shake_right, which mismatched the overlay canvas.
+            left = (tranquility_big_gap * pos) + (tranquility_small_gap * pos)
+            right = (tranquility_big_gap * (pos + 1)) + (tranquility_small_gap * pos)
+            fish_left.append(left)
+            fish_right.append(right)
         # Resize Overlay
-        leftime_offset = shake_left - int(shake_width / 3.8)
-        overlay_width = int(shake_width / 4)
-        self.fish_overlay.resize(leftime_offset, shake_top, overlay_width, shake_height)
+        fish_center_y = int((shake_top + shake_bottom) / 2)
+        fish_overlay = self.vars["fish_overlay"]
+        if fish_overlay == True:
+            # Position The Overlay Just Above Or Below The Fish Bar So It Does
+            # Not Cover The Actual Minigame.  Show() Expects (Left, Top, Width,
+            # Height) In Physical Pixels — Not Right/Bottom.
+            if fish_center_y > HALF_HEIGHT:
+                overlay_top = shake_top - tranquility_small_gap - tranquility_small_gap
+            else:
+                overlay_top = shake_top + tranquility_small_gap + tranquility_small_gap
+
+            self.fish_overlay.resize(shake_left, overlay_top, shake_width, tranquility_small_gap)
         time.sleep(0.5)
         while self.macro_running:
             # Check If Dxcam Is Available
@@ -6480,118 +6518,74 @@ class Api:
 
             else:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-                detection_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
             friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
             self.fish_overlay.clear()
             if restart_method == "friends":
                 if friend_x is not None:
+                    # For lanes (same as notes): use ever tracking if set, else default to perfect if ended clean
+                    if self.ever_note_out_high or self.ever_out:
+                        self.fish_caught = 0
+                        self.perfect_catch = 1
+                    else:
+                        self.fish_caught = 0
+                        self.perfect_catch = 0
                     time.sleep(restart_delay)
                     return
-
-            current_note_positions = {}
-            circles = self._find_all_circles(detection_img)
-            self.status_overlay.set_line(1, "Circles: ", len(circles))
-            for i, (x, y) in enumerate(circles):
-                lane = round(((x + half_note_scan_width) / shake_width) * 4)
-                if is_initial_run == True:
-                    initial_note_positions[lane] = y
-                if lane in current_note_positions:
-                    pass
+            # Everything is in this loop
+            for box in range(4):
+                scan_img = self.capture_frame[shake_top:shake_bottom, fish_left[box] + shake_left:fish_right[box] + shake_left]
+                circles = self._find_all_circles(scan_img)
+                circle_y = sorted(y for (x, y) in circles)
+                # Fish Overlay
+                try:
+                    color = self.vars[f"bar_color_{box + 1}"]
+                except:
+                    color = self.vars["bar_color"]
+                hit = False
+                # Capture initial static positions on the first frame
+                if is_initial_run:
+                    initial_positions.append(list(circle_y))
+                    display_y = circle_y
                 else:
-                    current_note_positions[lane] = y
-                if abs(current_note_positions[lane] - initial_note_positions[lane]) <= 5:
-                    del current_note_positions[lane]
-                if lane not in current_note_positions:
-                    continue
-
-                current_y = current_note_positions[lane]
-                last_y = last_note_positions.get(lane)
-
-                # We need a previous position before we can calculate velocity.
-                if last_y is None:
-                    continue
-
-                # Calculate the note's vertical movement.
-                velocity = current_y - last_y
-
-                # Notes normally move downwards. A positive velocity means
-                # that the detected note is falling.
-                if velocity <= 0:
-                    continue
-            # Check for notes that disappeared from the circle detector.
-            # This can happen when the falling note overlaps the initial note.
-            for lane, last_y in last_note_positions.items():
-                if lane in current_note_positions:
-                    continue
-
-                if lane not in initial_note_positions:
-                    continue
-
-                initial_y = initial_note_positions[lane]
-
-                # Only check when the note was moving downward toward
-                # its initial position.
-                if last_y <= initial_y:
-                    continue
-
-                # Calculate the horizontal detection block for this lane.
-                lane_center = int((lane / 4) * shake_width)
-                block_left = max(0, lane_center - half_note_scan_width)
-                block_right = min(
-                    shake_width,
-                    lane_center + half_note_scan_width
-                )
-
-                # Check a small vertical region around the initial note.
-                block_top = max(0, initial_y - 5)
-                block_bottom = min(
-                    shake_height,
-                    initial_y + 5
-                )
-
-                detection_block = detection_img[
-                    block_top:block_bottom,
-                    block_left:block_right
-                ]
-
-                # Look for the note colors in the overlap region.
-                detected = False
-                for color_id, tol_id in (
-                    ("bar_color", "bar_tolerance"),
-                    ("arrow_color", "arrow_tolerance"),
-                    ("fish_color", "fish_tolerance"),
-                ):
-                    pixel_x, pixel_y = self.pixel_search_matrix(
-                        detection_block,
-                        color_id,
-                        tol_id
-                    )
-
-                    if pixel_x is not None:
-                        detected = True
-                        break
-
-                if not detected:
-                    continue
-
-                # The falling note has reached the initial note.
-                if lane == 0:
-                    key = tranquility_key_1
-                elif lane == 1:
-                    key = tranquility_key_2
-                elif lane == 2:
-                    key = tranquility_key_3
-                else:
-                    key = tranquility_key_4
-
-                self.status_overlay.set_line(
-                    2,
-                    f"Pressing {key}",
-                    f"Lane {lane}"
-                )
-                self._send_key(key, target_delay)
-            last_note_positions = current_note_positions
+                    # Remove exact initial positions first
+                    if box < len(initial_positions):
+                        init_ys = set(initial_positions[box])
+                        circle_y = [y for y in circle_y if y not in init_ys]
+                    display_y = circle_y
+                    # If nothing remains after removal, treat the note as being at y=0 (shake_top)
+                    check_y = circle_y if circle_y else [0]
+                    # Hit if any remaining note is within 100px of any initial position in this lane
+                    if box < len(initial_positions) and initial_positions[box]:
+                        for current_y in check_y:
+                            for init_y in initial_positions[box]:
+                                # Status Overlay
+                                try:
+                                    mania_velocity = current_y - last_y[box]
+                                    if mania_velocity <= 0:
+                                        pass
+                                    else:
+                                        self.status_overlay.set_line((box + 1), f"Lane {box + 1}: ", f"Velocity: {mania_velocity}")
+                                except KeyError as e:
+                                    mania_velocity = 0
+                                    self.status_overlay.set_line((box + 1), f"Lane {box + 1}: ", f"Error: {e}")
+                                if abs(current_y - init_y) <= 50 + mania_velocity:
+                                    hit = True
+                                    break
+                            if hit:
+                                break
+                        if hit:
+                            key = str(self.vars[f"tranquility_key_{box + 1}"])
+                            self._send_key(key, self.scan_delay)
+                    # Remember last known y (first remaining, or 0) for this lane
+                    last_y[box] = check_y[0] if check_y else 0
+                # Coordinates relative to overlay (0..width, 0..height)
+                if fish_overlay == True:
+                    if hit:
+                        self.fish_overlay.draw_box(fish_left[box], 0, fish_right[box], tranquility_small_gap, color)
+                # self.status_overlay.set_line((box + 1), fish_left[box], fish_right[box])
+            # Divide Lanes Into 4
             is_initial_run = False
+            time.sleep(self.scan_delay)
     def _enter_minigame_dreambreaker(self):
         # Helper Functions
         mouse_down = False
@@ -6611,8 +6605,8 @@ class Api:
         fish_left, fish_top, fish_right, fish_bottom, fish_width, fish_height = self.get_areas("fish")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
         # Area Calculations
-        fish_x = int((fish_left + fish_right) / 2)
-        fish_y = int((fish_top + fish_bottom) / 2)
+        fish_center_x = int((fish_left + fish_right) / 2)
+        fish_center_y = int((fish_top + fish_bottom) / 2)
         fish_overlay = self.vars["fish_overlay"]
         if fish_overlay == True:
             # Position The Overlay Just Above Or Below The Fish Bar So It Does
@@ -6636,10 +6630,13 @@ class Api:
         self.scan_delay = float(self.vars["minigame_scan_delay"])
         restart_delay = float(self.vars["restart_delay"])
         restart_method = self.vars["restart_method"].lower()
+        self.ever_out = False
+        self.ever_note_out_high = False
         # Last Values (Failsafe)
         scale = get_scale_factor()
         last_left_x = 0
         last_right_x = 0
+        last_fish_x = None
         last_capture_id = 0
         last_bar_size = 0
         last_bar_center = 0
@@ -6663,11 +6660,17 @@ class Api:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
             self.fish_overlay.clear()
             fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
-            left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0)
-            right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1)
+            if fish_x is not None:
+                last_fish_x = fish_x
+            left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
+            right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+            if left_x == None:
+                left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+            if right_x == None:
+                right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
             if left_x is None or right_x is None:
                 detection_source = 1
-                # Bars Not Found  Scan For Arrows
+                # Bars Not Found - Scan For Arrows
                 arrow_x, arrow_y = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
                 # Reconstruct Missing Bar Edge From Previous Geometry Instead Of Mouse State
                 if arrow_x is not None:
@@ -6714,16 +6717,48 @@ class Api:
             except:
                 bar_size = 0
                 bar_center = 0
+            # Track inside for catch rate (same as normal)
+            currently_inside = False
+            if left_x is not None and right_x is not None and fish_x is not None:
+                currently_inside = left_x <= fish_x <= right_x
+            if not currently_inside:
+                self.ever_out = True
             # Friend And Fish Restart
             if restart_method == "friend_area":
                 friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
+                    ended_inside = False
+                    if left_x is not None and right_x is not None and fish_x is not None:
+                        ended_inside = left_x <= fish_x <= right_x
+                    if not ended_inside:
+                        self.fish_caught = 1
+                        self.perfect_catch = 1
+                    else:
+                        if self.ever_out:
+                            self.fish_caught = 0
+                            self.perfect_catch = 1
+                        else:
+                            self.fish_caught = 0
+                            self.perfect_catch = 0
                     self.interruptible_sleep(restart_delay)
                     return
 
             else:
                 try:
                     if fish_x is None:
+                        ended_inside = False
+                        if left_x is not None and right_x is not None and last_fish_x is not None:
+                            ended_inside = left_x <= last_fish_x <= right_x
+                        if not ended_inside:
+                            self.fish_caught = 1
+                            self.perfect_catch = 1
+                        else:
+                            if self.ever_out:
+                                self.fish_caught = 0
+                                self.perfect_catch = 1
+                            else:
+                                self.fish_caught = 0
+                                self.perfect_catch = 0
                         self.interruptible_sleep(restart_delay)
                         return
 
@@ -6732,10 +6767,13 @@ class Api:
                     continue
 
             if lock_cursor == True:
-                mouse_controller.position = (int(fish_x / scale), int(fish_y / scale))
+                mouse_controller.position = (int(fish_center_x * scale), int(fish_center_y * scale))
             # Draw
-            if left_x is not None:
-                self.fish_overlay.draw_box(x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green")
+            if fish_overlay == True:
+                if left_x is not None:
+                    self.fish_overlay.draw_box(x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green")
+                if fish_x is not None:
+                    self.fish_overlay.draw_box(x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 10, y2=overlay_height*0.85, color="red")
             # Controller Output
             self.status_overlay.set_line(1, f"Detection Source: ", detection_source)
             self.status_overlay.set_line(2, f"Last Source: ", last_detection_source)
@@ -6766,14 +6804,13 @@ class Api:
                 mouse_down = False
         # Areas
         shake_left, shake_top, shake_right, shake_bottom, _, shake_height = self.get_areas("shake")
-        raw_fish_left, fish_top, raw_fish_right, fish_bottom, raw_fish_width, fish_height = self.get_areas("fish")
+        fish_left, fish_top, fish_right, fish_bottom, fish_width, fish_height = self.get_areas("fish_1_bellona")
+        fish_left2, fish_top, fish_right2, fish_bottom, fish_width2, fish_height2 = self.get_areas("fish_2_bellona")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
+        self.ever_out = False
+        self.ever_note_out_high = False
         # Area Calculations
-        fish_center = raw_fish_left + int(raw_fish_width / 2)
-        fish_left = raw_fish_left
-        fish_right = fish_center
-        fish_left2 = fish_center
-        fish_right2 = raw_fish_right
+        fish_center = int((fish_left + fish_right2) / 2)
         shake_x = int((shake_left + shake_right) / 2)
         shake_y = int((shake_top + shake_bottom) / 2)
         fish_overlay = self.vars["fish_overlay"]
@@ -6806,6 +6843,7 @@ class Api:
         kp = self._get_var_number("kp", 0.45)
         kd = self._get_var_number("kd", 0.35)
         # Cache Values
+        right_bar_offset = fish_left2 - fish_left
         last_capture_id = 0
         last_bar_size1 = 0
         last_bar_center1 = 0
@@ -6817,6 +6855,8 @@ class Api:
         last_right_x2 = 0
         last_fish_x1 = 0
         last_fish_x2 = 0
+        last_error1 = 0
+        last_error2 = 0
         last_time = time.perf_counter()
         while self.macro_running:
             # Check If Dxcam Is Available
@@ -6845,55 +6885,113 @@ class Api:
                 fish_detected = False
             if fish_x2 is None:
                 fish_detected2 = False
-            # Left And Right Bar Detection
-            left_x1, left_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0)
-            right_x1, right_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1)
-            left_x2, left_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 0)
-            right_x2, right_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 1)
+            # Left and Right bar detection
+            # Bar 1
+            left_x1, left_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
+            right_x1, right_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+            if left_x1 == None:
+                left_x1, left_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+            if right_x1 == None:
+                right_x1, right_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
+            # Bar 2
+            left_x2, left_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 0, 1)
+            right_x2, right_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 1, 2)
+            if left_x2 == None:
+                left_x2, left_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 0, 2)
+            if right_x2 == None:
+                right_x2, right_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 1, 1)
             bar_detected = True
             bar_detected2 = True
-            if left_x1 is not None or right_x1 is not None:
-                # Bar 1 Detected - Calculate Bar Center And Bar Size
+            # Bar 1 — fill missing edge from last known size, then compute center from its own edges
+            if left_x1 is None and right_x1 is not None and last_bar_size1:
+                left_x1 = right_x1 - last_bar_size1
+            elif right_x1 is None and left_x1 is not None and last_bar_size1:
+                right_x1 = left_x1 + last_bar_size1
+            if left_x1 is not None and right_x1 is not None:
                 bar_size1 = abs(right_x1 - left_x1)
                 bar_center1 = left_x1 + int(bar_size1 / 2)
             else:
-                # Try Arrow For Left Bar
+                # Try arrow for bar 1
                 arrow_x1, arrow_y1 = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
-                if arrow_x1 is not None:
-                    arrow1_on_left_side = arrow_x1 < last_bar_center1
-                    if arrow1_on_left_side:
+                if arrow_x1 is not None and last_bar_size1:
+                    if arrow_x1 < last_bar_center1:
                         left_x1 = arrow_x1
                         right_x1 = arrow_x1 + last_bar_size1
+                    else:
+                        right_x1 = arrow_x1
+                        left_x1 = right_x1 - last_bar_size1
                     bar_size1 = abs(right_x1 - left_x1)
                     bar_center1 = left_x1 + int(bar_size1 / 2)
                 else:
                     bar_detected = False
-            if left_x2 is not None or right_x2 is not None:
-                # Bar 2 Detected  Calculate Bar Center And Bar Size
-                bar_size2 = abs(right_x1 - left_x1)
-                bar_center2 = left_x1 + int(bar_size2 / 2)
+                    bar_size1 = last_bar_size1
+                    bar_center1 = last_bar_center1
+            # Bar 2 — same logic, using its own edges (not bar 1's)
+            if left_x2 is None and right_x2 is not None and last_bar_size2:
+                left_x2 = right_x2 - last_bar_size2
+            elif right_x2 is None and left_x2 is not None and last_bar_size2:
+                right_x2 = left_x2 + last_bar_size2
+            if left_x2 is not None and right_x2 is not None:
+                bar_size2 = abs(right_x2 - left_x2)
+                bar_center2 = left_x2 + int(bar_size2 / 2)
             else:
-                # Try Arrow For Right Bar
+                # Try arrow for bar 2
                 arrow_x2, arrow_y2 = self.pixel_search_matrix(fish_img2, "arrow_color", "arrow_tolerance")
-                if arrow_x2 is not None:
-                    arrow2_on_left_side = arrow_x2 < last_bar_center2
-                    if arrow2_on_left_side:
+                if arrow_x2 is not None and last_bar_size2:
+                    if arrow_x2 < last_bar_center2:
                         left_x2 = arrow_x2
                         right_x2 = arrow_x2 + last_bar_size2
-                    bar_size2 = abs(right_x1 - left_x1)
-                    bar_center2 = left_x1 + int(bar_size2 / 2)
+                    else:
+                        right_x2 = arrow_x2
+                        left_x2 = right_x2 - last_bar_size2
+                    bar_size2 = abs(right_x2 - left_x2)
+                    bar_center2 = left_x2 + int(bar_size2 / 2)
                 else:
                     bar_detected2 = False
+                    bar_size2 = last_bar_size2
+                    bar_center2 = last_bar_center2
+            # Track inside for catch rate (same as normal for dual)
+            currently_inside1 = False
+            if left_x1 is not None and right_x1 is not None and fish_x1 is not None:
+                currently_inside1 = left_x1 <= fish_x1 <= right_x1
+            currently_inside2 = False
+            if left_x2 is not None and right_x2 is not None and fish_x2 is not None:
+                currently_inside2 = left_x2 <= fish_x2 <= right_x2
+            if not currently_inside1 or not currently_inside2:
+                self.ever_out = True
             # Friend And Fish Restart
             if restart_method == "friend_area":
                 friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
+                    ended_inside = currently_inside1 and currently_inside2
+                    if not ended_inside:
+                        self.fish_caught = 1
+                        self.perfect_catch = 1
+                    else:
+                        if self.ever_out:
+                            self.fish_caught = 0
+                            self.perfect_catch = 1
+                        else:
+                            self.fish_caught = 0
+                            self.perfect_catch = 0
                     self.interruptible_sleep(restart_delay)
                     return
 
             else:
                 try:
                     if fish_x1 is None and fish_x2 is None:
+                        # Treat as ended, use last known or out
+                        ended_inside = False  # conservative
+                        if not ended_inside:
+                            self.fish_caught = 1
+                            self.perfect_catch = 1
+                        else:
+                            if self.ever_out:
+                                self.fish_caught = 0
+                                self.perfect_catch = 1
+                            else:
+                                self.fish_caught = 0
+                                self.perfect_catch = 0
                         self.interruptible_sleep(restart_delay)
                         return
 
@@ -6932,53 +7030,74 @@ class Api:
             if fish_detected2 == False:
                 fish_x2 = last_fish_x2
             # Edge Boundary For Left And Right Bar
-            boundary1 = bar_size1 * bar_ratio_from_side
-            boundary2 = bar_size2 * bar_ratio_from_side
-            left_boundary1 = fish_left + boundary1
-            right_boundary1 = fish_right - boundary1
-            left_boundary2 = fish_left2 + boundary2
-            right_boundary2 = fish_right2 - boundary2
+            # Coordinates are relative to each cropped fish area (same as _enter_minigame).
+            # right_bar_offset is applied only when drawing bar 2 onto the shared overlay.
+            boundary1 = bar_size1 * bar_ratio_from_side if bar_size1 else 0
+            boundary2 = bar_size2 * bar_ratio_from_side if bar_size2 else 0
+            left_boundary1 = boundary1
+            right_boundary1 = fish_width - boundary1
+            left_boundary2 = boundary2
+            right_boundary2 = fish_width2 - boundary2
             if fish_overlay == True:
+                # Bar 1 (relative coords already match overlay origin)
                 self.fish_overlay.draw_box(
-                    x1=left_x1, y1=fish_height*0.15, x2=right_x1, y2=fish_height*0.85,
+                    x1=left_x1, y1=overlay_height*0.15, x2=right_x1, y2=overlay_height*0.85, color="green",
+                    show_bar_center=True
                 )
                 if left_boundary1 is not None:
                     self.fish_overlay.draw_box(
-                        x1=left_boundary1, y1=fish_height*0.15, x2=left_boundary1 + 15, y2=fish_height*0.85,
+                        x1=left_boundary1, y1=overlay_height*0.15, x2=left_boundary1 + 15, y2=overlay_height*0.85, color="lightblue"
                     )
                 if right_boundary1 is not None:
                     self.fish_overlay.draw_box(
-                        x1=right_boundary1 - 15, y1=fish_height*0.15, x2=right_boundary1, y2=fish_height*0.85,
+                        x1=right_boundary1 - 15, y1=overlay_height*0.15, x2=right_boundary1, y2=overlay_height*0.85, color="lightblue"
                     )
                 if fish_x1 is not None:
                     self.fish_overlay.draw_box(
-                        x1=fish_x1, y1=fish_height*0.15, x2=fish_x1 + 15, y2=fish_height*0.85,
+                        x1=fish_x1, y1=overlay_height*0.15, x2=fish_x1 + 15, y2=overlay_height*0.85, color="red"
                     )
+                # Bar 2 — shift by right_bar_offset so it lines up on the shared overlay
                 self.fish_overlay.draw_box(
-                    x1=left_x2, y1=fish_height*0.15, x2=right_x2, y2=fish_height*0.85,
+                    x1=left_x2 + right_bar_offset, y1=overlay_height*0.15, x2=right_x2 + right_bar_offset, y2=overlay_height*0.85, color="green",
+                    show_bar_center=True
                 )
                 if left_boundary2 is not None:
                     self.fish_overlay.draw_box(
-                        x1=left_boundary2, y1=fish_height*0.15, x2=left_boundary2 + 15, y2=fish_height*0.85,
+                        x1=left_boundary2 + right_bar_offset, y1=overlay_height*0.15, x2=left_boundary2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="lightblue"
                     )
                 if right_boundary2 is not None:
                     self.fish_overlay.draw_box(
-                        x1=right_boundary2 - 15, y1=fish_height*0.15, x2=right_boundary2, y2=fish_height*0.85,
+                        x1=right_boundary2 - 15 + right_bar_offset, y1=overlay_height*0.15, x2=right_boundary2 + right_bar_offset, y2=overlay_height*0.85, color="lightblue"
                     )
                 if fish_x2 is not None:
                     self.fish_overlay.draw_box(
-                        x1=fish_x2, y1=fish_height*0.15, x2=fish_x2 + 15, y2=fish_height*0.85,
+                        x1=fish_x2 + right_bar_offset, y1=overlay_height*0.15, x2=fish_x2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="red"
                     )
             current_time = time.perf_counter()
             time_delta = current_time - last_time
-            error1 = fish_x1 - bar_center1
+            if time_delta < 0.001:
+                time_delta = 0.001
+            # Both fish_x and bar_center are relative to their own cropped area,
+            # so the subtraction is valid (no absolute/relative mix).
+            try:
+                error1 = (fish_x1 if fish_x1 is not None else last_fish_x1) - (bar_center1 or 0)
+            except TypeError:
+                error1 = 0
+            try:
+                error2 = (fish_x2 if fish_x2 is not None else last_fish_x2) - (bar_center2 or 0)
+            except TypeError:
+                error2 = 0
             p_term1 = error1 / time_delta * self.scan_delay
             d_term1 = (error1 - last_error1) / time_delta
             control_signal1 = p_term1 * kp + d_term1 * kd
-            error2 = fish_x2 - bar_center2
             p_term2 = error2 / time_delta * self.scan_delay
             d_term2 = (error2 - last_error2) / time_delta
             control_signal2 = p_term2 * kp + d_term2 * kd
+            if bag_spam_cycle == 3:
+                self.status_overlay.set_line(1, "Bar Velocity (1)", round(error1 - last_error1))
+                self.status_overlay.set_line(2, "Distance (1)", round(error1))
+                self.status_overlay.set_line(3, "Bar Velocity (2)", round(error2 - last_error2))
+                self.status_overlay.set_line(4, "Distance (2)", round(error2))
             if control_signal1 > 0:
                 hold_mouse(False)
             else:
@@ -7023,6 +7142,10 @@ class Api:
         lullaby_left, lullaby_top, lullaby_right, lullaby_bottom, lullaby_width, _ = self.get_areas("lullaby")
         fish_left, fish_top, fish_right, fish_bottom, fish_width, fish_height = self.get_areas("fish")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
+        restart_method = self.vars.get("restart_method", "friend_area")
+        restart_delay = float(self.vars.get("restart_delay", 0.5))
+        self.ever_out = False
+        self.ever_note_out_high = False
         # Area Calculations
         fish_overlay = self.vars["fish_overlay"]
         if fish_overlay == True:
@@ -7225,6 +7348,7 @@ class Api:
                     continue # Invalid detection
 
                 # Decide whether the metronome is inside or not
+                # Target: Ratio would be 0.28
                 metronome_ratio = mask_missing_count / initial_mask_count
                 lullaby_mask_contain_ratio = 1 - lullaby_mask_lost_ratio
                 if metronome_ratio < lullaby_mask_contain_ratio:
@@ -7232,6 +7356,11 @@ class Api:
                 else:
                     metronome_inside = False
                 self.status_overlay.set_line(3, "Metronome Ratio: ", round(metronome_ratio, 2))
+                # Track for catch rate (same as notes)
+                if not metronome_inside:
+                    self.ever_out = True
+                    if metronome_ratio > 0.9:
+                        self.ever_note_out_high = True
                 # Metronome Logic (Metronome_Inside = True)
                 if not metronome_inside == False:
                     if last_metronome_inside != metronome_inside:
@@ -7239,6 +7368,27 @@ class Api:
                         time.sleep(0.05)
                         release_mouse()
             last_metronome_inside = metronome_inside
+            # Restart logic like _enter_minigame
+            if restart_method == "friend_area":
+                friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
+                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                if friend_x is not None and friend_y is not None:
+                    # Set catch status
+                    if not metronome_inside:
+                        self.fish_caught = 1
+                        self.perfect_catch = 1
+                    else:
+                        if self.ever_out or self.ever_note_out_high:
+                            self.fish_caught = 0
+                            self.perfect_catch = 1
+                        else:
+                            self.fish_caught = 0
+                            self.perfect_catch = 0
+                    self.interruptible_sleep(restart_delay)
+                    return
+            else:
+                # Fallback: if no metronome detection for a while or similar, but for now use friend or end on lost
+                pass
             time.sleep(self.scan_delay)
             last_capture_id = self.capture_id
     def _enter_minigame(self):
@@ -7325,6 +7475,8 @@ class Api:
         is_initial_run = True
         bar_detected = False
         self.catch_success = 0
+        self.ever_out = False
+        self.ever_note_out_high = False
         last_time = time.perf_counter()
         # Teleport Detection Variables  Prevent Sudden Jumps Unless Consistent
         # Use Percentage-Based Threshold: If Line Moves > 50% Of Screen Width, It'S Likely Detection Error
@@ -7674,20 +7826,41 @@ class Api:
             if restart_method == "friend_area":
                 friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
-                    # Catch fails if fish stays off the bar and minigame ended
+                    # Classify catch based on tracking
+                    ended_inside = False
                     if left_x is not None and right_x is not None and fish_x is not None:
-                        if not (left_x <= fish_x <= right_x):
-                            self.fish_caught = 1
+                        ended_inside = left_x <= fish_x <= right_x
+                    if not ended_inside:
+                        self.fish_caught = 1
+                        self.perfect_catch = 1
+                    else:
+                        if self.ever_out or self.ever_note_out_high:
+                            self.fish_caught = 0
+                            self.perfect_catch = 1
+                        else:
+                            self.fish_caught = 0
+                            self.perfect_catch = 0
                     self.interruptible_sleep(restart_delay)
                     return
 
             else:
                 try:
                     if fish_x is None:
-                        # Catch fails if fish stays off the bar and minigame ended
-                        if left_x is not None and right_x is not None and fish_x is not None:
-                            if not (left_x <= fish_x <= right_x):
-                                self.fish_caught = 1
+                        # Same classification when minigame ends (fish disappears)
+                        ended_inside = False
+                        # Use last known if available, but since fish_x is None, treat as out or use last
+                        if left_x is not None and right_x is not None and last_fish_x is not None:
+                            ended_inside = left_x <= last_fish_x <= right_x
+                        if not ended_inside:
+                            self.fish_caught = 1
+                            self.perfect_catch = 1
+                        else:
+                            if self.ever_out or self.ever_note_out_high:
+                                self.fish_caught = 0
+                                self.perfect_catch = 1
+                            else:
+                                self.fish_caught = 0
+                                self.perfect_catch = 0
                         self.interruptible_sleep(restart_delay)
                         return
 
@@ -7773,14 +7946,21 @@ class Api:
                     fish_x = zone_x
                     fish_detected = True
             if fishing_profile == "notes":
-                # Catch Fails If The Note Ratio Becomes 1 And The Bar Can'T Catch It; Stays Success Only If Note Ratio Is Less Than 0.9
-                if note_y_ratio > 0.9:
-                    self.catch_success = 1
+                # Note detection already done above
+                pass
+            # Track whether fish/note is inside the bar for catch classification
+            currently_inside = False
+            if left_x is not None and right_x is not None and fish_x is not None:
+                currently_inside = left_x <= fish_x <= right_x
+            if not currently_inside:
+                self.ever_out = True
+            # For notes and shapes: high note ratio while out -> normal catch (not perfect)
+            if fishing_profile in ("notes", "shapes"):
+                if note_y_ratio > 0.9 and not currently_inside:
+                    self.ever_note_out_high = True
             else:
-                # Catch Fails If The Fish Ever Leaves The Bar; Stays Success Only If Fish Stays Inside The Whole Time
-                if left_x is not None and right_x is not None and fish_x is not None:
-                    if not (left_x <= fish_x <= right_x):
-                        self.catch_success = 1
+                # For normal / reverse / dual the ever_out is enough
+                pass
             # Edge Boundary
             if bar_size is not None:
                 boundary = bar_size * bar_ratio_from_side
