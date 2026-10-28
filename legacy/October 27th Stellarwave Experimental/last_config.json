@@ -1,0 +1,53 @@
+{
+    "last_config": "Tranquility Rod",
+    "bar_areas": {
+        "shake": {
+            "x": 0.1041,
+            "y": 0.0963,
+            "width": 0.7917,
+            "height": 0.7245
+        },
+        "fish": {
+            "x": 0.2844,
+            "y": 0.8488,
+            "width": 0.4297,
+            "height": 0.0404
+        },
+        "fish_1_bellona": {
+            "x": 0.08169999999999998,
+            "y": 0.8488,
+            "width": 0.3953,
+            "height": 0.030214814814814812
+        },
+        "fish_2_bellona": {
+            "x": 0.5160833333333333,
+            "y": 0.847874074074074,
+            "width": 0.3953,
+            "height": 0.03206666666666667
+        },
+        "fish_tranquility": {
+            "x": 0.3119166666666667,
+            "y": 0.1969481481481481,
+            "width": 0.37707083333333336,
+            "height": 0.6561407407407407
+        },
+        "friend": {
+            "x": 0.006683333333333334,
+            "y": 0.9041111111111112,
+            "width": 0.0355,
+            "height": 0.085
+        },
+        "totem": null,
+        "sovereign": null,
+        "noiseform": null,
+        "lullaby": null,
+        "chat": null,
+        "treasure_appraisal": null,
+        "appraisal_hotbar": null,
+        "enchantment": null,
+        "angler_quest": null
+    },
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7"
+}

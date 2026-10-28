@@ -167,5 +167,9 @@
     "arrow_color_count": "1",
     "fish_color_count": "1",
     "pinion_notes_color_count": "1",
-    "friends_color_count": "1"
+    "friends_color_count": "1",
+    "shake_color_2": "#88F2FF",
+    "shake_color_3": "#FFFFFF",
+    "shake_tolerance_2": "8",
+    "shake_tolerance_3": "5"
 }

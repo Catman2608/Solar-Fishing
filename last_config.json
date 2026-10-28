@@ -1,5 +1,5 @@
 {
-    "last_config": "Ruinous Oath",
+    "last_config": "Default",
     "bar_areas": {
         "shake": {
             "x": 0.10305833333333332,
@@ -9,9 +9,9 @@
         },
         "fish": {
             "x": 0.29742083333333336,
-            "y": 0.7969925925925927,
+            "y": 0.843288888888889,
             "width": 0.40834583333333335,
-            "height": 0.0829925925925926
+            "height": 0.03669629629629632
         },
         "friend": {
             "x": 0.0030375000000000003,
@@ -34,7 +34,7 @@
         "enchantment": null,
         "angler_quest": null
     },
-    "start_key": "F5",
-    "area_selector_key": "F6",
-    "stop_key": "F7"
+    "start_key": "f5",
+    "area_selector_key": "f6",
+    "stop_key": "f7"
 }
