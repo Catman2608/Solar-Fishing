@@ -1037,12 +1037,12 @@ AREA_CONFIG = {
     "shake": {
         "color": "#df0000",
         "label": "Shake Box",
-        "default": {"x": 0.1041, "y": 0.0963, "width": 0.7917, "height": 0.7245},
+        "default": {"x": 0.1041, "y": 0.0592, "width": 0.7917, "height": 0.7402},
     },
     "fish": {
         "color": "#00beff",
         "label": "Fish Box",
-        "default": {"x": 0.2844, "y": 0.8488, "width": 0.4297, "height": 0.0404},
+        "default": {"x": 0.2844, "y": 0.8377, "width": 0.4297, "height": 0.0376},
     },
     "fish_1_bellona": {
         "color": "#00beff",
@@ -1062,12 +1062,12 @@ AREA_CONFIG = {
     "friend": {
         "color": "#ffed00",
         "label": "Friend Box (Fish End)",
-        "default": {"x": 0.0046, "y": 0.893, "width": 0.0355, "height": 0.085},
+        "default": {"x": 0.0046, "y": 0.9031, "width": 0.0355, "height": 0.085},
     },
     "totem": {
         "color": "#00de07",
         "label": "Totem Box (Day/Night)",
-        "default": {"x": 0.9504, "y": 0.8641, "width": 0.0234, "height": 0.0509},
+        "default": {"x": 0.9493, "y": 0.8687, "width": 0.0234, "height": 0.0509},
     },
     "sovereign": {
         "color": "#d994ff",
@@ -2888,6 +2888,139 @@ class Api:
             return last
         return configs[0] if configs else ""
 
+    def convert_to_json(self, content, file_extension):
+        def to_snake_case(key):
+            key = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', key)
+            key = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', key)
+            return key.lower().replace(" ", "_")
+
+        def parse_ini_key(line):
+            if "=" not in line:
+                return None, None
+            key, value = line.split("=", 1)   # split only on the first =
+            value = value.lower()
+            return key.strip(), value.strip()
+        
+        def bgr_to_rgb(value: str) -> str:
+            """Convert '0xBBGGRR' -> '#RRGGBB'."""
+            hex_str = value.strip().lower()
+            if hex_str.startswith("0x"):
+                hex_str = hex_str[2:]
+            hex_str = hex_str.zfill(6)  # handle e.g. 0x0
+            b, g, r = hex_str[0:2], hex_str[2:4], hex_str[4:6]
+            return f"#{r}{g}{b}".upper()
+        
+        try:
+            if file_extension == "ini":
+                ini_mapping = ["CastScanDelay", "DelayBeforeCating", "DelayBeforeCasting", "CastDuration", "DelayAfterCasting", 
+                               "ShakeScanDelay", "MinigameScanDelay", "RestartDelay", "ClickDelay", "UtilityRestartDelay", "TotemDelay", 
+                               "SundialDelay", "CastTimeout", "ReleaseDelay", "AnimationDelay"]
+                lines = str(content or "").splitlines()
+                result = {}
+
+                for line in lines:                  # just iterate the lines directly
+                    line = line.strip()
+                    if not line or line.startswith("#") or line.startswith(";"):
+                        continue
+                    key, value = parse_ini_key(line)
+                    if key is None:
+                        continue
+                    if key.lower() == "leftcolor":
+                        key = "BarColor"
+                    if key.lower() == "rightcolor":
+                        key = "BarColor 2"
+                        result["bar_color_count"] = 2
+                    if key.lower() == "lefttolerance":
+                        key = "BarTolerance"
+                    if key.lower() == "righttolerance":
+                        key = "BarTolerance 2"
+                        result["bar_color_count"] = 2
+                    if value.startswith("0x"):
+                        value = bgr_to_rgb(value)
+                    # Convert delay values from milliseconds to seconds for known keys
+                    if key in ini_mapping:
+                        try:
+                            value2 = int(float(value))
+                            value = round(value2 / 1000, 4)
+                        except (ValueError, TypeError):
+                            pass  # leave non-numeric values unchanged
+                    result[to_snake_case(key)] = value
+
+                # Return proper JSON string
+                return {"success": True, "json_text": json.dumps(result, indent=4)}
+            else:
+                # TXT path (semicolon-separated DF1 format)
+                # Note: DF1 colors are 0xRRGGBB (unlike INI which is 0xBBGGRR)
+                result = {}
+                parts = [p.strip() for p in str(content or "").split(";")]
+                if not parts or parts[0] != "DF1":
+                    raise RuntimeError("Incompatible TXT config")
+
+                def rgb_hex(value: str) -> str:
+                    """Convert '0xRRGGBB' (or plain hex) to '#RRGGBB'. No channel swap."""
+                    hex_str = value.strip().lower()
+                    if hex_str.startswith("0x"):
+                        hex_str = hex_str[2:]
+                    hex_str = hex_str.replace("#", "").zfill(6)
+                    return f"#{hex_str.upper()}"
+
+                def assign_colors(base_key: str, raw: str):
+                    """Split comma-separated colors into base / base_2 / base_3 ... and set count."""
+                    if not raw:
+                        return
+                    colors = [c.strip() for c in raw.split(",") if c.strip()]
+                    if not colors:
+                        return
+                    for i, col in enumerate(colors, start=1):
+                        key = base_key if i == 1 else f"{base_key}_{i}"
+                        result[key] = rgb_hex(col)
+                    result[f"{base_key}_count"] = len(colors)
+
+                def raw_field(idx: int) -> str:
+                    return parts[idx] if idx < len(parts) else ""
+
+                # Field mapping (0-based after split on ';')
+                # 2  = fish tolerance
+                # 5  = fish colors (may be comma-separated)
+                # 6  = left bar colors
+                # 7  = right bar colors
+                # 8  = bar tolerance
+                # 9  = arrow color
+                # 10 = arrow tolerance
+                if raw_field(2):
+                    result["fish_tolerance"] = raw_field(2)
+
+                if raw_field(5):
+                    assign_colors("fish_color", raw_field(5))
+
+                # Interleave left (field 6) and right (field 7): left1, right1, left2, right2, ...
+                left_colors = [c.strip() for c in raw_field(6).split(",") if c.strip()]
+                right_colors = [c.strip() for c in raw_field(7).split(",") if c.strip()]
+                bar_colors = []
+                max_len = max(len(left_colors), len(right_colors))
+                for i in range(max_len):
+                    if i < len(left_colors):
+                        bar_colors.append(left_colors[i])
+                    if i < len(right_colors):
+                        bar_colors.append(right_colors[i])
+                if bar_colors:
+                    assign_colors("bar_color", ",".join(bar_colors))
+
+                if raw_field(8):
+                    result["bar_tolerance"] = raw_field(8)
+
+                if raw_field(9):
+                    assign_colors("arrow_color", raw_field(9))
+
+                if raw_field(10):
+                    result["arrow_tolerance"] = raw_field(10)
+
+                # Add more field mappings here as needed
+
+                return {"success": True, "json_text": json.dumps(result, indent=4)}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
     def save_settings(self, file_name=None, settings=None):
         try:
             # JS may call save_settings(settings) with a single dict.
@@ -3875,7 +4008,9 @@ class Api:
         if hex_color is None or hex_color.lower() in ["none", "# None", ""]:
             return None
 
-        hex_color = hex_color.lstrip('# ')
+        hex_color = hex_color.lstrip('# ').strip()
+        if len(hex_color) == 3:
+            hex_color = "".join(c * 2 for c in hex_color)
         if len(hex_color) == 6:
             try:
                 r = int(hex_color[0:2], 16)
@@ -4587,41 +4722,44 @@ class Api:
         y, x = coords[0]
         return int(x), int(y)
 
-    def _detect_noiseform_white(self, pixels, white_hex, tolerance=0):
+    def _detect_noiseform_white(self, pixels, white_threshold, tolerance=0):
         """
         Detect the first Noiseform white pixel.
-        Same V1-style threshold as `_find_bar_edges` left_mask:
-        every BGR channel must be >= (white_bgr - tolerance).
+        Every BGR channel must be >= (white_threshold - tolerance).
         `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
         Returns (x, y) or (None, None).
         """
-        if pixels is None or getattr(pixels, "size", 0) == 0 or white_hex is None:
+        if pixels is None or getattr(pixels, "size", 0) == 0 or white_threshold is None:
             return None, None
 
-        white_bgr = np.array(
-            self._hex_to_bgr(white_hex),
-            dtype=np.int16
-        )
+        try:
+            thr = int(np.clip(int(white_threshold), 0, 255))
+        except (TypeError, ValueError):
+            return None, None
+
+        white_bgr = np.array([thr, thr, thr], dtype=np.int16)
         pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
         tol = int(np.clip(tolerance, 0, 255))
         mask = np.all(pixels >= (white_bgr - tol), axis=-1)
         return self._noiseform_first_xy(mask)
 
-    def _detect_noiseform_black(self, pixels, black_hex, tolerance=0):
+    def _detect_noiseform_black(self, pixels, black_threshold, tolerance=0):
         """
         Detect the first Noiseform black pixel.
-        Opposite mask of `_detect_noiseform_white` / `_find_bar_edges`:
-        every BGR channel must be <= (black_bgr + tolerance).
+        Opposite mask of `_detect_noiseform_white`:
+        every BGR channel must be <= (black_threshold + tolerance).
         `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
         Returns (x, y) or (None, None).
         """
-        if pixels is None or getattr(pixels, "size", 0) == 0 or black_hex is None:
+        if pixels is None or getattr(pixels, "size", 0) == 0 or black_threshold is None:
             return None, None
 
-        black_bgr = np.array(
-            self._hex_to_bgr(black_hex),
-            dtype=np.int16
-        )
+        try:
+            thr = int(np.clip(int(black_threshold), 0, 255))
+        except (TypeError, ValueError):
+            return None, None
+
+        black_bgr = np.array([thr, thr, thr], dtype=np.int16)
         pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
         tol = int(np.clip(tolerance, 0, 255))
         mask = np.all(pixels <= (black_bgr + tol), axis=-1)
@@ -4656,17 +4794,21 @@ class Api:
         (center at 50% x, 51.94% y) then mapped into this crop, matching AHK's
         WindowWidth/Height minus FishBarLeft/NoteTop mapping.
         """
-        # Get values 
-        noiseform_white_color = self.vars["noiseform_white_color"]
-        noiseform_black_color = self.vars["noiseform_black_color"]
-        noiseform_white_color2 = f"#{noiseform_white_color}{noiseform_white_color}{noiseform_white_color}"
-        noiseform_black_color2 = f"#{noiseform_black_color}{noiseform_black_color}{noiseform_black_color}"
+        # Get thresholds (0-255)
+        try:
+            noiseform_white_threshold = int(self.vars.get("noiseform_white_color", 200))
+        except (TypeError, ValueError):
+            noiseform_white_threshold = 200
+        try:
+            noiseform_black_threshold = int(self.vars.get("noiseform_black_color", 30))
+        except (TypeError, ValueError):
+            noiseform_black_threshold = 30
         # Detect colors
-        white_x, white_y = self._detect_noiseform_white(noiseform_img, noiseform_white_color2, 5)
+        white_x, white_y = self._detect_noiseform_white(noiseform_img, noiseform_white_threshold, 5)
         if white_x is not None:
             return "white", white_x
 
-        black_x, black_y = self._detect_noiseform_black(noiseform_img, noiseform_black_color2, 5)
+        black_x, black_y = self._detect_noiseform_black(noiseform_img, noiseform_black_threshold, 5)
         if black_x is not None:
             return "black", black_x
 
@@ -4742,19 +4884,23 @@ class Api:
             key=lambda zone: zone[1] - zone[0]
         )
         green_x = (green_start + green_end) // 2
-        # 4. Find WHITE and BLACK using their configured colors
-        noiseform_white_color = self.vars["noiseform_white_color"]
-        noiseform_black_color = self.vars["noiseform_black_color"]
-        noiseform_white_color2 = f"#{noiseform_white_color}{noiseform_white_color}{noiseform_white_color}"
-        noiseform_black_color2 = f"#{noiseform_black_color}{noiseform_black_color}{noiseform_black_color}"
+        # 4. Find WHITE and BLACK using their configured thresholds (0-255)
+        try:
+            noiseform_white_threshold = int(self.vars.get("noiseform_white_color", 200))
+        except (TypeError, ValueError):
+            noiseform_white_threshold = 200
+        try:
+            noiseform_black_threshold = int(self.vars.get("noiseform_black_color", 30))
+        except (TypeError, ValueError):
+            noiseform_black_threshold = 30
         white_x, white_y = self._detect_noiseform_white(
             line,
-            noiseform_white_color2,
+            noiseform_white_threshold,
             5
         )
         black_x, black_y = self._detect_noiseform_black(
             line,
-            noiseform_black_color2,
+            noiseform_black_threshold,
             5
         )
         # 5. Return

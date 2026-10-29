@@ -306,6 +306,21 @@ async function saveSettings(configName) {
 
     const name = configName || currentConfig || selectedConfigName();
     await api.save_settings(name);
+
+    // If Global Settings is on, also persist non-local settings
+    if (isGlobalEnabled()) {
+        const all = collectSettings();
+        const globalPart = {};
+        Object.entries(all).forEach(([key, value]) => {
+            if (!isLocalSetting(key)) {
+                globalPart[key] = value;
+            }
+        });
+        // Always include the toggle itself so it persists
+        globalPart.global_settings = true;
+        await saveGlobalSettings(globalPart);
+    }
+
     if (!configName || configName === currentConfig || configName === selectedConfigName()) {
         currentConfig = name;
     }
@@ -384,6 +399,12 @@ function applySettings(settings, replace) {
     syncHotkeyButtons();
     updateColorPreviews();
     updateAccentColor();
+    if (typeof updateCastingMode === "function") updateCastingMode();
+    if (typeof updateShakeMode === "function") updateShakeMode();
+    if (typeof updateFishingVisibility === "function") updateFishingVisibility();
+    if (typeof updateSpecialRods === "function") updateSpecialRods();
+    if (typeof updateOtherAutomation === "function") updateOtherAutomation();
+    if (typeof updateFriendAreaVisibility === "function") updateFriendAreaVisibility();
     if (typeof syncModeTabs === "function") {
         syncModeTabs(activeSidebarTab());
     }
@@ -427,14 +448,21 @@ function paintColorInput(input, raw) {
     if (!input) {
         return;
     }
+    // Only force the value when explicitly loading a config / setting a raw value.
+    // Never rewrite the value on keystrokes so the user can freely delete and retype.
     if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
         input.value = String(raw).trim();
     }
-    const value = normalizeHexColor(input.value || input.placeholder);
+    const value = normalizeHexColor(input.value);
     if (!value) {
+        // Invalid or incomplete hex — clear colored styles so text stays readable while editing.
+        input.style.removeProperty("background");
+        input.style.removeProperty("background-color");
+        input.style.removeProperty("color");
+        input.style.removeProperty("border");
         return;
     }
-    input.value = value.toUpperCase();
+    // Apply preview styles only. Do not touch input.value (keeps 3-digit hex as typed).
     input.style.setProperty("background", value, "important");
     input.style.setProperty("background-color", value, "important");
     input.style.color = hexBrightness(value) > 170 ? "#111827" : "#ffffff";
@@ -576,7 +604,25 @@ async function loadSettings(configName) {
 
         const select = document.getElementById("config_list");
         const loadedName = (settings && (settings._config_name || settings.config_name)) || name;
-        const applied = unwrapSettings(settings);
+        let applied = unwrapSettings(settings);
+
+        // Overlay global settings when enabled (except local/per-config keys)
+        const globalSettings = await loadGlobalSettings();
+        const globalEnabled = Boolean(
+            globalSettings.global_settings === true ||
+            globalSettings.global_settings === "true" ||
+            applied.global_settings === true ||
+            applied.global_settings === "true"
+        );
+        if (globalEnabled) {
+            Object.entries(globalSettings).forEach(([key, value]) => {
+                if (!isLocalSetting(key)) {
+                    applied[key] = value;
+                }
+            });
+            applied.global_settings = true;
+        }
+
         if (select && loadedName) {
             try {
                 select.value = loadedName;
@@ -590,11 +636,82 @@ async function loadSettings(configName) {
         applySettings(fillBlankSettings(applied), true);
         paintConfigColors(applied);
         if (currentConfig) {
-            setStatus("Loaded: " + currentConfig);
+            setStatus("Loaded: " + currentConfig + (globalEnabled ? " (global)" : ""));
         }
     } finally {
         loadingConfig = false;
     }
+}
+
+function updateCastingMode() {
+    const mode = (document.getElementById("casting_mode") || {}).value || "normal";
+    const isPerfect = mode === "perfect";
+    const colorPanel = document.getElementById("cast-color-options");
+    const normalPanel = document.getElementById("normal-cast-card");
+    const perfectPanel = document.getElementById("perfect-cast-card");
+    if (colorPanel) colorPanel.hidden = !isPerfect;
+    if (perfectPanel) perfectPanel.hidden = !isPerfect;
+    // Normal Cast Settings stay visible in both modes
+    if (normalPanel) normalPanel.hidden = false;
+}
+
+function updateFriendAreaVisibility() {
+    const detection = (document.getElementById("detection_method") || {}).value || "friend_area";
+    const restart = (document.getElementById("restart_method") || {}).value || "friend_area";
+    const needsFriend = detection === "friend_area" || restart === "friend_area";
+    const container = document.getElementById("friends-colors-container");
+    if (container) container.hidden = !needsFriend;
+    // Also hide the count input's parent section if needed, but container is enough
+}
+
+function updateShakeMode() {
+    const mode = (document.getElementById("shake_mode") || {}).value || "pixel";
+    const panel = document.getElementById("shake-color-options");
+    if (panel) panel.hidden = mode !== "pixel";
+}
+
+function updateFishingVisibility() {
+    const fishingMode = (document.getElementById("fishing_mode") || {}).value || "color";
+    const profile = (document.getElementById("fishing_profile") || {}).value || "normal";
+    const isLine = fishingMode === "line";
+    const isPinion = profile === "notes";
+
+    const bar = document.getElementById("bar-colors-container");
+    const arrow = document.getElementById("arrow-colors-container");
+    const fish = document.getElementById("fish-colors-container");
+    const pinion = document.getElementById("pinion_notes-colors-container");
+
+    if (bar) bar.hidden = isLine;
+    if (arrow) arrow.hidden = isLine;
+    if (fish) fish.hidden = isLine;
+    if (pinion) pinion.hidden = !isPinion;
+}
+
+function updateSpecialRods() {
+    const profile = (document.getElementById("fishing_profile") || {}).value || "normal";
+    const panel = document.getElementById("special-rods-panel");
+    const settings = document.querySelectorAll(".special-rod-setting");
+    let anyVisible = false;
+    settings.forEach((el) => {
+        const match = el.dataset.profile === profile;
+        el.hidden = !match;
+        if (match) anyVisible = true;
+    });
+    if (panel) panel.hidden = !anyVisible;
+}
+
+function updateOtherAutomation() {
+    const mode = (document.getElementById("automation_mode") || {}).value || "fishing";
+    const map = {
+        appraisal: "auto-appraisal-panel",
+        treasure_appraisal: "auto-treasure-appraisal-panel",
+        enchant: "auto-enchant-panel",
+        angler: "auto-angler-panel",
+    };
+    Object.entries(map).forEach(([key, id]) => {
+        const panel = document.getElementById(id);
+        if (panel) panel.hidden = mode !== key;
+    });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -603,6 +720,12 @@ document.addEventListener("DOMContentLoaded", () => {
     initColorGroups();
     applySettings(fillBlankSettings({}));
     updateAccentColor();
+    updateCastingMode();
+    updateShakeMode();
+    updateFishingVisibility();
+    updateSpecialRods();
+    updateOtherAutomation();
+    updateFriendAreaVisibility();
 
     const refreshButton = document.getElementById("refresh-configs");
     if (refreshButton) {
@@ -949,15 +1072,12 @@ function bindColorPreviewInputs() {
             return;
         }
         input.dataset.colorPreviewBound = "true";
-        input.addEventListener("input", () => {
-            updateColorPreview(input);
-            if (!applyingSettings) updateAccentColor();
-        });
+        // Intentionally no "input" listener — live updates interfere with backspace + retyping.
+        // Preview + accent update only after the user finishes editing (change fires on blur).
         input.addEventListener("change", () => {
             updateColorPreview(input);
             if (!applyingSettings) updateAccentColor();
         });
-        input.addEventListener("focus", () => updateColorPreview(input));
         updateColorPreview(input);
     });
 }
@@ -1311,6 +1431,57 @@ function isColorSetting(key) {
     return k.includes("color") || k.includes("tolerance");
 }
 
+// Settings that survive a Reset Settings action
+const SURVIVE_RESET_KEYS = [
+    "minigame_scan_delay"
+];
+
+function survivesReset(key) {
+    if (!key) return false;
+    const k = String(key).toLowerCase();
+    // Explicit list
+    if (SURVIVE_RESET_KEYS.includes(k)) return true;
+    // All bar color / tolerance / count entries
+    if (k.startsWith("bar_color") || k.startsWith("bar_tolerance") || k === "bar_color_count") {
+        return true;
+    }
+    return false;
+}
+
+// Local / per-config settings (not shared when Global Settings is on)
+function isLocalSetting(key) {
+    return survivesReset(key);
+}
+
+function isGlobalEnabled() {
+    const el = document.getElementById("global_settings");
+    return el ? el.checked : false;
+}
+
+async function saveGlobalSettings(settings) {
+    const api = _pyApi();
+    if (!api || typeof api.save_global_settings !== "function") return;
+    try {
+        await api.save_global_settings(settings);
+    } catch (error) {
+        console.error("Failed to save global settings", error);
+    }
+}
+
+async function loadGlobalSettings() {
+    const api = _pyApi();
+    if (!api || typeof api.load_global_settings !== "function") return {};
+    try {
+        const result = await api.load_global_settings();
+        if (result && result.success && result.settings) {
+            return result.settings;
+        }
+    } catch (error) {
+        console.error("Failed to load global settings", error);
+    }
+    return {};
+}
+
 async function RefreshConfigs() {
     const preferred = selectedConfigName();
     const configs = await refreshConfigs(preferred);
@@ -1446,7 +1617,7 @@ async function ResetSettings() {
     const name = selectedConfigName();
     showUpdateBanner({
         title: "Reset Settings",
-        notice: `Reset all settings for "${name}" to defaults? Colors will be kept.`,
+        notice: `Reset all settings for "${name}" to defaults? Bar colors and minigame scan delay will be kept.`,
         buttons: [
             { label: "Cancel", class: "btn-ghost", onClick: () => {} },
             {
@@ -1454,21 +1625,21 @@ async function ResetSettings() {
                 class: "btn-primary",
                 onClick: async () => {
                     try {
-                        // Preserve current color-related settings
+                        // Preserve settings that survive a reset (bar colors + minigame scan delay)
                         const current = collectSettings();
-                        const colorSettings = {};
+                        const preserved = {};
                         Object.entries(current).forEach(([key, value]) => {
-                            if (isColorSetting(key)) {
-                                colorSettings[key] = value;
+                            if (survivesReset(key)) {
+                                preserved[key] = value;
                             }
                         });
 
                         // Reset everything to HTML defaults
                         resetFieldsToDefaults();
 
-                        // Re-apply preserved colors
-                        if (Object.keys(colorSettings).length) {
-                            applySettings(colorSettings, false);
+                        // Re-apply preserved settings
+                        if (Object.keys(preserved).length) {
+                            applySettings(preserved, false);
                         }
 
                         // Make sure color groups rebuild correctly
@@ -1483,7 +1654,7 @@ async function ResetSettings() {
                         }
 
                         await saveSettings(name);
-                        setStatus("Settings reset (colors kept): " + name);
+                        setStatus("Settings reset (bar colors + scan delay kept): " + name);
                     } catch (error) {
                         console.error(error);
                         showUpdateBanner({
@@ -1527,8 +1698,11 @@ async function OpenFolder() {
 
 function _suggestConfigNameFromFile(filename) {
     let name = String(filename || "").trim();
-    if (name.toLowerCase().endsWith(".json")) {
+    const lower = name.toLowerCase();
+    if (lower.endsWith(".json")) {
         name = name.slice(0, -5);
+    } else if (lower.endsWith(".ini") || lower.endsWith(".txt")) {
+        name = name.slice(0, -4);
     }
     name = name.replace(/[\\/:*?"<>|]/g, "").trim();
     return name || "Imported";
@@ -1537,7 +1711,7 @@ function _suggestConfigNameFromFile(filename) {
 async function ImportConfigs() {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".json,application/json";
+    input.accept = ".json,.ini,.txt,application/json,text/plain";
     input.style.display = "none";
     document.body.appendChild(input);
 
@@ -1558,6 +1732,52 @@ async function ImportConfigs() {
                 buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
             });
             return;
+        }
+
+        const filename = String(file.name || "").toLowerCase();
+        const isJson = filename.endsWith(".json");
+        const isIniOrTxt = filename.endsWith(".ini") || filename.endsWith(".txt");
+
+        if (!isJson && !isIniOrTxt) {
+            showUpdateBanner({
+                title: "Import Failed",
+                notice: "Please select a JSON, INI, or TXT file.",
+                buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+            });
+            return;
+        }
+
+        if (isIniOrTxt) {
+            const api = _pyApi();
+            if (!api || typeof api.convert_to_json !== "function") {
+                showUpdateBanner({
+                    title: "Import Failed",
+                    notice: "Conversion is not available.",
+                    buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                });
+                return;
+            }
+            try {
+                const ext = filename.endsWith(".ini") ? "ini" : "txt";
+                const result = await api.convert_to_json(text, ext);
+                if (!result || result.success === false) {
+                    showUpdateBanner({
+                        title: "Import Failed",
+                        notice: (result && result.error) || "Could not convert the file.",
+                        buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                    });
+                    return;
+                }
+                text = result.json_text || "";
+            } catch (error) {
+                console.error(error);
+                showUpdateBanner({
+                    title: "Import Failed",
+                    notice: "Could not convert the file.",
+                    buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+                });
+                return;
+            }
         }
 
         let settings = null;
