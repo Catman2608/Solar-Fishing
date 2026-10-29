@@ -17,8 +17,10 @@
         </symbol>
 
         <symbol id="i-reset" viewBox="0 0 24 24">
-            <path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M19 5.5V10h-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Circular undo / restore arrow -->
+            <path d="M4 12a8 8 0 1 0 2.3-5.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M4 4v5.5h5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
 
         <symbol id="i-crosshair" viewBox="0 0 24 24">
@@ -43,15 +45,19 @@
         </symbol>
 
         <symbol id="i-import" viewBox="0 0 24 24">
-            <path d="M12 3v12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M5 21h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <!-- Document with down arrow -->
+            <path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M12 8v7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M9 12.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
 
         <symbol id="i-export" viewBox="0 0 24 24">
-            <path d="M12 15V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M7 8l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M5 21h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <!-- Document with up arrow -->
+            <path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M14 3v4h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M12 16V9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M9 11.5l3-3 3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </symbol>
 
         <symbol id="i-refresh" viewBox="0 0 24 24">
@@ -201,7 +207,7 @@
                 </div>
                 <div class="dropdown">
                     <label for="automation_mode">Automation Mode:</label>
-                    <select name="automation_mode" id="automation_mode" onchange="syncModeTabs(activeSidebarTab())">
+                    <select name="automation_mode" id="automation_mode" onchange="syncModeTabs(activeSidebarTab()); updateOtherAutomation()">
                         <option value="fishing">Fishing</option>
                         <option value="harpoon_gun">Harpoon Gun (Shake Only)</option>
                         <option value="appraisal">Appraisal</option>
@@ -213,7 +219,7 @@
                 </div>
                 <div class="dropdown">
                     <label for="fishing_profile">Fishing Profile:</label>
-                    <select name="fishing_profile" id="fishing_profile">
+                    <select name="fishing_profile" id="fishing_profile" onchange="updateFishingVisibility(); updateSpecialRods()">
                         <option value="normal">Normal</option>
                         <option value="notes">Notes (Pinion)</option>
                         <option value="reverse">Reverse (Dreambreaker)</option>
@@ -311,7 +317,7 @@
                         <option value="perfect">Perfect</option>
                     </select>
                 </div>
-                <section class="panel open">
+                <section class="panel open" id="cast-color-options">
                     <div class="panel-header">
                         <h2>Color Options</h2>
                         <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
@@ -363,7 +369,7 @@
                         </div>
                     </div>
                 </section>
-                <section class="panel open">
+                <section class="panel open" id="normal-cast-card">
                     <div class="panel-header">
                         <h2>Normal Cast Settings</h2>
                         <p class="description">Adjust the timing and behavior of normal casting.</p>
@@ -488,13 +494,13 @@
             <div id="shake" class="tab-content">
                 <div class="dropdown">
                     <label for="shake_mode">Shake Mode:</label>
-                    <select name="shake_mode" id="shake_mode">
+                    <select name="shake_mode" id="shake_mode" onchange="updateShakeMode()">
                         <option value="pixel">Pixel</option>
                         <option value="circle">Circle</option>
                         <option value="navigation">Navigation</option>
                     </select>
                 </div>
-                <section class="panel open">
+                <section class="panel open" id="shake-color-options">
                     <div class="panel-header">
                         <h2>Color Options</h2>
                         <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
@@ -554,7 +560,7 @@
                 <!-- Minigame widgets -->
                 <div class="dropdown">
                     <label for="fishing_mode">Fishing Mode:</label>
-                    <select name="fishing_mode" id="fishing_mode">
+                    <select name="fishing_mode" id="fishing_mode" onchange="updateFishingVisibility()">
                         <option value="color">Color</option>
                         <option value="line">Line</option>
                     </select>
@@ -584,7 +590,7 @@
                         </div>
                     </div>
                 </section>
-                <section class="panel open">
+                <section class="panel open" id="fish-color-options">
                     <div class="panel-header">
                         <h2>Color Options</h2>
                         <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
@@ -702,6 +708,52 @@
                         </div>
                     </div>
                 </section>
+                <section class="panel open" id="special-rods-panel">
+                    <div class="panel-header">
+                        <h2>Special Rods</h2>
+                        <p class="description">Configure behavior for rods with unique mechanics.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="text special-rod-setting" data-profile="notes">
+                            <label>Note Tracking Ratio (Pinion)</label>
+                            <input id=pinion_note_ratio type="text" placeholder="0.3">
+                        </div>
+                        <div class="dropdown special-rod-setting" data-profile="tranquility">
+                            <label for="tranquility_mode">Tranquility Mode:</label>
+                            <select name="tranquility_mode" id="tranquility_mode">
+                            <option value="rapid">Rapid</option>
+                            <option value="steady">Steady</option>
+                            </select>
+                        </div>
+                        <div class="text special-rod-setting" data-profile="tranquility">
+                            <label>Note Target Ratio (Tranquility)</label>
+                            <input id=tranquility_hit_ratio type="text" placeholder="0.8">
+                        </div>
+                        <div class="text special-rod-setting" data-profile="tranquility">
+                            <label>Note Target Delay (Tranquility)</label>
+                            <input id=target_delay type="text" placeholder="0">
+                        </div>
+                        <div class="text special-rod-setting" data-profile="metronome">
+                            <label>Metronome Padding (Lullaby)</label>
+                            <input id=lullaby_metronome_padding type="text" placeholder="20">
+                        </div>
+                        <div class="text special-rod-setting" data-profile="metronome">
+                            <label>Mask Lost Ratio (Lullaby)</label>
+                            <input id=lullaby_mask_lost_ratio type="text" placeholder="0.2">
+                        </div>
+                        <div class="slider-row special-rod-setting" data-profile="shapes">
+                            <label for="noiseform_white_color">White Threshold (Noiseform)</label>
+                            <input class="range-input" id="noiseform_white_color_slider" type="range" min="0" max="255" step="1" value="200" data-target="noiseform_white_color">
+                            <input class="slider-value" id="noiseform_white_color" type="text" inputmode="numeric" value="200" data-slider="noiseform_white_color_slider">
+                        </div>
+                        <div class="slider-row special-rod-setting" data-profile="shapes">
+                            <label for="noiseform_black_color">Black Threshold (Noiseform)</label>
+                            <input class="range-input" id="noiseform_black_color_slider" type="range" min="0" max="255" step="1" value="30" data-target="noiseform_black_color">
+                            <input class="slider-value" id="noiseform_black_color" type="text" inputmode="numeric" value="30" data-slider="noiseform_black_color_slider">
+                        </div>
+                    </div>
+                </section>
                 <section class="panel open">
                     <div class="panel-header">
                         <h2>Controller Settings</h2>
@@ -739,50 +791,6 @@
                         <div class="text">
                             <label>Velocity Smoothing</label>
                             <input id=velocity_smoothing type="text" placeholder="0.6">
-                        </div>
-                    </div>
-                </section>
-                <section class="panel open">
-                    <div class="panel-header">
-                        <h2>Special Rods</h2>
-                        <p class="description">Configure behavior for rods with unique mechanics.</p>
-                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
-                    </div>
-                    <div class="panel-body">
-                        <div class="text">
-                            <label>Note Tracking Ratio (Pinion)</label>
-                            <input id=pinion_note_ratio type="text" placeholder="0.3">
-                        </div>
-                        <div class="dropdown">
-                            <label for="tranquility_mode">Tranquility Mode:</label>
-                            <select name="tranquility_mode" id="tranquility_mode">
-                            <option value="rapid">Rapid</option>
-                            <option value="steady">Steady</option>
-                            </select>
-                        </div>
-                        <div class="text">
-                            <label>Note Target Ratio (Tranquility)</label>
-                            <input id=tranquility_hit_ratio type="text" placeholder="0.8">
-                        </div>
-                        <div class="text">
-                            <label>Note Target Delay (Tranquility)</label>
-                            <input id=target_delay type="text" placeholder="0">
-                        </div>
-                        <div class="text">
-                            <label>Metronome Padding (Lullaby)</label>
-                            <input id=lullaby_metronome_padding type="text" placeholder="20">
-                        </div>
-                        <div class="text">
-                            <label>Mask Lost Ratio (Lullaby)</label>
-                            <input id=lullaby_mask_lost_ratio type="text" placeholder="0.2">
-                        </div>
-                        <div class="text">
-                            <label>White Color (Noiseform)</label>
-                            <input id=noiseform_white_color type="text" placeholder="222">
-                        </div>
-                        <div class="text">
-                            <label>Black Color (Noiseform)</label>
-                            <input id=noiseform_black_color type="text" placeholder="0">
                         </div>
                     </div>
                 </section>
@@ -834,17 +842,26 @@
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
-                        <div class="color-option">
-                            <p>Sovereign Recharge</p>
-                            <input id="sovereign_recharge_color" class="color-stripe" type="text" placeholder="#d994ff" spellcheck="false">
-                            <p>Tolerance</p>
-                            <input id="sovereign_recharge_tolerance" class="tolerance-input" type="number" placeholder="5">
-                            <button class="color-icon-btn" type="button" onclick="pickColor('sovereign_recharge_color')" title="Pick color" aria-label="Pick color">
-                                <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
-                            </button>
-                            <button class="color-icon-btn" type="button" onclick="resetColor('sovereign_recharge_color')" title="Reset color" aria-label="Reset color">
-                                <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
-                            </button>
+                        <input type="text" id="sovereign_recharge_color_count" style="display: none;" value="1">
+                        <div id="sovereign_recharge-colors-container">
+                            <div class="color-option" data-index="1">
+                                <p>Sovereign Recharge</p>
+                                <input id="sovereign_recharge_color" class="color-stripe" type="text" placeholder="#d994ff" spellcheck="false">
+                                <p>Tolerance</p>
+                                <input id="sovereign_recharge_tolerance" class="tolerance-input" type="number" placeholder="5">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('sovereign_recharge_color')" title="Pick color" aria-label="Pick color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="resetColor('sovereign_recharge_color')" title="Reset color" aria-label="Reset color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
+                                </button>
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('sovereign_recharge_color')" title="Add color" aria-label="Add color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
+                                </button>
+                                <button class="color-icon-btn" type="button" onclick="removeColor('sovereign_recharge_color')" title="Remove color" aria-label="Remove color">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -1096,14 +1113,14 @@
                         </div>
                         <div class="dropdown">
                             <label for="detection_method">Detection Method:</label>
-                            <select name="detection_method" id="detection_method">
+                            <select name="detection_method" id="detection_method" onchange="updateFriendAreaVisibility()">
                                 <option value="friend_area">Friend Area</option>
                                 <option value="fish">Fish</option>
                             </select>
                         </div>
                         <div class="dropdown">
                             <label for="restart_method">Restart Method:</label>
-                            <select name="restart_method" id="restart_method">
+                            <select name="restart_method" id="restart_method" onchange="updateFriendAreaVisibility()">
                                 <option value="friend_area">Friend Area</option>
                                 <option value="fish">Fish</option>
                             </select>
@@ -1139,7 +1156,7 @@
                         </div>
                     </div>
                 </section>
-                <section class="panel open">
+                <section class="panel open" id="auto-appraisal-panel">
                     <div class="panel-header">
                         <h2>Auto Appraisal</h2>
                         <p class="description">Automatically appraise caught fish based on your settings.</p>
@@ -1186,7 +1203,7 @@
                         </div>
                     </div>
                 </section>
-                <section class="panel open">
+                <section class="panel open" id="auto-treasure-appraisal-panel">
                     <div class="panel-header">
                         <h2>Auto Treasure Appraisal</h2>
                         <p class="description">Configure automatic treasure appraisal and related settings.</p>
@@ -1213,7 +1230,7 @@
                         </div>
                     </div>
                 </section>
-                <section class="panel open">
+                <section class="panel open" id="auto-enchant-panel">
                     <div class="panel-header">
                         <h2>Auto Enchant</h2>
                         <p class="description">Automatically enchant rods using your selected configuration.</p>
@@ -1267,7 +1284,7 @@
                         </div>
                     </div>
                 </section>
-                <section class="panel open">
+                <section class="panel open" id="auto-angler-panel">
                     <div class="panel-header">
                         <h2>Auto Angler</h2>
                         <p class="description">Automate interactions with the Angler NPC.</p>
@@ -1304,7 +1321,214 @@
             </div>
 
             <div id="faq" class="tab-content">
-                <!-- FAQ content -->
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Overview</h2>
+                        <p class="description">Questions about general settings, hotkeys, and basic options.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>HOTKEYS DOESN'T WORK</strong></p>
+                            <p class="faq-solution">Make sure to run as adminstrator on Windows and reset permissions after a Solar Fishing update on macOS</p>
+                            <p class="faq-solution">If that is checked, check the Start/Stop key, Area Selector key and Screenshot key in Overview match the keys you are pressing.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>COULD NOT FIND THE ROBLOX GAME WINDOW</strong></p>
+                            <p class="faq-solution">Open Roblox and join a game before you press Start. If Roblox is already open, please maximize the Roblox window. DO NOT RUN ROBLOX IN FULLSCREEN.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>THE COLOR PICKER OR DETECTION LANDS IN THE WRONG PLACE</strong></p>
+                            <p class="faq-solution">Press the Detect Roblox button and follow the prompt to open the area selector. This is caused by broken Roblox cache</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>IT BROKE AFTER I RESIZED OR MOVED ROBLOX</strong></p>
+                            <p class="faq-solution">Stop the macro and start it again. This is because the macro gets the Roblox coordinates at the start.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>MY GAME LAGS WHILE THE MACRO RUNS</strong></p>
+                            <p class="faq-solution">The macro reads the screen many times a second. A low frame rate in Roblox makes the minigame harder to follow, so lower graphics directly helps tracking.
+                                Also, make sure to set controller mode to Predictive as it handles lag really well.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Cast</h2>
+                        <p class="description">Issues related to casting, rod selection, and timing.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>THE MACRO NEVER CASTS</strong></p>
+                            <p class="faq-solution">Make sure your rod is in your hand. Set Rod hotbar slot key in General > Recovery so the macro can equip it itself.
+Also check nothing is open on screen, such as your inventory, a shop or a dialog box. The cast click lands on that instead.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>MY CASTS ARE TOO SHORT OR TOO FAR</strong></p>
+                            <p class="faq-solution">Normal cast: change Hold rod cast duration (ms) in Cast. Higher casts further out, lower casts closer in.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>IT STARTS SHAKING BEFORE THE BOBBER LANDS</strong></p>
+                            <p class="faq-solution">Raise Delay After Casting in Cast. Laggy servers need a bigger delay.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>PERFECT CAST NEVER LETS GO</strong></p>
+                            <p class="faq-solution">Go to the Cast tab and pick the green and white colors of the cast power bar again, or raise Green tolerance and White tolerance a little.
+If the bar is never found it gives up after Fall Scan Timeout and lets go anyway, so it will not hang forever.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>PERFECT CAST LETS GO TOO EARLY OR TOO LATE</strong></p>
+                            <p class="faq-solution">Change Release Delay and the velocity bands in Cast in steps of 0.1. Lower it if it lets go too late, raise it if it lets go too early.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>PERFECT CAST LETS GO AT RANDOM MOMENTS</strong></p>
+                            <p class="faq-solution">Lower Green tolerance and White tolerance. When they are too high, other white or green parts of the screen get mistaken for the cast bar.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Shake</h2>
+                        <p class="description">Common problems with the shake detection and related settings.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>IT CASTS BUT NEVER SHAKES</strong></p>
+                            <p class="faq-solution">Check Shake mode in Shake. Pixel and Circle detect the Shake Area, Navigation uses the keyboard to press the shake button, which is more reliable.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>SHAKING IS TOO SLOW AND THE FISH GETS AWAY</strong></p>
+                            <p class="faq-solution">Lower Shake Delay in Shake.
+
+Going too low can make the game miss inputs, so lower it a little at a time.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>IT HIT THE FAILSAFE BEFORE IT CAN STOP SHAKING</strong></p>
+                            <p class="faq-solution">Increase Shake Failsafe (attempts) up by steps of 10. Repeat until it hits the minigame.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>IT SHAKES FOREVER AND NEVER REACHES THE MINIGAME</strong></p>
+                            <p class="faq-solution">Check the fish or friend area is actually being detected (see the Fish and Utilities tab). The macro keeps shaking until it sees the fish or friend area.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Fish</h2>
+                        <p class="description">Minigame, catching, and fish-related troubleshooting.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>THE MINIGAME IS NEVER DETECTED</strong></p>
+                            <p class="faq-solution">Stop the macro, press Test detection in Minigame, then cast and play a minigame yourself. It shows whether the bar and the fish line are being seen.
+
+If they are not, go to Color Options and pick the colors again while the minigame is on screen. You can add variants to colors, so if the bar looks different at night or while it fills, add that shade too.
+
+Raise Fish Tolerance a little at a time if picking again does not help. Colors differ between rod skins, so a new rod often needs a fresh pick.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>IT THINKS A MINIGAME IS ON SCREEN WHEN THERE IS NONE</strong></p>
+                            <p class="faq-solution">Your tolerances are too high or a picked color matches scenery. Lower Fish line tolerance and Bar color tolerance, and remove any colors in the Color Manager that do not belong to the bar.
+
+Check with Test detection while no minigame is on screen. Nothing should be detected.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>THE BAR IS FOUND BUT DOES NOT FOLLOW THE FISH</strong></p>
+                            <p class="faq-solution">Check Fishing Profile in Overview. It must match the rod you are holding, or set it to Fishing for a normal rod.
+
+Try Color as the Fishing mode. It needs the least tuning. Lines reads the edges of the bar instead of your colors, which helps if your colors keep failing.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>THE BAR WOBBLES OR ROCKS AROUND THE FISH</strong></p>
+                            <p class="faq-solution">Normal or Steady: raise Kd a little. Predictive: raise Stopping Distance if it still overshoots. Change one value at a time.
+
+Near the fish the macro clicks rapidly on its own to hold the bar centered, so a small amount of fast clicking there is expected.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>THE BAR SAILS PAST THE FISH</strong></p>
+                            <p class="faq-solution">Raise Stopping Distance in Minigame. It starts braking sooner.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>THE BAR CRAWLS AND NEVER REACHES THE FISH</strong></p>
+                            <p class="faq-solution">Predictive: Lower Stopping Distance. Normal or Steady: raise Kp a little.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>THE BAR FALLS BEHIND A FISH THAT MOVES FAST</strong></p>
+                            <p class="faq-solution">Raise Kp a little. Raising Velocity Smoothing makes it react to direction changes sooner, but too high makes it jittery.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>I MESSED UP MY MINIGAME SETTINGS</strong></p>
+                            <p class="faq-solution">Press Reset Settings. Bar colors and minigame scan delay will be kept.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Special Rods</h2>
+                        <p class="description">Settings and issues specific to special or advanced rods.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>ROD X WITHOUT SPECIAL MINIGAME DOESN'T WORK</strong></p>
+                            <p class="faq-solution">The colors on the built-in configs might be wrong. Press the Pick Colors button and select the correct color, then send a bug report.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>ROD X WITH SPECIAL MINIGAME DOESN'T WORK</strong></p>
+                            <p class="faq-solution">Refer to the Tuning guide below.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>Pinion's Aria tuning guide</strong></p>
+                            <p class="faq-solution">Note Tracking Ratio is the ratio line on when the macro will start going to the note. 
+                                Increase if it catches the note too early and lose the fish, decrease if it fail to catch the notes. (Increase or decrease by 0.1 each time and refer to the Note Ratio in the Status Overlay)</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>Tranquility Rod tuning guide</strong></p>
+                            <p class="faq-solution">Set Tranquility Mode to Steady if it keeps spamming, and Rapid if it doesn't hit the notes. 
+                                Note Target Distance is the threshold so the Tranquility Rod can hit. If it hit too early, decrease it. If it hit too late, decrease it. (Increase or decrease from 0 to 100 and refer to the distance in the Status Overlay)</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>Lullaby Rod tuning guide</strong></p>
+                            <p class="faq-solution">Metronome Padding is the padding for the Lullaby to detect the hit area. Increase if detection fails, decrease if it spams the note and lose the fish.
+                                Mask Lost Ratio is the ratio for the mask to start hitting. (Increase or decrease by 0.1 each time and refer to the Mask Lost Ratio in the Status Overlay)
+                            </p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>Noiseform tuning guide (Modern)</strong></p>
+                            <p class="faq-solution">N/A</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>Noiseform tuning guide (Legacy)</strong></p>
+                            <p class="faq-solution">White Threshold is the brightness level (0-255) used to detect the white Noiseform flash/zone. Black Threshold is the brightness level (0-255) used to detect the black Noiseform flash/zone. Higher values make white detection stricter; lower values make black detection stricter. Adjust by 10-20 while watching the status overlay.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="panel open">
+                    <div class="panel-header">
+                        <h2>Utilities</h2>
+                        <p class="description">Questions about automation utilities, totems, and extra features.</p>
+                        <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>[Problem Here]</strong></p>
+                            <p class="faq-solution">[Explanation or solution will be added here.]</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>[Problem Here]</strong></p>
+                            <p class="faq-solution">[Explanation or solution will be added here.]</p>
+                        </div>
+                    </div>
+                </section>
             </div>
 
             <div id="about" class="tab-content">

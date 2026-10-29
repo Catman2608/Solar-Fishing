@@ -1,33 +1,35 @@
 {
-    "last_config": "Stellarwave Melody",
     "bar_areas": {
         "shake": {
-            "x": 0.10305833333333332,
-            "y": 0.10833703703703702,
-            "width": 0.5677416666666666,
-            "height": 0.36431481481481487
+            "x": 0.1041,
+            "y": 0.0592,
+            "width": 0.7917,
+            "height": 0.7402
         },
         "fish": {
-            "x": 0.181275,
-            "y": 0.6247703703703704,
-            "width": 0.3547,
-            "height": 0.09410370370370372
+            "x": 0.2844,
+            "y": 0.8377,
+            "width": 0.4297,
+            "height": 0.0376
         },
+        "fish_1_bellona": null,
+        "fish_2_bellona": null,
+        "fish_tranquility": null,
         "friend": {
-            "x": 0.0030375000000000003,
-            "y": 0.9031851851851852,
+            "x": 0.004600000000000001,
+            "y": 0.9031,
             "width": 0.0355,
             "height": 0.085
         },
-        "totem": {
-            "x": 0.9509208333333333,
-            "y": 0.8696555555555555,
-            "width": 0.0234,
-            "height": 0.0509
-        },
+        "totem": null,
         "sovereign": null,
         "noiseform": null,
-        "lullaby": null,
+        "lullaby": {
+            "x": 0.4222,
+            "y": 0.7327,
+            "width": 0.1556,
+            "height": 0.1415
+        },
         "chat": null,
         "treasure_appraisal": null,
         "appraisal_hotbar": null,
@@ -36,5 +38,6 @@
     },
     "start_key": "F5",
     "area_selector_key": "F6",
-    "stop_key": "F7"
+    "stop_key": "F7",
+    "last_config": "Lullaby"
 }

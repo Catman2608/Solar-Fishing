@@ -431,6 +431,16 @@ input {
     display: none;
 }
 
+/* Mode-dependent panels and color groups (overrides .panel { display: flex }) */
+.panel[hidden],
+#bar-colors-container[hidden],
+#arrow-colors-container[hidden],
+#fish-colors-container[hidden],
+#pinion_notes-colors-container[hidden],
+.special-rod-setting[hidden] {
+    display: none !important;
+}
+
 /* =========================
    CONFIG BAR
    ========================= */
@@ -1361,4 +1371,33 @@ select option {
 .resource-links a:hover {
     text-decoration: underline;
     color: #6ee7de;
+}
+
+/* =========================
+   FAQ
+   ========================= */
+
+.faq-item {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-card);
+}
+
+.faq-item:last-child {
+    border-bottom: none;
+    padding-bottom: 4px;
+}
+
+.faq-problem {
+    margin: 0 0 6px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.2px;
+}
+
+.faq-solution {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-secondary);
 }
