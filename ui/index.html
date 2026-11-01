@@ -173,25 +173,25 @@
             <select name="config_list" id="config_list" onchange="switchConfig(this.value)">
                 <option value="default">Default</option>
             </select>
-            <button id="add-rod" onclick="AddRod()" title="Add Rod" aria-label="Add Rod">
+            <button id="add-rod" onclick="addRod()" title="Add Rod" aria-label="Add Rod">
                 <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
             </button>
-            <button id="delete-rod" onclick="DeleteRod()" title="Delete Rod" aria-label="Delete Rod">
+            <button id="delete-rod" onclick="deleteRod()" title="Delete Rod" aria-label="Delete Rod">
                 <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
             </button>
-            <button id="open-folder" onclick="OpenFolder()" title="Open folder" aria-label="Open folder">
+            <button id="open-folder" onclick="openFolder()" title="Open folder" aria-label="Open folder">
                 <svg class="icon" aria-hidden="true"><use href="#i-folder"></use></svg>
             </button>
-            <button id="import-configs" onclick="ImportConfigs()" title="Import" aria-label="Import">
+            <button id="import-configs" onclick="importConfigs()" title="Import" aria-label="Import">
                 <svg class="icon" aria-hidden="true"><use href="#i-import"></use></svg>
             </button>
-            <button id="export-configs" onclick="ExportConfigs()" title="Export" aria-label="Export">
+            <button id="export-configs" onclick="exportConfigs()" title="Export" aria-label="Export">
                 <svg class="icon" aria-hidden="true"><use href="#i-export"></use></svg>
             </button>
-            <button id="refresh-configs" onclick="RefreshConfigs()" title="Refresh Configs" aria-label="Refresh Configs">
+            <button id="refresh-configs" onclick="refreshConfigs(selectedConfigName(), true)" title="Refresh Configs" aria-label="Refresh Configs">
                 <svg class="icon" aria-hidden="true"><use href="#i-refresh"></use></svg>
             </button>
-            <button id="reset-settings" onclick="ResetSettings()" title="Reset Settings" aria-label="Reset Settings">
+            <button id="reset-settings" onclick="resetSettings()" title="Reset Settings" aria-label="Reset Settings">
                 <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
             </button>
         </div>
@@ -949,12 +949,13 @@
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
-                        <div class="switch2">
-                            <p>Auto Reconnect</p>
-                            <label class="switch">
-                                <input id="auto_reconnect" type="checkbox">
-                                <span class="slider"></span>
-                            </label>
+                        <div class="dropdown">
+                            <label for="auto_reconnect">Auto Reconnect:</label>
+                            <select name="auto_reconnect" id="auto_reconnect">
+                                <option value="Modern">Modern</option>
+                                <option value="Legacy">Legacy</option>
+                                <option value="Disabled">Disabled</option>
+                            </select>
                         </div>
                         <div class="text">
                             <label>Threshold</label>
@@ -1426,46 +1427,8 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
                     </div>
                     <div class="panel-body">
                         <div class="faq-item">
-                            <p class="faq-problem"><strong>THE MINIGAME IS NEVER DETECTED</strong></p>
-                            <p class="faq-solution">Stop the macro, press Test detection in Minigame, then cast and play a minigame yourself. It shows whether the bar and the fish line are being seen.
-
-If they are not, go to Color Options and pick the colors again while the minigame is on screen. You can add variants to colors, so if the bar looks different at night or while it fills, add that shade too.
-
-Raise Fish Tolerance a little at a time if picking again does not help. Colors differ between rod skins, so a new rod often needs a fresh pick.</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>IT THINKS A MINIGAME IS ON SCREEN WHEN THERE IS NONE</strong></p>
-                            <p class="faq-solution">Your tolerances are too high or a picked color matches scenery. Lower Fish line tolerance and Bar color tolerance, and remove any colors in the Color Manager that do not belong to the bar.
-
-Check with Test detection while no minigame is on screen. Nothing should be detected.</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>THE BAR IS FOUND BUT DOES NOT FOLLOW THE FISH</strong></p>
-                            <p class="faq-solution">Check Fishing Profile in Overview. It must match the rod you are holding, or set it to Fishing for a normal rod.
-
-Try Color as the Fishing mode. It needs the least tuning. Lines reads the edges of the bar instead of your colors, which helps if your colors keep failing.</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>THE BAR WOBBLES OR ROCKS AROUND THE FISH</strong></p>
-                            <p class="faq-solution">Normal or Steady: raise Kd a little. Predictive: raise Stopping Distance if it still overshoots. Change one value at a time.
-
-Near the fish the macro clicks rapidly on its own to hold the bar centered, so a small amount of fast clicking there is expected.</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>THE BAR SAILS PAST THE FISH</strong></p>
-                            <p class="faq-solution">Raise Stopping Distance in Minigame. It starts braking sooner.</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>THE BAR CRAWLS AND NEVER REACHES THE FISH</strong></p>
-                            <p class="faq-solution">Predictive: Lower Stopping Distance. Normal or Steady: raise Kp a little.</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>THE BAR FALLS BEHIND A FISH THAT MOVES FAST</strong></p>
-                            <p class="faq-solution">Raise Kp a little. Raising Velocity Smoothing makes it react to direction changes sooner, but too high makes it jittery.</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>I MESSED UP MY MINIGAME SETTINGS</strong></p>
-                            <p class="faq-solution">Press Reset Settings. Bar colors and minigame scan delay will be kept.</p>
+                            <p class="faq-problem"><strong>ITS FISHING PERFECTLY BUT IT'S NOT CASTING</strong></p>
+                            <p class="faq-solution">Go to the Fish tab, and increase restart delay by steps of 0.5.</p>
                         </div>
                     </div>
                 </section>

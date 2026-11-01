@@ -1,16 +1,17 @@
 {
+    "last_config": "Luminescent Oath",
     "bar_areas": {
         "shake": {
-            "x": 0.1041,
-            "y": 0.0592,
-            "width": 0.7917,
+            "x": 0.10357916666666665,
+            "y": 0.0763591992373689,
+            "width": 0.7916999999999998,
             "height": 0.7402
         },
         "fish": {
-            "x": 0.2844,
-            "y": 0.8377,
-            "width": 0.4297,
-            "height": 0.0376
+            "x": 0.2963047619047619,
+            "y": 0.8419194092827004,
+            "width": 0.4058904761904762,
+            "height": 0.03338059071729958
         },
         "fish_1_bellona": null,
         "fish_2_bellona": null,
@@ -19,17 +20,12 @@
             "x": 0.004600000000000001,
             "y": 0.9031,
             "width": 0.0355,
-            "height": 0.085
+            "height": 0.08500000000000002
         },
         "totem": null,
         "sovereign": null,
         "noiseform": null,
-        "lullaby": {
-            "x": 0.4222,
-            "y": 0.7327,
-            "width": 0.1556,
-            "height": 0.1415
-        },
+        "lullaby": null,
         "chat": null,
         "treasure_appraisal": null,
         "appraisal_hotbar": null,
@@ -39,5 +35,11 @@
     "start_key": "F5",
     "area_selector_key": "F6",
     "stop_key": "F7",
-    "last_config": "Lullaby"
+    "tos_accepted": true,
+    "roblox_bounds_cache": {
+        "left": 0.0,
+        "top": 31.0,
+        "width": 1920.0,
+        "height": 1049.0
+    }
 }

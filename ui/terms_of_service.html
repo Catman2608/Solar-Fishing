@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - Solar Fishing V5.2</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        :root {
+            --left-gradient: #fa6b35;
+            --right-gradient: #ff8a5c;
+            --bg-topbar: rgba(16, 24, 28, 0.85);
+            --border-card: rgba(255, 255, 255, 0.10);
+            --text-primary: #f1f1f1;
+            --titlebar-h: 36px;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+        }
+        /* Custom scrollbar matching dark installer aesthetic */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #161b22;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #8b949e;
+        }
+        /* =========================
+        TITLE BAR
+        ========================= */
+
+        .title-bar {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            height: var(--titlebar-h);
+            min-height: var(--titlebar-h);
+            padding: 0 14px;
+            background: var(--bg-topbar);
+            border-bottom: 1px solid var(--border-card);
+            color: var(--text-primary);
+            -webkit-app-region: drag;
+            cursor: grab;
+        }
+
+        .title-bar:active {
+            cursor: grabbing;
+        }
+
+        .title-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+            -webkit-app-region: drag;
+        }
+
+        .title-bar .logo,
+        .title-bar .status,
+        .title-bar .status-label {
+            -webkit-app-region: drag;
+            cursor: grab;
+        }
+
+        .title-bar .logo:active,
+        .title-bar .status:active,
+        .title-bar .status-label:active {
+            cursor: grabbing;
+        }
+
+        .title-bar .logo {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: linear-gradient(to right, var(--left-gradient), var(--right-gradient));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            white-space: nowrap;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+
+        .title-bar .status {
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: #7a1f1c;
+            color: #ffd0cc;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .title-bar .status-label {
+            min-width: 180px;
+            max-width: 280px;
+            height: 26px;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            background: #3a3220;
+            color: #f3f4f6;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* ── Custom Window Bar (macOS traffic lights) ── */
+        .window-controls {
+            position: relative;
+            left: auto;
+            top: auto;
+            height: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 2;
+            flex: 0 0 auto;
+        }
+
+        .window-control {
+            -webkit-appearance: none;
+            appearance: none;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 12px;
+            height: 12px;
+            min-width: 12px;
+            min-height: 12px;
+            margin: 0;
+            padding: 0;
+            border-radius: 50%;
+            border: 0.5px solid rgba(0, 0, 0, 0.18);
+            box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+            flex: 0 0 auto;
+            line-height: 0;
+            font-size: 0;
+            color: transparent;
+            overflow: visible;
+            -webkit-app-region: no-drag;
+            transition: filter 0.15s, transform 0.15s;
+        }
+
+        .window-control::before {
+            content: "";
+            display: block;
+            width: 8px;
+            height: 8px;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: 8px 8px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .window-controls:hover .window-control::before,
+        .window-control:focus-visible::before {
+            opacity: 0.72;
+        }
+
+        .window-control:hover {
+            filter: brightness(1.08);
+            transform: scale(1.08);
+        }
+
+        .window-control:active {
+            transform: scale(0.92);
+        }
+
+        .window-close {
+            background: #ff5f57;
+        }
+
+        .window-minimize {
+            background: #febc2e;
+        }
+
+        .window-close::before {
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><path stroke='%234a0002' stroke-width='1.2' stroke-linecap='round' d='M1.5 1.5l5 5M6.5 1.5l-5 5'/></svg>");
+        }
+
+        .window-minimize::before {
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><path stroke='%235a3a00' stroke-width='1.2' stroke-linecap='round' d='M1.5 4h5'/></svg>");
+        }
+    </style>
+</head>
+<body class="h-full w-full flex flex-col overflow-hidden">
+
+    <!-- Main Installer/Modal Window — fills the entire pywebview window -->
+    <div class="w-full h-full bg-[#161b22] border border-[#30363d] flex flex-col overflow-hidden relative">
+        
+        <!-- Top Title Bar -->
+        <div class="title-bar pywebview-drag-region">
+            <div class="title-left">
+                <div class="window-controls">
+                    <button class="window-control window-close" aria-label="Close" title="Close" onclick="closeWindow()"></button>
+                    <button class="window-control window-minimize" aria-label="Minimize" title="Minimize" onclick="minimizeWindow()"></button>
+                </div>
+                <div class="logo pywebview-drag-region">TERMS OF SERVICE</div>
+            </div>
+        </div>
+
+        <!-- Scrollable Content Area -->
+        <div id="scrollContainer" class="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 text-sm leading-relaxed">
+            
+            <!-- Heading -->
+            <div>
+                <h2 class="text-white font-semibold text-base sm:text-lg mb-1">Solar Fishing V5.2</h2>
+                <p class="text-[#8b949e]">Last updated: October 31st 2026</p>
+            </div>
+
+            <!-- License -->
+            <div class="space-y-3">
+                <h3 class="text-amber-400 font-semibold tracking-wide">LICENSE: GNU GENERAL PUBLIC LICENSE v3.0</h3>
+                <div class="space-y-2 text-[#c9d1d9] font-mono text-xs sm:text-sm whitespace-pre-wrap">Copyright (C) 2026 Catman2608
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <a href="https://www.gnu.org/licenses/" class="text-amber-400 hover:underline" target="_blank" rel="noopener">https://www.gnu.org/licenses/</a>.</div>
+            </div>
+
+            <!-- Source Code -->
+            <div class="space-y-2 pt-2 border-t border-[#30363d]">
+                <h3 class="text-amber-400 font-semibold tracking-wide">SOURCE CODE</h3>
+                <p class="text-[#c9d1d9]">Official source code repository: <a href="https://github.com/Catman2608/Solar-Fishing" class="text-amber-400 hover:underline" target="_blank" rel="noopener">https://github.com/Catman2608/Solar-Fishing</a></p>
+            </div>
+
+            <!-- Portions from other projects -->
+            <div class="space-y-2 pt-2 border-t border-[#30363d]">
+                <h3 class="text-amber-400 font-semibold tracking-wide">PORTIONS FROM OTHER PROJECTS</h3>
+                <div class="space-y-2 text-[#c9d1d9]">
+                    <p>Arrow Estimation Code (estimates bar from arrows), Perfect Cast, Line mode, Steady Controller and Predictive Controller is adapted from IRUS COMET and IRUS IDIOTPROOF by AsphaltCake.</p>
+                    <p>Source: <a href="https://www.youtube.com/@AsphaltCake" class="text-amber-400 hover:underline" target="_blank" rel="noopener">https://www.youtube.com/@AsphaltCake</a></p>
+                    <p>Those portions remain subject to AsphaltCake's own terms, which permit sharing modifications with attribution. The restrictions above apply to Catman2608's original work and cannot and do not override AsphaltCake's terms for their part.</p>
+                    <p>Changes made to that method in this macro: None. The original implementations are used as provided by AsphaltCake.</p>
+                </div>
+            </div>
+
+            <!-- No Warranty -->
+            <div class="space-y-2 pt-2 border-t border-[#30363d]">
+                <h3 class="text-amber-400 font-semibold tracking-wide">NO WARRANTY</h3>
+                <div class="space-y-2 text-[#c9d1d9]">
+                    <p>This program is provided "as is", without warranty of any kind.</p>
+                    <p>See the GNU General Public License v3.0 for details.</p>
+                    <p>Automating a game may breach its rules.</p>
+                    <p>You use this at your own risk, and the author accepts no responsibility for any consequence to your account.</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Checkbox & Action Footer -->
+        <div class="p-6 bg-[#161b22] border-t border-[#30363d] flex flex-col sm:flex-row items-center justify-between gap-4 flex-shrink-0">
+            
+            <!-- Checkbox agreement -->
+            <label class="flex items-center gap-3 cursor-pointer select-none group w-full sm:w-auto">
+                <input type="checkbox" id="agreeCheckbox" class="w-4 h-4 rounded border-[#30363d] bg-[#0d1117] text-orange-600 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-[#ea580c]">
+                <span class="text-sm text-[#c9d1d9] group-hover:text-white transition-colors">I agree to the Terms of Service</span>
+            </label>
+
+            <!-- Buttons -->
+            <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+                <button id="backBtn" class="px-5 py-2.5 rounded-lg text-sm font-medium bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d] hover:text-white transition-all border border-[#30363d]">
+                    Back
+                </button>
+                <button id="nextBtn" class="px-5 py-2.5 rounded-lg text-sm font-medium bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d] hover:text-white transition-all border border-[#30363d]">
+                    Next
+                </button>
+                <button id="finishBtn" disabled class="px-6 py-2.5 rounded-lg text-sm font-medium bg-[#ea580c]/50 text-white/50 cursor-not-allowed transition-all shadow-lg">
+                    Finish
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Toast Notification Box -->
+        <div id="toast" class="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#21262d] border border-[#30363d] text-white px-4 py-2.5 rounded-lg shadow-xl text-sm flex items-center gap-2 opacity-0 pointer-events-none transition-opacity duration-300 z-50">
+            <span id="toastIcon">✨</span>
+            <span id="toastMessage">Action recorded</span>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Interactivity -->
+    <script>
+        const agreeCheckbox = document.getElementById('agreeCheckbox');
+        const finishBtn = document.getElementById('finishBtn');
+        const backBtn = document.getElementById('backBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+
+        // Toggle Finish button based on Checkbox state
+        agreeCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                finishBtn.removeAttribute('disabled');
+                finishBtn.className = "px-6 py-2.5 rounded-lg text-sm font-medium bg-[#ea580c] hover:bg-[#f97316] text-white cursor-pointer transition-all shadow-lg hover:shadow-orange-500/20";
+                showToast("Agreement accepted. 'Finish' is now unlocked!");
+            } else {
+                finishBtn.setAttribute('disabled', 'true');
+                finishBtn.className = "px-6 py-2.5 rounded-lg text-sm font-medium bg-[#ea580c]/50 text-white/50 cursor-not-allowed transition-all shadow-lg";
+                showToast("Agreement unchecked.");
+            }
+        });
+
+        // Button Click handlers
+        function callApi(method) {
+            try {
+                if (window.pywebview && window.pywebview.api && typeof window.pywebview.api[method] === "function") {
+                    window.pywebview.api[method]();
+                    return true;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+            return false;
+        }
+
+        function closeWindow() {
+            callApi("close_window");
+        }
+
+        function minimizeWindow() {
+            callApi("minimize_window");
+        }
+
+        backBtn.addEventListener('click', () => {
+            showToast("Closing application...");
+            callApi("close_app");
+        });
+
+        nextBtn.addEventListener('click', () => {
+            showToast("Please review and check the agreement box to proceed.");
+        });
+
+        finishBtn.addEventListener('click', () => {
+            if (!agreeCheckbox.checked) return;
+            showToast("Terms accepted. Launching Solar Fishing V5.2...");
+            callApi("accept_tos");
+        });
+
+        // Toast Notification Function (No alert() used!)
+        function showToast(message) {
+            toastMessage.textContent = message;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+            
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // Keep layout in sync if the pywebview window is resized
+        window.addEventListener('resize', () => {
+            // Flex layout already fills the viewport; this is a no-op hook
+            // matching the pattern used by status_overlay.html
+        });
+    </script>
+</body>
+</html>

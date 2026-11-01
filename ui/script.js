@@ -34,6 +34,49 @@ function _pyApi() {
     return window.pywebview && window.pywebview.api ? window.pywebview.api : null;
 }
 
+/**
+ * Get the Python backend's app version, beta version, and developer name.
+ * Calls the Api.get_python_version_info method exposed by pywebview.
+ * @returns {Promise<{app_version: any, beta_version: any, developer: string|null, error?: string}>}
+ */
+async function getPythonVersionInfo() {
+    const api = _pyApi();
+    if (!api || typeof api.get_python_version_info !== "function") {
+        return {
+            app_version: null,
+            beta_version: null,
+            developer: null,
+            error: "Python API not available"
+        };
+    }
+    try {
+        const info = await api.get_python_version_info();
+        if (info && typeof info === "object") {
+            return {
+                app_version: info.app_version ?? null,
+                beta_version: info.beta_version ?? null,
+                developer: info.developer ?? null
+            };
+        }
+        return {
+            app_version: null,
+            beta_version: null,
+            developer: null,
+            error: "Unexpected response from Python"
+        };
+    } catch (e) {
+        return {
+            app_version: null,
+            beta_version: null,
+            developer: null,
+            error: String(e)
+        };
+    }
+}
+
+// Expose for any callers that need it
+window.getPythonVersionInfo = getPythonVersionInfo;
+
 
 async function detectRoblox() {
     const api = _pyApi();
@@ -256,14 +299,20 @@ function selectedConfigName() {
     return "Default";
 }
 
-async function refreshConfigs(preferred) {
+async function refreshConfigs(preferred, reportStatus = false) {
+    const finish = (configs) => {
+        if (reportStatus) {
+            setStatus("Configs refreshed" + (configs.length ? ` (${configs.length})` : ""));
+        }
+        return configs;
+    };
     const api = _pyApi();
     const select = document.getElementById("config_list");
     if (!select) {
-        return [];
+        return finish([]);
     }
     if (!api || typeof api.list_configs !== "function") {
-        return [];
+        return finish([]);
     }
 
     let configs = [];
@@ -291,7 +340,7 @@ async function refreshConfigs(preferred) {
         select.value = configs[0];
     }
 
-    return configs;
+    return finish(configs);
 }
 
 function collectSettingsData() {
@@ -1482,13 +1531,7 @@ async function loadGlobalSettings() {
     return {};
 }
 
-async function RefreshConfigs() {
-    const preferred = selectedConfigName();
-    const configs = await refreshConfigs(preferred);
-    setStatus("Configs refreshed" + (configs && configs.length ? ` (${configs.length})` : ""));
-}
-
-async function AddRod() {
+async function addRod() {
     // Save current settings first
     try {
         await saveSettings();
@@ -1558,7 +1601,7 @@ async function AddRod() {
     });
 }
 
-async function DeleteRod() {
+async function deleteRod() {
     const name = selectedConfigName();
     if (!name) {
         return;
@@ -1613,7 +1656,7 @@ async function DeleteRod() {
     });
 }
 
-async function ResetSettings() {
+async function resetSettings() {
     const name = selectedConfigName();
     showUpdateBanner({
         title: "Reset Settings",
@@ -1669,7 +1712,7 @@ async function ResetSettings() {
     });
 }
 
-async function OpenFolder() {
+async function openFolder() {
     const api = _pyApi();
     if (!api || typeof api.open_base_folder !== "function") {
         setStatus("Open folder unavailable");
@@ -1708,7 +1751,7 @@ function _suggestConfigNameFromFile(filename) {
     return name || "Imported";
 }
 
-async function ImportConfigs() {
+async function importConfigs() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".json,.ini,.txt,application/json,text/plain";
@@ -1878,7 +1921,7 @@ async function ImportConfigs() {
     input.click();
 }
 
-async function ExportConfigs() {
+async function exportConfigs() {
     const name = selectedConfigName() || "config";
     let settings = {};
     try {

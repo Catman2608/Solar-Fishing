@@ -1210,6 +1210,7 @@ class AreaSelector:
             easy_drag=False,
             on_top=True,
             resizable=False,
+            focus=True,
             width=self.width,
             height=self.height,
             x=self.left,
@@ -1323,7 +1324,12 @@ class AreaSelector:
         for name in AREA_ORDER:
             area_data = (areas_dict or {}).get(name)
             if not isinstance(area_data, dict):
-                area_data = AREA_CONFIG[name]["default"]
+                # Unset: treat default as relative to the current Roblox window
+                default = dict(AREA_CONFIG[name]["default"])
+                try:
+                    area_data = self.parent_app._map_relative_area_to_screen(default)
+                except Exception:
+                    area_data = default
             color = AREA_CONFIG[name]["color"]
             label = AREA_CONFIG[name].get("label", name)
             self._areas[name] = self.pixels_to_ratios(area_data)
@@ -1413,7 +1419,9 @@ class AreaSelector:
         return self._screenshot_b64 or ""
 
     def save_areas(self, areas):
-        """Persist the current canvas boxes (logical pixels) and close the overlay.
+        """Persist the current canvas boxes as ratios relative to the Roblox window.
+        0,0 = left/top of the cached Roblox bounds; 1,1 = width/height of the Roblox bounds.
+        Also caches the Roblox window coordinates used for the conversion.
         Called from JS on Esc / F6 / beforeunload so changes are always written back.
         """
         if not isinstance(areas, dict):
@@ -1424,19 +1432,49 @@ class AreaSelector:
         # menu_offset is stored/used in logical units to match the canvas and
         # SCREEN_WIDTH/HEIGHT (which are logical).
         menu_offset_logical = get_macos_menu_offset()
+        # Detect and cache the Roblox window bounds (falls back to full screen)
+        try:
+            roblox = self.parent_app.detect_roblox()
+        except Exception:
+            roblox = {"left": 0, "top": 0, "width": SCREEN_WIDTH, "height": SCREEN_HEIGHT}
+        r_left = float(roblox.get("left", 0) or 0)
+        r_top = float(roblox.get("top", 0) or 0)
+        r_w = float(roblox.get("width", 0) or 0)
+        r_h = float(roblox.get("height", 0) or 0)
+        if r_w < 10 or r_h < 10:
+            r_left, r_top, r_w, r_h = 0.0, 0.0, float(SCREEN_WIDTH), float(SCREEN_HEIGHT)
+        self.parent_app.roblox_bounds_cache = {
+            "left": r_left,
+            "top": r_top,
+            "width": r_w,
+            "height": r_h,
+        }
+        self.parent_app.roblox_bounds = dict(self.parent_app.roblox_bounds_cache)
         for name, box in areas.items():
             if name not in self._areas or not isinstance(box, dict):
                 continue
+            # Canvas pixels → absolute screen position (undo menu offset on Y)
+            abs_x = float(box.get("x", 0))
+            abs_y = float(box.get("y", 0)) + menu_offset_logical
+            abs_w = float(box.get("width", box.get("w", 0)))
+            abs_h = float(box.get("height", box.get("h", 0)))
+            # Convert absolute → relative to cached Roblox window
+            rel_x = (abs_x - r_left) / r_w if r_w > 0 else 0.0
+            rel_y = (abs_y - r_top) / r_h if r_h > 0 else 0.0
+            rel_w = abs_w / r_w if r_w > 0 else 0.0
+            rel_h = abs_h / r_h if r_h > 0 else 0.0
             self._areas[name] = {
-                "x": float(box.get("x", 0)) / SCREEN_WIDTH,
-                "y": (float(box.get("y", 0)) + menu_offset_logical) / SCREEN_HEIGHT,
-                "width": float(box.get("width", box.get("w", 0))) / SCREEN_WIDTH,
-                "height": float(box.get("height", box.get("h", 0))) / SCREEN_HEIGHT,
+                "x": rel_x,
+                "y": rel_y,
+                "width": rel_w,
+                "height": rel_h,
             }
             self.parent_app.bar_areas[name] = dict(self._areas[name])
         self.parent_app.save_misc_settings()
         try:
-            self.parent_app.set_status("Area selector closed")
+            self.parent_app.set_status(
+                f"Areas saved relative to Roblox ({int(r_left)}, {int(r_top)}, {int(r_w)}×{int(r_h)})"
+            )
         except Exception:
             pass
         self.hide()
@@ -1664,6 +1702,7 @@ class Eyedropper:
             easy_drag=False,
             on_top=True,
             resizable=False,
+            focus=True,
             width=self.width,
             height=self.height,
             x=self.left,
@@ -1900,6 +1939,7 @@ class FishOverlay:
             easy_drag=False,
             on_top=True,
             resizable=False,
+            focus=False,
             width=self.width,
             height=self.height,
             x=self.left,
@@ -2067,6 +2107,7 @@ class StatusOverlay:
             easy_drag=False,
             on_top=True,
             resizable=False,
+            focus=False,
             width=self.width,
             height=self.height,
             x=self.left,
@@ -2311,6 +2352,7 @@ class PointSelect:
             easy_drag=False,
             on_top=True,
             resizable=False,
+            focus=True,
             width=self.width,
             height=self.height,
             x=self.left,
@@ -2450,7 +2492,178 @@ class PointSelect:
         self._open = False
         self._visible = False
         self._screenshot_b64 = None
+class TermsOfServiceDialogue:
+    # Prevent Pywebview From Walking This Object When The Main Api Is Js_Api
+    # (Window.Native.Accessibilityobject.Bounds Recursion / Webview2 Com).
+    _serializable = False
+    HTML_FILE = os.path.join(UI_PATH, "terms_of_service.html")
+    def __init__(self, parent_app):
+        self.parent_app = parent_app
+        self._tos_dialogue = None
+        self._open = False
+        self._visible = False
+        # Track Active Viewport Geometry (Logical Points For Pywebview)
+        self.left = 0
+        self.top = 0
+        self.width = 0
+        self.height = 0
+    def _to_window_coords(self, left, top, width, height):
+        """
+        Convert physical-pixel geometry (from _get_areas / capture) into the
+        logical points pywebview expects for window x/y/width/height.
+        On Windows scale is always 1; on macOS Retina it is typically 2.0.
+        Also clamps width/height so a bad (e.g. post-reset) size cannot make
+        the overlay cover the entire screen or exceed monitor bounds.
+        """
+        scale = get_scale_factor()
+        if scale <= 0:
+            scale = 1.0
+        left = int(left / scale)
+        top = int(top / scale)
+        width = max(1, int(width / scale))
+        height = max(1, int(height / scale))
+        # Clamp So The Window Stays Onscreen (Logical Screen Size)
+        screen_w = max(1, SCREEN_WIDTH)
+        screen_h = max(1, SCREEN_HEIGHT)
+        width = min(width, screen_w)
+        height = min(height, screen_h)
+        left = max(0, min(left, max(0, screen_w - width)))
+        top = max(0, min(top, max(0, screen_h - height)))
+        return left, top, width, height
 
+    def show(self, left, top, width, height, already_logical=False):
+        """Creates and displays the transparent frameless overlay window.
+        By default arguments are physical-pixel screen coordinates (same space as
+        _get_areas / capture_frame) and are converted to logical points for pywebview.
+        Pass already_logical=True to use the values as-is (logical points).
+        """
+        if not already_logical:
+            left, top, width, height = self._to_window_coords(left, top, width, height)
+        if self._open and self._tos_dialogue:
+            # If Already Open, Shift/Resize It Instead Of Duplicating
+            self.resize(left, top, width, height, already_logical=True)
+            return
+
+        self.left = left
+        self.top = top
+        self.width = width
+        self.height = height
+
+        outer = self
+        class _TosApi:
+            def close_window(self):
+                return outer.close_window()
+
+            def minimize_window(self):
+                return outer.minimize_window()
+
+            def accept_tos(self):
+                return outer.accept_tos()
+
+            def close_app(self):
+                return outer.close_app()
+
+        self._tos_dialogue = webview.create_window(
+            "Terms of Service",
+            url=self.HTML_FILE,
+            js_api=_TosApi(),
+            transparent=False,
+            frameless=True,
+            easy_drag=False,
+            on_top=False,
+            resizable=False,
+            focus=True,
+            width=self.width,
+            height=self.height,
+            x=self.left,
+            y=self.top,
+            background_color="#161b22",
+            min_size=(800, 600),
+        )
+        self._open = True
+        self._visible = True
+        self._tos_dialogue.events.closed += self._on_closed
+    def hide(self):
+        """Destroys the current window instance completely.
+        Clear _open BEFORE destroy so concurrent minigame threads that still
+        call clear()/draw_box()/_eval skip the disposed WebView2 and avoid
+        ObjectDisposedException (logged by pywebview as 'Error occurred in script').
+        Destroy is scheduled off the caller thread so a stop/hotkey/shutdown
+        path cannot deadlock pywebview the way Eyedropper/AreaSelector did.
+        """
+        win = self._tos_dialogue
+        if not win or not self._open:
+            self._open = False
+            self._visible = False
+            return
+
+        self._open = False
+        self._visible = False
+        self._tos_dialogue = None
+        _schedule_webview_destroy(win, after=self._on_closed)
+    def resize(self, left, top, width, height, already_logical=False):
+        """Resizes and moves the window dynamically if it exists.
+        By default arguments are physical pixels (same as show()).
+        Pass already_logical=True when the caller has already converted them.
+        """
+        if not already_logical:
+            left, top, width, height = self._to_window_coords(left, top, width, height)
+        self.left = left
+        self.top = top
+        self.width = width
+        self.height = height
+        if self._tos_dialogue and self._open:
+            try:
+                self._tos_dialogue.move(self.left, self.top)
+                self._tos_dialogue.resize(self.width, self.height)
+            except Exception:
+                # Window May Already Be Disposed (Race With Stop_Macro / Hide)
+                self._open = False
+                self._tos_dialogue = None
+    def _on_closed(self):
+        """Internal callback cleaning lifecycle states upon execution exit."""
+        self._tos_dialogue = None
+        self._open = False
+        self._visible = False
+
+    def close_window(self):
+        """Close button: quit the app (TOS is required to continue)."""
+        self.close_app()
+
+    def minimize_window(self):
+        """Minimize the Terms of Service window."""
+        win = self._tos_dialogue
+        if not win or not self._open:
+            return
+        try:
+            win.minimize()
+        except Exception:
+            pass
+
+    def accept_tos(self):
+        """Finish button: mark TOS accepted, save, hide TOS, show main window."""
+        try:
+            self.parent_app.tos_accepted = True
+            self.parent_app.save_misc_settings()
+        except Exception:
+            pass
+        self.hide()
+        try:
+            main_win = getattr(self.parent_app, "window", None)
+            if main_win:
+                main_win.show()
+        except Exception:
+            pass
+
+    def close_app(self):
+        """Back / Close: destroy TOS and the main window so the process exits."""
+        self.hide()
+        try:
+            main_win = getattr(self.parent_app, "window", None)
+            if main_win:
+                _schedule_webview_destroy(main_win)
+        except Exception:
+            pass
 class Api:
     def __init__(self):
         self.vars = {} # Save Entry Variables Here
@@ -2489,10 +2702,13 @@ class Api:
         self.fish_overlay = FishOverlay(self)
         self.status_overlay = StatusOverlay(self)
         self.point_select = PointSelect(self)
+        self.tos_dialogue = TermsOfServiceDialogue(self)
         # Safe Defaults Before Key Listener Starts (Will Be Overwritten By Load_Misc_Settings)
+        self.js_version_info = {}
         scale = get_scale_factor()
         menu_offset = get_macos_menu_offset()
         self.bar_areas = {name: None for name in AREA_ORDER}
+        self.roblox_bounds_cache = None
         self.current_rod_name = "Default"
         self.session_start = None
         self.catch_rate = 0.0
@@ -2511,6 +2727,8 @@ class Api:
         self.status_bottom = (230 * scale * self.scale_y_1080)
         self.status_overlay.hide()
         self._ensure_default_config()
+        # check_setup_guide is called from window.events.loaded (see main window setup)
+        # so that the pywebview window exists before evaluate_js is used.
 
     def _html_attr(self, attrs, name):
         match = re.search(
@@ -3187,6 +3405,21 @@ class Api:
         except:
             pass
 
+        # Cached Roblox bounds (indicates areas are stored relative to Roblox)
+        try:
+            cache = data.get("roblox_bounds_cache")
+            if isinstance(cache, dict) and float(cache.get("width", 0) or 0) > 0 and float(cache.get("height", 0) or 0) > 0:
+                self.roblox_bounds_cache = {
+                    "left": float(cache.get("left", 0)),
+                    "top": float(cache.get("top", 0)),
+                    "width": float(cache.get("width", 0)),
+                    "height": float(cache.get("height", 0)),
+                }
+            else:
+                self.roblox_bounds_cache = None
+        except Exception:
+            self.roblox_bounds_cache = None
+
         # Hotkeys
         if "start_key" in self.vars and "area_selector_key" in self.vars and "stop_key" in self.vars:
             # Case 1: Hotkeys Are In self.vars
@@ -3202,6 +3435,33 @@ class Api:
             self.vars["start_key"] = "F5"
             self.vars["area_selector_key"] = "F6"
             self.vars["stop_key"] = "F7"
+        # Terms Of Service Check
+        try:
+            if data.get("tos_accepted") != True:
+                tos_accepted = False
+                if getattr(self, "window", None):
+                    self.window.hide()
+            else:
+                tos_accepted = True
+                if getattr(self, "window", None):
+                    self.window.show()
+        except Exception:
+            tos_accepted = False
+            if getattr(self, "window", None):
+                self.window.hide()
+        if tos_accepted == False:
+            scale = get_scale_factor() or 1.0
+            logical_w = SCREEN_WIDTH / scale
+            logical_h = SCREEN_HEIGHT / scale
+            self.tos_dialogue.show(
+                (logical_w - 800) / 2,
+                (logical_h - 600) / 2,
+                800,
+                600,
+                already_logical=True,
+            )
+        else:
+            self.tos_dialogue.hide()
         # Images
         try:
             sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
@@ -3235,10 +3495,23 @@ class Api:
                 clean_bar_areas[key] = None
         # Save
         data["bar_areas"] = clean_bar_areas
+        # Cached Roblox window bounds used when areas were saved (relative origin)
+        cache = getattr(self, "roblox_bounds_cache", None)
+        if isinstance(cache, dict):
+            data["roblox_bounds_cache"] = {
+                "left": float(cache.get("left", 0)),
+                "top": float(cache.get("top", 0)),
+                "width": float(cache.get("width", 0)),
+                "height": float(cache.get("height", 0)),
+            }
+        else:
+            data.pop("roblox_bounds_cache", None)
         # Hotkeys
         data["start_key"] = self.vars["start_key"]
         data["area_selector_key"] = self.vars["area_selector_key"]
         data["stop_key"] = self.vars["stop_key"]
+        # Terms of Service
+        data["tos_accepted"] = bool(getattr(self, "tos_accepted", data.get("tos_accepted", False)))
         with open(path, "w") as f:
             json.dump(data, f, indent=4)
 
@@ -3272,6 +3545,55 @@ class Api:
             }
     def get_macro_version(self):
         return APP_VERSION
+
+    def get_python_version_info(self):
+        """Return the Python backend's app version, beta version, and developer."""
+        return {
+            "app_version": APP_VERSION,
+            "beta_version": BETA_VERSION,
+            "developer": DEVELOPER
+        }
+
+    def get_js_version_info(self):
+        """Retrieve the JS app version, beta version, and developer name via evaluate_js."""
+        try:
+            result = window.evaluate_js(
+                "({ app_version: window.APP_VERSION || null, beta_version: window.BETA_VERSION || null, developer: window.DEVELOPER || null })"
+            )
+            if isinstance(result, dict):
+                return result
+            if isinstance(result, str) and result.strip():
+                try:
+                    parsed = json.loads(result)
+                    if isinstance(parsed, dict):
+                        return parsed
+                except Exception:
+                    pass
+            return {
+                "app_version": None,
+                "beta_version": None,
+                "developer": None
+            }
+        except Exception as e:
+            return {
+                "app_version": None,
+                "beta_version": None,
+                "developer": None,
+                "error": str(e)
+            }
+
+    def check_setup_guide(self):
+        output = self.get_js_version_info()
+        app_version = float(output["app_version"])
+        beta_version = int(output["beta_version"])
+        developer = output["developer"]
+        if app_version != APP_VERSION:
+            self.message_box_javascript(f"A new version of Solar Fishing is available: {app_version}.\nYou have {APP_VERSION}, do you want to update?", "askyesno")
+        if BETA_VERSION != 0:
+            if beta_version != BETA_VERSION:
+                self.message_box_javascript(f"A new beta of Solar Fishing is available: {beta_version}.\nYou have {BETA_VERSION}, do you want to update?", "askyesno")
+        if developer != DEVELOPER:
+            self.message_box_javascript(f"You tried to download an unauthorized version of Solar Fishing.\nPlease take actions against {developer} and download the official version in the About tab.", "ok")
 
     def set_status(self, message):
         """Push a status message to the main webview window's JS."""
@@ -3414,11 +3736,26 @@ class Api:
         # Detect Roblox window (falls back to full-screen coordinates) and store for the overlay
         self.roblox_bounds = self.detect_roblox()
         # Build Current Areas From Bar_Areas Or Area_Config Defaults (All Keys, Including Appraisal)
+        # If a Roblox cache exists, stored areas are relative and must be mapped onto the
+        # current Roblox window (or full screen if not found) before rendering.
         self.status_overlay.hide()
         areas = {}
+        use_relative = isinstance(getattr(self, "roblox_bounds_cache", None), dict)
         for name in AREA_ORDER:
             a = self.bar_areas.get(name)
-            areas[name] = a if isinstance(a, dict) else dict(AREA_CONFIG[name]["default"])
+            # Valid stored area: map if relative cache exists, else treat as absolute (legacy)
+            if (isinstance(a, dict) and float(a.get("width", 0) or 0) > 0
+                    and float(a.get("height", 0) or 0) > 0):
+                if use_relative:
+                    areas[name] = self._map_relative_area_to_screen(a)
+                else:
+                    areas[name] = dict(a)
+            else:
+                # Unset area: treat AREA_CONFIG default as relative to the current
+                # Roblox window (falls back to full-screen when Roblox is not found).
+                # This ensures defaults track the Roblox window instead of the full screen.
+                default = dict(AREA_CONFIG[name]["default"])
+                areas[name] = self._map_relative_area_to_screen(default)
         if hasattr(self, "area_selector") and self.area_selector and self.area_selector.is_open():
             self.area_selector.request_save_and_close()
         else:
@@ -3924,24 +4261,80 @@ class Api:
             # Sleep For At Most 10Ms Or Whatever Fraction Of Remaining Time Is Left
             time.sleep(min(0.01, remaining))
     # Get Values
+    def _map_relative_area_to_screen(self, area):
+        """Convert one Roblox-relative area (0–1 within the Roblox window) into
+        absolute screen ratios (0–1 of SCREEN_WIDTH/HEIGHT).
+        Uses the currently detected Roblox window; falls back to full-screen
+        coordinates when Roblox is not found.
+        """
+        if not isinstance(area, dict):
+            return {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0}
+        # Ensure we have current Roblox bounds (detect if missing)
+        roblox = getattr(self, "roblox_bounds", None)
+        if not isinstance(roblox, dict) or float(roblox.get("width", 0) or 0) < 10:
+            try:
+                roblox = self.detect_roblox()
+                self.roblox_bounds = roblox
+            except Exception:
+                roblox = {"left": 0, "top": 0, "width": SCREEN_WIDTH, "height": SCREEN_HEIGHT}
+        r_left = float(roblox.get("left", 0) or 0)
+        r_top = float(roblox.get("top", 0) or 0)
+        r_w = float(roblox.get("width", 0) or 0)
+        r_h = float(roblox.get("height", 0) or 0)
+        if r_w < 10 or r_h < 10:
+            # Fallback to full screen
+            r_left, r_top, r_w, r_h = 0.0, 0.0, float(SCREEN_WIDTH), float(SCREEN_HEIGHT)
+        rel_x = float(area.get("x", 0))
+        rel_y = float(area.get("y", 0))
+        rel_w = float(area.get("width", area.get("w", 0)))
+        rel_h = float(area.get("height", area.get("h", 0)))
+        abs_x = r_left + rel_x * r_w
+        abs_y = r_top + rel_y * r_h
+        abs_w = rel_w * r_w
+        abs_h = rel_h * r_h
+        return {
+            "x": abs_x / float(SCREEN_WIDTH) if SCREEN_WIDTH else 0.0,
+            "y": abs_y / float(SCREEN_HEIGHT) if SCREEN_HEIGHT else 0.0,
+            "width": abs_w / float(SCREEN_WIDTH) if SCREEN_WIDTH else 0.0,
+            "height": abs_h / float(SCREEN_HEIGHT) if SCREEN_HEIGHT else 0.0,
+        }
+
     def get_areas(self, area_key):
-        """Apply scale factor.  All area values (saved or default) are ratios 0–1.
-        Returning physical pixels here.  The previous default path returned
-        Already pixel coordinates and then multiplied by screen_* again,
-        Producing enormous sizes (fullscreen overlay after reset_areas)."""
+        """Apply scale factor.  Area values are ratios 0-1.
+        If a Roblox bounds cache exists, stored areas are relative to the Roblox
+        window and are mapped onto the current Roblox bounds (or full screen if
+        Roblox is not found).  Otherwise they are treated as absolute screen ratios
+        (legacy).  Returns physical pixels.
+        """
         scale = get_scale_factor()
         area_data = self.bar_areas.get(area_key)
-        if (isinstance(area_data, dict) and area_data.get("width", 0) > 0 and area_data.get("height", 0) > 0):
-            left   = float(area_data["x"])
-            top    = float(area_data["y"])
-            right  = left + float(area_data["width"])
-            bottom = top + float(area_data["height"])
-            width  = float(area_data["width"])
-            height = float(area_data["height"])
+        use_relative = isinstance(getattr(self, "roblox_bounds_cache", None), dict)
+        if (isinstance(area_data, dict) and float(area_data.get("width", 0) or 0) > 0
+                and float(area_data.get("height", 0) or 0) > 0):
+            if use_relative:
+                mapped = self._map_relative_area_to_screen(area_data)
+                left   = float(mapped["x"])
+                top    = float(mapped["y"])
+                width  = float(mapped["width"])
+                height = float(mapped["height"])
+            else:
+                left   = float(area_data["x"])
+                top    = float(area_data["y"])
+                width  = float(area_data["width"])
+                height = float(area_data["height"])
+            right  = left + width
+            bottom = top + height
         else:
-            left, top, right, bottom = self._get_default_areas(area_key)
-            width  = right - left
-            height = bottom - top
+            # Unset area: map the AREA_CONFIG default relative to the current Roblox
+            # window so defaults follow Roblox instead of staying full-screen.
+            default = AREA_CONFIG.get(area_key, {}).get("default") or {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+            mapped = self._map_relative_area_to_screen(default)
+            left   = float(mapped["x"])
+            top    = float(mapped["y"])
+            width  = float(mapped["width"])
+            height = float(mapped["height"])
+            right  = left + width
+            bottom = top + height
         left2   = int(left * scale * self.SCREEN_WIDTH)
         top2    = int(top * scale * self.SCREEN_HEIGHT)
         right2  = int(right * scale * self.SCREEN_WIDTH)
@@ -4023,6 +4416,33 @@ class Api:
 
         return None
 
+
+    def _normalize_capture_size(self, frame):
+        """Ensure the captured frame matches the physical pixel size expected by
+        get_areas (SCREEN_* * scale). On macOS Retina, Quartz (kCGWindowImageDefault)
+        and some ScreenCaptureKit configurations deliver the logical (point) size
+        while area coordinates are scaled to physical pixels. Upscale when needed
+        so crops line up. No-op when sizes already match.
+        """
+        if frame is None or not hasattr(frame, "shape") or len(frame.shape) < 2:
+            return frame
+        try:
+            scale = get_scale_factor() or 1.0
+            if scale <= 0:
+                scale = 1.0
+            expected_w = int(round(SCREEN_WIDTH * scale))
+            expected_h = int(round(SCREEN_HEIGHT * scale))
+            h, w = frame.shape[:2]
+            if w == expected_w and h == expected_h:
+                return frame
+            # Only upscale/downscale when the ratio is close to an integer scale
+            # (avoids accidental resizing of already-correct frames from other backends).
+            if expected_w > 0 and expected_h > 0 and w > 0 and h > 0:
+                return cv2.resize(frame, (expected_w, expected_h), interpolation=cv2.INTER_LINEAR)
+        except Exception:
+            pass
+        return frame
+
     def capture_single_frame(self):
         """
         Capture a single full-screen frame without touching self.macro_running.
@@ -4033,12 +4453,12 @@ class Api:
                 Quartz.CGRectInfinite,
                 Quartz.kCGWindowListOptionOnScreenOnly,
                 Quartz.kCGNullWindowID,
-                Quartz.kCGWindowImageDefault
+                Quartz.kCGWindowImageBestResolution
             )
             if image is None:
                 return None
 
-            return cgimage_to_srgb_numpy(image)
+            return self._normalize_capture_size(cgimage_to_srgb_numpy(image))
 
         else:
             scale = get_scale_factor()
@@ -4066,7 +4486,7 @@ class Api:
                 "height": int(SCREEN_HEIGHT * scale),
             }
             while self.macro_running:
-                self.capture_frame = np.asarray(sct.grab(monitor))[:, :, :3]
+                self.capture_frame = self._normalize_capture_size(np.asarray(sct.grab(monitor))[:, :, :3])
                 self.capture_id += 1
                 time.sleep(self.scan_delay)
     def capture_loop_quartz(self):
@@ -4081,7 +4501,7 @@ class Api:
                     Quartz.CGRectInfinite,
                     Quartz.kCGWindowListOptionOnScreenOnly,
                     Quartz.kCGNullWindowID,
-                    Quartz.kCGWindowImageDefault
+                    Quartz.kCGWindowImageBestResolution
                 )
             else:
                 image = None
@@ -4094,7 +4514,7 @@ class Api:
                 time.sleep(0.01)
                 continue
 
-            self.capture_frame = frame
+            self.capture_frame = self._normalize_capture_size(frame)
             self.capture_id += 1
             time.sleep(self.scan_delay)
     def _build_sck_stream(self, display):
@@ -4230,7 +4650,7 @@ class Api:
                     self._sck_convert_fail += 1
                     return
 
-                self.capture_frame = frame
+                self.capture_frame = self._normalize_capture_size(frame)
                 self.capture_id = self.capture_id + 1
             output = _SCStreamOutput.alloc().initWithCallback_(_on_sample)
             self._sck_output = output  # keep the delegate alive
@@ -5720,6 +6140,7 @@ class Api:
             self.session_start = time.time()
             casting_mode = self.vars["casting_mode"].lower()
             shake_mode = self.vars["shake_mode"].lower()
+            fishing_mode = self.vars["fishing_mode"].lower()
             logging_mode = self.vars["logging_mode"].lower()
             fishing_profile = self.vars["fishing_profile"].lower()
             sovereign_recharge = self.vars["sovereign_recharge"]
@@ -5728,7 +6149,7 @@ class Api:
             logging_cycle = int(self.vars["logging_cycle"])
             hunt_cycles = int(self.vars["hunt_cycles"])
             totem_cycles = int(self.vars.get("totem_cycles", 55))
-            auto_reconnect = self.vars["auto_reconnect"]
+            auto_reconnect = self.vars["auto_reconnect"].lower()
             hunt_detect = int(self._get_var_number("hunt_detect", 20, float))
             minimum_percentage = float(self.vars["minimum_percentage"].strip("%"))
             maximum_percentage = float(self.vars["maximum_percentage"].strip("%"))
@@ -5749,6 +6170,7 @@ class Api:
             # 4. Screen Regions & Coordinates
             shake_left, shake_top, shake_right, shake_bottom, shake_w, shake_h = self.get_areas("shake")
             fish_left, fish_top, fish_right, fish_bottom, _, fish_height = self.get_areas("fish")
+            bellona_fish_left, bellona_fish_top, bellona_fish_right, bellona_fish_bottom, _, _ = self.get_areas("fish_1_bellona")
             friend_left_s, friend_top_s, friend_right_s, friend_bottom_s, _, _ = self.get_areas("friend")
             totem_left, totem_top, totem_right, totem_bottom, _, _ = self.get_areas("totem")
             sovereign_left, sovereign_top, sovereign_right, sovereign_bottom, sovereign_width, _ = self.get_areas("sovereign")
@@ -5939,7 +6361,7 @@ class Api:
                     self._send_key(fishing_rod_slot)
                     time.sleep(delay_after_casting / 4)
                     totem_cycles2 = self.current_cycle + totem_cycles
-                if auto_reconnect == True:
+                if auto_reconnect == "legacy":
                     self.status_overlay.set_main_status("Auto Reconnect")
                     self._auto_reconnect(shake_x, shake_y)
                 if hunt_detect == True:
@@ -5996,10 +6418,18 @@ class Api:
                             break
 
                     else:
-                        fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
-                        fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
-                        if fish_x is not None or fish_y is not None:
-                            break
+                        if fishing_profile == "bellona":
+                            fish_img = self.capture_frame[bellona_fish_top:bellona_fish_bottom, bellona_fish_left:bellona_fish_right]
+                        else:
+                            fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
+                        if fishing_mode == "color":
+                            fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
+                            if fish_x is not None or fish_y is not None:
+                                break
+                        else:
+                            lines = self._detect_lines_in_frame(fish_img)
+                            if len(lines) >= 4:
+                                break
 
                     if self.macro_running == False:
                         break
@@ -6078,18 +6508,20 @@ class Api:
             return
 
     def _auto_reconnect(self, center_x, center_y):
+        auto_reconnect = self.vars["auto_reconnect"].lower()
         reconnect_threshold = int(self.vars["reconnect_threshold"])
         reconnect_wait_time = int(self.vars["reconnect_wait_time"])
         mirror_ratio = self.vars["mirror_ratio"]
         mirror_splitted = mirror_ratio.replace(" ", "").split(",")
+        self.status_overlay.set_main_status("Auto Reconnect")
         try:
             mirror_xr = float(mirror_splitted[0])
             mirror_yr = float(mirror_splitted[1])
         except:
-            self.send_logging("**Reconnect Failed**", f"Cycle #{self.current_cycle}", 1)
+            self.send_logging("**Reconnect Failed**", f"Cycle #{self.current_cycle}")
             return
 
-        mirror_slot = str(self.vars["mirror_slot"])
+        mystic_mirror_slot = str(self.vars["mystic_mirror_slot"])
         shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("shake")
         mirror_click_x = int(SCREEN_WIDTH * mirror_xr)
         # 0.59
@@ -6098,28 +6530,34 @@ class Api:
         reconnect_threshold = int((reconnect_threshold / 1500) * (SCREEN_WIDTH / 1.8))
         if dxcam is not None:
             self.capture_frame = self.camera.get_latest_frame()
+        if self.capture_frame is None:
+            time.sleep(1)
         img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
         disconnect_x, disconnect_y = self.find_color_cluster(img, "#393b3d", 5, reconnect_threshold)
-        reconnect_x, reconnect_y = self.find_color_cluster(img, "#FFFFFF", 8, int(reconnect_threshold / 2))
-        while self.macro_running:
-            if disconnect_x is not None and reconnect_x is not None:
-                self.interruptible_sleep(1)
+        if auto_reconnect == "legacy":
+            reconnect_x, reconnect_y = self.find_color_cluster(img, "#FFFFFF", 8, int(reconnect_threshold / 2))
+        else:
+            reconnect_x = center_x
+            reconnect_y = center_y
+        if disconnect_x is not None and reconnect_x is not None:
+            self.interruptible_sleep(1)
+            if auto_reconnect == "legacy":
                 reconnect_x_screen = reconnect_x + shake_left
                 reconnect_y_screen = reconnect_y + shake_top
                 self._click_at(reconnect_x_screen, reconnect_y_screen)
-                self.interruptible_sleep(reconnect_wait_time)
-                self._click_at(center_x, center_y)
-                self.interruptible_sleep(2.5)
-                keyboard_controller.press(mirror_slot)
-                self.interruptible_sleep(0.05)
-                keyboard_controller.release(mirror_slot)
-                self._click_at(center_x, center_y)
-                self.interruptible_sleep(0.2)
-                self._click_at(mirror_click_x, mirror_click_y)
-                self.send_logging("**Reconnect Success**", f"Cycle #{self.current_cycle}", 1)
             else:
-                self.send_logging("**Reconnect Failed**", f"Cycle #{self.current_cycle}", 1)
-            return
+                self.interruptible_sleep(3)
+            self.interruptible_sleep(reconnect_wait_time)
+            self._click_at(center_x, center_y)
+            self.interruptible_sleep(2.5)
+            self._send_key(mystic_mirror_slot)
+            self._click_at(center_x, center_y)
+            self.interruptible_sleep(0.2)
+            self._click_at(mirror_click_x, mirror_click_y)
+            self.interruptible_sleep(3)
+            self.send_logging("**Reconnect Success**", f"Cycle #{self.current_cycle}")
+        else:
+            self.send_logging("**Reconnect Failed**", f"Cycle #{self.current_cycle}")
 
     def hunt_detect(self, current_hunt):
         "current_hunt: Does nothing"
@@ -7580,25 +8018,6 @@ class Api:
                 overlay_width,
                 overlay_height,
             )
-        # Colors
-        bar_color = self.vars.get("bar_color")
-        arrow_color = self.vars.get("arrow_color")
-        fish_color = self.vars.get("fish_color")
-        pinion_notes_color = self.vars.get("pinion_notes_color")
-        friends_color = self.vars.get("friends_color")
-        # Tolerance
-        try:
-            bar_tolerance = int(self.vars.get("bar_tolerance", 8))
-            arrow_tolerance = int(self.vars.get("arrow_tolerance", 8))
-            fish_tolerance = int(self.vars.get("fish_tolerance", 4))
-            pinion_notes_tolerance = int(self.vars.get("pinion_notes_tolerance", 5))
-            friends_tolerance = int(self.vars.get("friends_tolerance", 5))
-        except:
-            bar_tolerance = 8
-            arrow_tolerance = 8
-            fish_tolerance = 4
-            pinion_notes_tolerance = 5
-            friends_tolerance = 5
         # Minigame Settings
         scale = get_scale_factor()
         bag_slot = str(self.vars["equipment_bag_slot"])
@@ -7808,7 +8227,7 @@ class Api:
                         fish_x = target_pair[0]
                         fish_x2 = target_pair[1]
                         initial_target_gap = fish_x2 - fish_x
-                        # Find Bars  Closest To Left Of Left Target, Closest To Right Of Right Target
+                        # Find Bars - Closest To Left Of Left Target, Closest To Right Of Right Target
                         left_candidates = [x for x in line_coords if x < fish_x]
                         right_candidates = [x for x in line_coords if x > fish_x2]
                         left_x = max(left_candidates) if left_candidates else fish_x
@@ -8394,5 +8813,7 @@ window = webview.create_window(
     focus=True,
     text_select=True,
 )
+api.window = window
 window.events.closed += on_closed
+window.events.loaded += api.check_setup_guide
 webview.start()

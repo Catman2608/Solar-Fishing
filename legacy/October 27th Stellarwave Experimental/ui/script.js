@@ -1311,13 +1311,13 @@ function isColorSetting(key) {
     return k.includes("color") || k.includes("tolerance");
 }
 
-async function RefreshConfigs() {
+async function refreshConfigs() {
     const preferred = selectedConfigName();
     const configs = await refreshConfigs(preferred);
     setStatus("Configs refreshed" + (configs && configs.length ? ` (${configs.length})` : ""));
 }
 
-async function AddRod() {
+async function addRod() {
     // Save current settings first
     try {
         await saveSettings();
@@ -1387,7 +1387,7 @@ async function AddRod() {
     });
 }
 
-async function DeleteRod() {
+async function deleteRod() {
     const name = selectedConfigName();
     if (!name) {
         return;
@@ -1442,7 +1442,7 @@ async function DeleteRod() {
     });
 }
 
-async function ResetSettings() {
+async function resetSettings() {
     const name = selectedConfigName();
     showUpdateBanner({
         title: "Reset Settings",
@@ -1498,7 +1498,7 @@ async function ResetSettings() {
     });
 }
 
-async function OpenFolder() {
+async function openFolder() {
     const api = _pyApi();
     if (!api || typeof api.open_base_folder !== "function") {
         setStatus("Open folder unavailable");
@@ -1534,7 +1534,7 @@ function _suggestConfigNameFromFile(filename) {
     return name || "Imported";
 }
 
-async function ImportConfigs() {
+async function importConfigs() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".json,application/json";
@@ -1658,7 +1658,7 @@ async function ImportConfigs() {
     input.click();
 }
 
-async function ExportConfigs() {
+async function exportConfigs() {
     const name = selectedConfigName() || "config";
     let settings = {};
     try {
