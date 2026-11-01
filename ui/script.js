@@ -1,11 +1,13 @@
 const APP_VERSION = "5.2";
 const BETA_VERSION = "0";
 const DEVELOPER = "Catman2608";
+const VERSION_ID = "1";
 
 // Expose for Python version check via evaluate_js
 window.APP_VERSION = APP_VERSION;
 window.BETA_VERSION = BETA_VERSION;
 window.DEVELOPER = DEVELOPER;
+window.VERSION_ID = VERSION_ID;
 
 const validHexColor = /^#([0-9A-F]{3}|[0-9A-F]{6})$/i;
 
@@ -35,9 +37,9 @@ function _pyApi() {
 }
 
 /**
- * Get the Python backend's app version, beta version, and developer name.
+ * Get the Python backend's app version, beta version, developer name, and VERSION_ID.
  * Calls the Api.get_python_version_info method exposed by pywebview.
- * @returns {Promise<{app_version: any, beta_version: any, developer: string|null, error?: string}>}
+ * @returns {Promise<{app_version: any, beta_version: any, developer: string|null, version_id: string|null, error?: string}>}
  */
 async function getPythonVersionInfo() {
     const api = _pyApi();
@@ -46,6 +48,7 @@ async function getPythonVersionInfo() {
             app_version: null,
             beta_version: null,
             developer: null,
+            version_id: null,
             error: "Python API not available"
         };
     }
@@ -55,13 +58,15 @@ async function getPythonVersionInfo() {
             return {
                 app_version: info.app_version ?? null,
                 beta_version: info.beta_version ?? null,
-                developer: info.developer ?? null
+                developer: info.developer ?? null,
+                version_id: info.version_id ?? null
             };
         }
         return {
             app_version: null,
             beta_version: null,
             developer: null,
+            version_id: null,
             error: "Unexpected response from Python"
         };
     } catch (e) {
@@ -69,6 +74,7 @@ async function getPythonVersionInfo() {
             app_version: null,
             beta_version: null,
             developer: null,
+            version_id: null,
             error: String(e)
         };
     }
@@ -1922,7 +1928,12 @@ async function importConfigs() {
 }
 
 async function exportConfigs() {
-    const name = selectedConfigName() || "config";
+    const api = _pyApi();
+    if (!api || typeof api.export_config !== "function") {
+        setStatus("Export unavailable");
+        return;
+    }
+
     let settings = {};
     try {
         settings = collectSettingsData();
@@ -1930,20 +1941,17 @@ async function exportConfigs() {
         settings = collectSettings();
     }
 
-    const safeName = String(name).replace(/[\\/:*?"<>|]/g, "").trim() || "config";
-    const filename = safeName + ".json";
-    const json = JSON.stringify(settings, null, 4);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-    setStatus("Exported: " + filename);
+    try {
+        const result = await api.export_config(settings);
+        if (result && result.success) {
+            const path = result.path || result.filename || "config.json";
+            setStatus(`Exported: ${path}`);
+        } else if (result && result.error && result.error !== "Cancelled") {
+            setStatus(`Export failed: ${result.error}`);
+        }
+        // Cancelled: leave status unchanged
+    } catch (err) {
+        console.error(err);
+        setStatus("Export failed");
+    }
 }

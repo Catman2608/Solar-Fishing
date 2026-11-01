@@ -1,27 +1,12 @@
 {
-    "last_config": "Luminescent Oath",
+    "use_local_gui": true,
     "bar_areas": {
-        "shake": {
-            "x": 0.10357916666666665,
-            "y": 0.0763591992373689,
-            "width": 0.7916999999999998,
-            "height": 0.7402
-        },
-        "fish": {
-            "x": 0.2963047619047619,
-            "y": 0.8419194092827004,
-            "width": 0.4058904761904762,
-            "height": 0.03338059071729958
-        },
+        "shake": null,
+        "fish": null,
         "fish_1_bellona": null,
         "fish_2_bellona": null,
         "fish_tranquility": null,
-        "friend": {
-            "x": 0.004600000000000001,
-            "y": 0.9031,
-            "width": 0.0355,
-            "height": 0.08500000000000002
-        },
+        "friend": null,
         "totem": null,
         "sovereign": null,
         "noiseform": null,
@@ -36,10 +21,5 @@
     "area_selector_key": "F6",
     "stop_key": "F7",
     "tos_accepted": true,
-    "roblox_bounds_cache": {
-        "left": 0.0,
-        "top": 31.0,
-        "width": 1920.0,
-        "height": 1049.0
-    }
+    "last_config": "Default"
 }

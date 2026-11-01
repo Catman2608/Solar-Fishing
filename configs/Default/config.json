@@ -45,7 +45,7 @@
     "shake_scan_delay": "0.12",
     "shake_failsafe": "120",
     "animation_delay": "0.6",
-    "fishing_mode": "line",
+    "fishing_mode": "color",
     "controller_mode": "normal",
     "fishing_rod_slot": "1",
     "equipment_bag_slot": "2",

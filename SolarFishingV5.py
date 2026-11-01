@@ -65,6 +65,7 @@ mouse_controller = MouseController()
 APP_VERSION = 5.2
 BETA_VERSION = 0
 DEVELOPER = "Catman2608"
+VERSION_ID = 1
 def load_misc_settings(last_config_path):
     try:
         with open(last_config_path, "r", encoding="utf-8") as file:
@@ -167,9 +168,20 @@ def cgimage_to_srgb_numpy(image):
 
     return image
 
-# Screen Dimensions Via MSS — Use Monitor[1] (Primary) Not Monitor[0] (Virtual Combined).
-# On Windows With Dpi Scaling, Pywebview'S X/Y/Width/Height Use Physical Pixels,
-# So We Must Query The Raw Physical Resolution, Not The Scaled Logical Resolution.
+# Reload
+def reload_page(skip=True):
+    if skip == False:
+        return
+    if sys.platform == "win32":
+        # Wrap in quotes to prevent compilation issues
+        args = [sys.executable, f'"{sys.argv[0]}"'] + sys.argv[1:]
+        os.execv(sys.executable, args)
+    else:
+        # os.execv does not use a shell, so do not wrap the script path in quotes.
+        # Extra quotes become part of the filename and fail on macOS/Linux.
+        args = [sys.executable] + list(sys.argv)
+        os.execv(sys.executable, args)
+# MSS screen dimensions and attribute checking
 try:
     MSS = mss.MSS
 except AttributeError:
@@ -1113,6 +1125,8 @@ AREA_CONFIG = {
 # Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
 class AreaSelector:
+    # Do not expose to JS API — holds pywebview Window (native.AccessibilityObject recursion / WebView2 COM).
+    _serializable = False
     HTML_FILE = os.path.join(UI_PATH, "area_selector.html")
     def __init__(self, parent_app):
         self.parent_app = parent_app
@@ -2649,7 +2663,10 @@ class TermsOfServiceDialogue:
             pass
         self.hide()
         try:
-            main_win = getattr(self.parent_app, "window", None)
+            # Main window is stored as api._window (set after create_window)
+            main_win = getattr(self.parent_app, "_window", None)
+            if main_win is None:
+                main_win = getattr(self.parent_app, "window", None)
             if main_win:
                 main_win.show()
         except Exception:
@@ -2659,7 +2676,9 @@ class TermsOfServiceDialogue:
         """Back / Close: destroy TOS and the main window so the process exits."""
         self.hide()
         try:
-            main_win = getattr(self.parent_app, "window", None)
+            main_win = getattr(self.parent_app, "_window", None)
+            if main_win is None:
+                main_win = getattr(self.parent_app, "window", None)
             if main_win:
                 _schedule_webview_destroy(main_win)
         except Exception:
@@ -2713,6 +2732,7 @@ class Api:
         self.session_start = None
         self.catch_rate = 0.0
         # Message box synchronization (custom banner)
+        self.misc_settings = {}
         self._message_box_event = None
         self._message_box_result = None
         self.perfect_catch_rate = 0.0
@@ -3387,9 +3407,10 @@ class Api:
 
 
     def _load_misc_settings(self):
-        """Load miscellaneous settings from last_config.json."""
+        """Load miscellaneous settings from last_config.json into self.misc_settings and apply them."""
         current_path = os.path.join(EDITABLE_PATH, "last_config.json")
-        data = load_misc_settings(current_path)
+        self.misc_settings = load_misc_settings(current_path)
+        data = self.misc_settings  # get data from self.misc_settings
         # Bar Areas
         try:
             loaded_areas = data.get("bar_areas", {})
@@ -3439,16 +3460,19 @@ class Api:
         try:
             if data.get("tos_accepted") != True:
                 tos_accepted = False
-                if getattr(self, "window", None):
-                    self.window.hide()
+                self.tos_accepted = False
+                if getattr(self, "_window", None):
+                    self._window.hide()
             else:
                 tos_accepted = True
-                if getattr(self, "window", None):
-                    self.window.show()
+                self.tos_accepted = True
+                if getattr(self, "_window", None):
+                    self._window.show()
         except Exception:
             tos_accepted = False
-            if getattr(self, "window", None):
-                self.window.hide()
+            self.tos_accepted = False
+            if getattr(self, "_window", None):
+                self._window.hide()
         if tos_accepted == False:
             scale = get_scale_factor() or 1.0
             logical_w = SCREEN_WIDTH / scale
@@ -3469,16 +3493,11 @@ class Api:
         except:
             self.message_box_javascript("Missing required image files:\nsun.png, moon.png\nAuto Totem will be disabled")
     def save_misc_settings(self):
-        """Save miscellaneous settings."""
+        """Save miscellaneous settings using self.misc_settings."""
         path = os.path.join(EDITABLE_PATH, "last_config.json")
-        # Existing Data
-        data = {}
-        if os.path.exists(path):
-            try:
-                with open(path, "r") as f:
-                    data = json.load(f)
-            except:
-                pass
+        # Use self.misc_settings as the source of truth
+        if not isinstance(getattr(self, "misc_settings", None), dict):
+            self.misc_settings = {}
 
         # Clean Areas
         clean_bar_areas = {}
@@ -3493,27 +3512,27 @@ class Api:
                 }
             else:
                 clean_bar_areas[key] = None
-        # Save
-        data["bar_areas"] = clean_bar_areas
+        # Update self.misc_settings with current values
+        self.misc_settings["bar_areas"] = clean_bar_areas
         # Cached Roblox window bounds used when areas were saved (relative origin)
         cache = getattr(self, "roblox_bounds_cache", None)
         if isinstance(cache, dict):
-            data["roblox_bounds_cache"] = {
+            self.misc_settings["roblox_bounds_cache"] = {
                 "left": float(cache.get("left", 0)),
                 "top": float(cache.get("top", 0)),
                 "width": float(cache.get("width", 0)),
                 "height": float(cache.get("height", 0)),
             }
         else:
-            data.pop("roblox_bounds_cache", None)
+            self.misc_settings.pop("roblox_bounds_cache", None)
         # Hotkeys
-        data["start_key"] = self.vars["start_key"]
-        data["area_selector_key"] = self.vars["area_selector_key"]
-        data["stop_key"] = self.vars["stop_key"]
+        self.misc_settings["start_key"] = self.vars.get("start_key", "F5")
+        self.misc_settings["area_selector_key"] = self.vars.get("area_selector_key", "F6")
+        self.misc_settings["stop_key"] = self.vars.get("stop_key", "F7")
         # Terms of Service
-        data["tos_accepted"] = bool(getattr(self, "tos_accepted", data.get("tos_accepted", False)))
+        self.misc_settings["tos_accepted"] = bool(getattr(self, "tos_accepted", self.misc_settings.get("tos_accepted", False)))
         with open(path, "w") as f:
-            json.dump(data, f, indent=4)
+            json.dump(self.misc_settings, f, indent=4)
 
     def _settings_for_vars(self, settings):
         """Copy config values into self.vars. Skip UI-only and private keys."""
@@ -3543,22 +3562,21 @@ class Api:
                 "success": False,
                 "error": str(e)
             }
-    def get_macro_version(self):
-        return APP_VERSION
 
     def get_python_version_info(self):
-        """Return the Python backend's app version, beta version, and developer."""
+        """Return the Python backend's app version, beta version, developer, and VERSION_ID."""
         return {
             "app_version": APP_VERSION,
             "beta_version": BETA_VERSION,
-            "developer": DEVELOPER
+            "developer": DEVELOPER,
+            "version_id": VERSION_ID
         }
 
     def get_js_version_info(self):
-        """Retrieve the JS app version, beta version, and developer name via evaluate_js."""
+        """Retrieve the JS app version, beta version, developer name, and VERSION_ID via evaluate_js."""
         try:
             result = window.evaluate_js(
-                "({ app_version: window.APP_VERSION || null, beta_version: window.BETA_VERSION || null, developer: window.DEVELOPER || null })"
+                "({ app_version: window.APP_VERSION || null, beta_version: window.BETA_VERSION || null, developer: window.DEVELOPER || null, version_id: window.VERSION_ID || null })"
             )
             if isinstance(result, dict):
                 return result
@@ -3572,29 +3590,70 @@ class Api:
             return {
                 "app_version": None,
                 "beta_version": None,
-                "developer": None
+                "developer": None,
+                "version_id": None
             }
         except Exception as e:
             return {
                 "app_version": None,
                 "beta_version": None,
                 "developer": None,
+                "version_id": None,
                 "error": str(e)
             }
 
     def check_setup_guide(self):
-        output = self.get_js_version_info()
-        app_version = float(output["app_version"])
-        beta_version = int(output["beta_version"])
-        developer = output["developer"]
-        if app_version != APP_VERSION:
-            self.message_box_javascript(f"A new version of Solar Fishing is available: {app_version}.\nYou have {APP_VERSION}, do you want to update?", "askyesno")
-        if BETA_VERSION != 0:
-            if beta_version != BETA_VERSION:
-                self.message_box_javascript(f"A new beta of Solar Fishing is available: {beta_version}.\nYou have {BETA_VERSION}, do you want to update?", "askyesno")
-        if developer != DEVELOPER:
-            self.message_box_javascript(f"You tried to download an unauthorized version of Solar Fishing.\nPlease take actions against {developer} and download the official version in the About tab.", "ok")
-
+        try:
+            output = self.get_js_version_info()
+            app_version = float(output["app_version"])
+            beta_version = int(output["beta_version"])
+            developer = output["developer"]
+            version_id = int(output["version_id"])
+            result = None
+            local_gui = False
+            if float(app_version) > float(APP_VERSION):
+                result = self.message_box_javascript(f"A new version of Solar Fishing is available: {app_version}.\nYou have {APP_VERSION}, do you want to update?", "askyesno")
+            elif float(app_version) < float(APP_VERSION):
+                local_gui = True
+            if float(BETA_VERSION) != 0:
+                local_gui = True
+            if developer != DEVELOPER:
+                result = self.message_box_javascript(f"""You tried to download an unauthorized version of Solar Fishing.
+                                            Please take actions against {developer} and download the official version.
+                                            Do you want to download the official version?""", "askyesno")
+            # VERSION_ID comparison:
+            # - JS higher than Python: notify only (do not reload / fall back)
+            # - JS lower than Python: fall back to local GUI
+            try:
+                js_vid = int(version_id)
+                py_vid = int(VERSION_ID)
+            except (TypeError, ValueError):
+                js_vid = None
+                py_vid = int(VERSION_ID)
+            if js_vid is not None and js_vid > py_vid:
+                # JS is newer than this Python build — inform the user, stay on current page
+                result = self.message_box_javascript(f"Your Solar Fishing installation is broken. Do you want to reinstall Solar Fishing?", "askyesno")
+            elif js_vid is None or js_vid < py_vid:
+                # JS is missing or older — fall back to local GUI
+                local_gui = True
+            elif js_vid == py_vid:
+                local_gui = False
+            if result != None:
+                if result == True:
+                    _ = self.open_link("https://drive.google.com/drive/folders/1cVzOE6zW7JTzFbjXMVK8wklH1-ExhCUo")
+            this_launch_local = getattr(self, "this_launch_local", False)
+            if local_gui and not this_launch_local:
+                # Website (remote) is outdated: fall back to local GUI for this launch
+                self.misc_settings["use_local_gui"] = True
+                self.save_misc_settings()
+                reload_page(self.misc_settings["tos_accepted"])
+            elif this_launch_local:
+                # We already fell back to local this launch. Reset so the next launch tries the website again.
+                if self.misc_settings.get("use_local_gui"):
+                    self.misc_settings["use_local_gui"] = False
+                    self.save_misc_settings()
+        except Exception as e:
+            self.message_box_javascript(f"An error occured during initial check: {e}")
     def set_status(self, message):
         """Push a status message to the main webview window's JS."""
         if IS_COMPILED == False:
@@ -3950,7 +4009,7 @@ class Api:
                 title_hit = 1 if name in title else 0
                 return (title_hit, area)
             best = max(candidates, key=score)
-            return abs(best["left"]), abs(best["top"]), abs(best["width"]), abs(best["height"])
+            return best["left"], best["top"], best["width"], best["height"]
 
         # Fallback
         try:
@@ -8801,10 +8860,15 @@ def on_closed():
         except Exception:
             pass
 
+misc_settings = load_misc_settings(os.path.join(EDITABLE_PATH, "last_config.json"))
+using_local = misc_settings.get("use_local_gui", False) == True
+html_path = os.path.join(UI_PATH, "index.html") if using_local else "https://catman2608.github.io/PyWare-Backend/SolarFishingV5/index.html"
+
 api = Api()
+api.this_launch_local = using_local
 window = webview.create_window(
     f"Solar Fishing V{APP_VERSION}",
-    os.path.join(UI_PATH, "index.html"),
+    html_path,
     js_api=api,
     width=880,
     height=660,
@@ -8813,7 +8877,7 @@ window = webview.create_window(
     focus=True,
     text_select=True,
 )
-api.window = window
+api._window = window
 window.events.closed += on_closed
 window.events.loaded += api.check_setup_guide
 webview.start()

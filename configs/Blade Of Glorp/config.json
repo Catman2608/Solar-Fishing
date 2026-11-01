@@ -101,7 +101,7 @@
     "totem_cycles": "55",
     "sundial_delay": "20",
     "totem_delay": "2",
-    "auto_reconnect": false,
+    "auto_reconnect": "Modern",
     "reconnect_threshold": "140",
     "reconnect_wait_time": "4",
     "mirror_ratio": "0.55",
@@ -148,5 +148,6 @@
     "angler_click_position": "0.5, 0.5",
     "angler_click_position2": "0.5, 0.5",
     "angler_cooldown": "130",
-    "banner-input": "Webweaver Ro"
+    "banner-input": "Webweaver Ro",
+    "sovereign_recharge_color_count": "1"
 }

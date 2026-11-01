@@ -433,10 +433,7 @@ async function resetAreas() {
 async function exportConfig() {
     try {
         const settings = getSettings();
-
-        const result = await pywebview.api.export_config(
-            settings
-        );
+        const result = await pywebview.api.export_config(settings);
 
         if (result.success) {
             setStatus(`Exported: ${result.path}`);
