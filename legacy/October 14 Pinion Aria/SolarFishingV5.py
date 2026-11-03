@@ -12,6 +12,7 @@ import subprocess
 import requests
 import io
 import base64
+import warnings
 import time
 import sys
 import webbrowser
@@ -287,6 +288,10 @@ elif sys.platform == "darwin":
     # ScreenCaptureKit (preferred capture backend on macOS 12.3+)
     try:
         import ScreenCaptureKit as _SCK
+        try:
+            from Foundation import NSRunLoop
+        except:
+            NSRunLoop = None
         from ScreenCaptureKit import (
             SCShareableContent,
             SCContentFilter,
@@ -555,7 +560,7 @@ def _cm_time_make(value, timescale):
         # kCMTimeFlags_Valid = 1. Layout matches Apple's CMTime (24 bytes).
         import objc as _objc
         try:
-            cm_time = _objc.createStructType("CMTime", b"{CMTime=qiIq}", ["value", "timescale", "flags", "epoch"],)
+            cm_time = _objc.createStructType("CMTime", b"{CMTime=qiIq}", ["value", "timescale", "flags", "epoch"])
         except Exception:
             cm_time = _objc.lookUpStructType("CMTime")
         return cm_time(value, timescale, 1, 0)
@@ -808,7 +813,7 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
     except Exception:
         pass
 
-    import warnings
+    
     warnings.filterwarnings(
         "ignore",
         message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",
@@ -859,8 +864,8 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
     except Exception:
         pass
 
-    import warnings
-    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",)
+    
+    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer")
 # Validate Tesseract Path
 def get_tesseract_path(configured_path=None):
     """
@@ -2184,7 +2189,7 @@ class Api:
         menu_offset = get_macos_menu_offset()
         self.bar_areas = {name: None for name in AREA_ORDER}
         self.current_rod_name = "Default"
-        self.session_start = None
+        self.session_start = 0.0
         self.catch_rate = 0.0
         self.perfect_catch_rate = 0.0
         self.current_cycle = 0
@@ -2217,7 +2222,7 @@ class Api:
 
         defaults = {}
         try:
-            with open(UI_PATH / "index.html", "r", encoding="utf-8") as file:
+            with open(os.path.join(UI_PATH, "index.html"), "r", encoding="utf-8") as file:
                 html = file.read()
         except Exception:
             _PROMPT_DEFAULTS = {}
@@ -3435,7 +3440,6 @@ class Api:
                     return
 
                 try:
-                    from Foundation import NSRunLoop
                     NSRunLoop.currentRunLoop().runUntilDate_(
                         NSDate.dateWithTimeIntervalSinceNow_(0.05)
                     )
@@ -3515,7 +3519,6 @@ class Api:
                 and not started.is_set()
                 and time.time() < start_deadline):
                 try:
-                    from Foundation import NSRunLoop
                     NSRunLoop.currentRunLoop().runUntilDate_(
                         NSDate.dateWithTimeIntervalSinceNow_(0.05)
                     )
@@ -3543,7 +3546,6 @@ class Api:
                 and self.capture_frame is None
                 and time.time() < first_frame_deadline):
                 try:
-                    from Foundation import NSRunLoop
                     NSRunLoop.currentRunLoop().runUntilDate_(
                         NSDate.dateWithTimeIntervalSinceNow_(0.05)
                     )
@@ -3575,10 +3577,6 @@ class Api:
                 return self.capture_loop_quartz()
 
             #  Idle loop — frames arrive on the SCK callback thread -
-            try:
-                from Foundation import NSRunLoop
-            except Exception:
-                NSRunLoop = None
             while self.macro_running:
                 if NSRunLoop is not None:
                     NSRunLoop.currentRunLoop().runUntilDate_(
@@ -7474,7 +7472,7 @@ class Api:
                 left_boundary = boundary
                 right_boundary = fish_right - boundary - fish_left
             else:
-                left_boundary = None
+                left_boundary = 0
                 right_boundary = fish_width
             # print("Boundary: ", left_boundary, right_boundary, " Fish: ", fish_x)
             # print("Last Cache: ", bar_center - last_bar_center)

@@ -148,5 +148,6 @@
     "angler_click_position": "0.5, 0.5",
     "angler_click_position2": "0.5, 0.5",
     "angler_cooldown": "130",
-    "banner-input": "Enter a value..."
+    "banner-input": "Enter a value...",
+    "sovereign_recharge_color_count": "1"
 }

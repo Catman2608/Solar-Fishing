@@ -11,6 +11,7 @@ import subprocess
 import requests
 import io
 import base64
+import warnings
 import time
 import sys
 import webbrowser
@@ -90,13 +91,9 @@ def get_macos_menu_offset():
 
 if sys.platform == "darwin":
     import Quartz
-    _QUARTZ_SRGB_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(
-        Quartz.kCGColorSpaceSRGB
-    )
+    _QUARTZ_SRGB_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(Quartz.kCGColorSpaceSRGB)
     # Cache display P3 color space (what MSS typically returns on modern Macs)
-    _QUARTZ_P3_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(
-        Quartz.kCGColorSpaceDisplayP3
-    )
+    _QUARTZ_P3_COLOR_SPACE = Quartz.CGColorSpaceCreateWithName(Quartz.kCGColorSpaceDisplayP3)
 else:
     _QUARTZ_SRGB_COLOR_SPACE = None
     _QUARTZ_P3_COLOR_SPACE = None
@@ -126,16 +123,12 @@ def mss_to_srgb_numpy(image, source_is_p3=True):
     src_cg_image = Quartz.CGImageCreate(
         width, height, 8, 32, bytes_per_row,
         _QUARTZ_P3_COLOR_SPACE,
-        Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little, # BGRA
+        Quartz.kCGImageAlphaPremultipliedFirst | Quartz.kCGBitmapByteOrder32Little,
         provider, None, False, Quartz.kCGRenderingIntentDefault
     )
     # 3. Draw into an sRGB context (CoreGraphics handles exact ColorSync transformation)
     out_raw = np.empty((height, width, 4), dtype=np.uint8)
-    context = Quartz.CGBitmapContextCreate(
-        out_raw, width, height, 8, bytes_per_row,
-        _QUARTZ_SRGB_COLOR_SPACE,
-        Quartz.kCGImageAlphaPremultipliedLast | Quartz.kCGBitmapByteOrder32Big
-    )
+    context = Quartz.CGBitmapContextCreate(out_raw, width, height, 8, bytes_per_row, _QUARTZ_SRGB_COLOR_SPACE, Quartz.kCGImageAlphaPremultipliedLast | Quartz.kCGBitmapByteOrder32Big)
     Quartz.CGContextDrawImage(context, Quartz.CGRectMake(0, 0, width, height), src_cg_image)
     # 4. Extract BGR uint8 result matching Quartz/MSS consumers
     return np.ascontiguousarray(out_raw[:, :, :3][:, :, ::-1])
@@ -146,24 +139,11 @@ def cgimage_to_srgb_numpy(image):
         height = Quartz.CGImageGetHeight(image)
         bytes_per_row = width * 4
         raw = np.empty((height, width, 4), dtype=np.uint8)
-        context = Quartz.CGBitmapContextCreate(
-            raw,
-            width,
-            height,
-            8,
-            bytes_per_row,
-            _QUARTZ_SRGB_COLOR_SPACE,
-            Quartz.kCGImageAlphaPremultipliedLast |
-            Quartz.kCGBitmapByteOrder32Big,
-        )
+        context = Quartz.CGBitmapContextCreate(raw, width, height, 8, bytes_per_row, _QUARTZ_SRGB_COLOR_SPACE, Quartz.kCGImageAlphaPremultipliedLast | Quartz.kCGBitmapByteOrder32Big)
         if context is None:
             return None
 
-        Quartz.CGContextDrawImage(
-            context,
-            Quartz.CGRectMake(0, 0, width, height),
-            image,
-        )
+        Quartz.CGContextDrawImage(context, Quartz.CGRectMake(0, 0, width, height), image)
         return raw[:, :, :3][:, :, ::-1]
 
     return image
@@ -172,6 +152,7 @@ def cgimage_to_srgb_numpy(image):
 def reload_page(skip=True):
     if skip == False:
         return
+
     if sys.platform == "win32":
         # Wrap in quotes to prevent compilation issues
         args = [sys.executable, f'"{sys.argv[0]}"'] + sys.argv[1:]
@@ -238,19 +219,19 @@ if sys.platform == "win32":
             ("right", ctypes.c_long),
             ("bottom", ctypes.c_long)
         ]
-
     def get_taskbar_height():
         # Find the window handle for the taskbar
         hwnd = ctypes.windll.user32.FindWindowW("Shell_TrayWnd", None)
-
         if hwnd:
             rect = RECT()
             # Get the bounding rectangle coordinates
             if ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect)):
                 taskbar_height = rect.bottom - rect.top
                 return int(taskbar_height)
+
             else:
                 return "Failed to get taskbar dimensions."
+
         else:
             return "Could not find the Windows Taskbar window."
 
@@ -263,7 +244,7 @@ if sys.platform == "win32":
         native = getattr(window, "native", window)
         candidates = (
             native,
-            getattr(native, "Handle", None),# WinForms BrowserForm -> System.IntPtr
+            getattr(native, "Handle", None),  # WinForms BrowserForm -> System.IntPtr
             getattr(window, "Handle", None),
             getattr(window, "hwnd", None),
         )
@@ -302,14 +283,11 @@ elif sys.platform == "darwin":
     # ScreenCaptureKit (preferred capture backend on macOS 12.3+)
     try:
         import ScreenCaptureKit as _SCK
-        from ScreenCaptureKit import (
-            SCShareableContent,
-            SCContentFilter,
-            SCStreamConfiguration,
-            SCStream,
-            SCStreamOutputType,
-            SCStreamOutputTypeScreen,
-        )
+        try:
+            from Foundation import NSRunLoop
+        except:
+            NSRunLoop = None
+        from ScreenCaptureKit import (SCShareableContent, SCContentFilter, SCStreamConfiguration, SCStream, SCStreamOutputType, SCStreamOutputTypeScreen)
         from Foundation import NSDate, NSObject
         import objc
         _SCK_AVAILABLE = True
@@ -340,17 +318,14 @@ elif sys.platform == "darwin":
     _QUARTZ_KEY_SOURCE = None
     def get_taskbar_height():
         return 0
+
     def _get_quartz_key_source():
         # Private Source So Posted Keys Do Not Inherit Hardware Command/Fn/Globe State
         global _QUARTZ_KEY_SOURCE
         if _QUARTZ_KEY_SOURCE is None:
-            _QUARTZ_KEY_SOURCE = Quartz.CGEventSourceCreate(
-                Quartz.kCGEventSourceStatePrivate
-            )
+            _QUARTZ_KEY_SOURCE = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStatePrivate)
             try:
-                Quartz.CGEventSourceSetLocalEventsSuppressionInterval(
-                    _QUARTZ_KEY_SOURCE, 0.0
-                )
+                Quartz.CGEventSourceSetLocalEventsSuppressionInterval(_QUARTZ_KEY_SOURCE, 0.0)
             except Exception:
                 pass
 
@@ -408,12 +383,7 @@ elif sys.platform == "darwin":
             key = "left"
         btn, down_evt, up_evt = button_map[key]
         event_type = down_evt if press else up_evt
-        event = Quartz.CGEventCreateMouseEvent(
-            None,
-            event_type,
-            Quartz.CGPointMake(float(x), float(y)),
-            btn
-        )
+        event = Quartz.CGEventCreateMouseEvent(None, event_type, Quartz.CGPointMake(float(x), float(y)), btn)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
     def send_key(key, delay=0.05, click_type=0, flags=0):
         """
@@ -469,6 +439,7 @@ elif sys.platform.startswith("linux"):
     _xdisplay = None
     def get_taskbar_height():
         return 0
+
     def _get_xdisplay():
         global _xdisplay
         if _xdisplay is None:
@@ -508,11 +479,7 @@ elif sys.platform.startswith("linux"):
         }
         key = button.lower() if isinstance(button, str) else button
         btn = button_map.get(key, 1)
-        xtest.fake_input(
-            d,
-            X.ButtonPress if press else X.ButtonRelease,
-            btn
-        )
+        xtest.fake_input(d, X.ButtonPress if press else X.ButtonRelease, btn)
         d.sync()
     def send_key(key, delay=0.05, click_type=0):
         d = _get_xdisplay()
@@ -570,7 +537,7 @@ def _cm_time_make(value, timescale):
         # kCMTimeFlags_Valid = 1. Layout matches Apple's CMTime (24 bytes).
         import objc as _objc
         try:
-            cm_time = _objc.createStructType("CMTime", b"{CMTime=qiIq}", ["value", "timescale", "flags", "epoch"],)
+            cm_time = _objc.createStructType("CMTime", b"{CMTime=qiIq}", ["value", "timescale", "flags", "epoch"])
         except Exception:
             cm_time = _objc.lookUpStructType("CMTime")
         return cm_time(value, timescale, 1, 0)
@@ -673,9 +640,7 @@ def _sck_copy_bgra(pixel_addr):
             if not base or width <= 0 or height <= 0 or bytes_per_row < width * 4:
                 return None
 
-            raw = np.frombuffer(
-                ctypes.string_at(base, bytes_per_row * height), dtype=np.uint8
-            ).reshape(height, bytes_per_row)
+            raw = np.frombuffer(ctypes.string_at(base, bytes_per_row * height), dtype=np.uint8).reshape(height, bytes_per_row)
             return np.ascontiguousarray(raw[:, : width * 4]).reshape(height, width, 4)
 
         finally:
@@ -757,12 +722,12 @@ def _sck_ci_to_srgb_bgr(image_buffer):
     return np.empty((1, 1))
 
 def _sck_sample_to_bgr(sample_buffer):
-    """ScreenCaptureKit sample -> contiguous sRGB BGR uint8.
-    The SCStreamConfiguration is tagged with kCGColorSpaceSRGB, so SCK
-    already performs Display P3 -> sRGB conversion before handing us the
-    buffer. The raw BGRA bytes are therefore sRGB and must NOT be run
-    through another ColorSync P3 -> sRGB pass (that double-converts greens,
-    e.g. #9BFF9B -> #5CFF8A).
+    """
+    ScreenCaptureKit sample -> contiguous sRGB BGR uint8. 
+    The SCStreamConfiguration is tagged with kCGColorSpaceSRGB, so SCK already performs 
+    Display P3 -> sRGB conversion before handing us the buffer. 
+    The raw BGRA bytes are therefore sRGB and must NOT be run through another ColorSync P3
+    -> sRGB pass (that double-converts greens, e.g. #9BFF9B -> #5CFF8A).
     """
     _sck_sample_to_bgr.last_error = None
     if sys.platform != "darwin" or sample_buffer is None:
@@ -791,8 +756,7 @@ def _sck_sample_to_bgr(sample_buffer):
                 _sck_sample_to_bgr.last_error = "no BGRA image buffer"
             return None
 
-        # Buffers are already sRGB (SCStreamConfiguration.colorSpaceName was
-        # set to kCGColorSpaceSRGB), so just strip the alpha channel.
+        # Buffers are already sRGB (SCStreamConfiguration.colorSpaceName was # set to kCGColorSpaceSRGB), so just strip the alpha channel.
         return np.ascontiguousarray(bgra[:, :, :3])
 
     except Exception as exc:
@@ -806,8 +770,7 @@ _SCK_COREVIDEO = None
 # ScreenCaptureKit
 if sys.platform == "darwin" and _SCK_AVAILABLE:
     # Register before the class exists so the callback argument is a
-    # CMSampleBuffer, not a generic pointer (that path warns and then
-    # CMSampleBufferGetImageBuffer rejects it).
+    # CMSampleBuffer, not a generic pointer (that path warns and then # CMSampleBufferGetImageBuffer rejects it).
     try:
         objc.registerMetaDataForSelector(
             b"NSObject",
@@ -823,11 +786,7 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
     except Exception:
         pass
 
-    import warnings
-    warnings.filterwarnings(
-        "ignore",
-        message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",
-    )
+    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer")
     class _SCStreamOutput(NSObject):
         """
         Delegate that receives CMSampleBuffers from an SCStream and forwards
@@ -874,8 +833,7 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
     except Exception:
         pass
 
-    import warnings
-    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",)
+    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer")
 # Validate Tesseract Path
 def get_tesseract_path(configured_path=None):
     """
@@ -979,12 +937,12 @@ def get_base_path():
     # 3. Running From Raw Source Code (.Py File)
     else:
         return Path(__file__).parent.resolve(), False
+
 # Get Read Only Path
 def get_resource_path():
     """
     Packaged assets (ui/, images/, bundled default configs/).
-    Compiled macOS/Linux: PyInstaller onedir --add-data folder (sys._MEIPASS,
-    typically <app>/_internal or .app/Contents/Frameworks).
+    Compiled macOS/Linux: PyInstaller onedir --add-data folder (sys._MEIPASS, typically <app>/_internal or .app/Contents/Frameworks).
     Compiled Windows: directory next to the .exe (unchanged).
     Dev: project directory.
     """
@@ -998,22 +956,20 @@ def get_resource_path():
         return Path(sys.executable).parent.resolve()
 
     return Path(__file__).parent.resolve()
+
 # Move Configs Automatically
 def seed_configs():
     source = Path(READ_ONLY_PATH) / "configs"
     destination = Path(CONFIGS_PATH)
-
     # Nothing to seed if the bundled configs do not exist
     if not source.exists() or not source.is_dir():
         return
 
     # Create the editable configs directory if needed
     destination.mkdir(parents=True, exist_ok=True)
-
     # Copy only files that do not already exist
     for source_file in source.iterdir():
         destination_file = destination / source_file.name
-
         if source_file.is_file() and not destination_file.exists():
             shutil.copy2(source_file, destination_file)
 # Establish The Global Base Path For Solar Fishing V5
@@ -1170,8 +1126,7 @@ class AreaSelector:
 
     def show(self):
         """Creates and displays the transparent frameless overlay window.
-        Arguments are physical-pixel screen coordinates (same space as
-        _get_areas / capture_frame). They are converted to logical points
+        Arguments are physical-pixel screen coordinates (same space as _get_areas / capture_frame). They are converted to logical points
         for pywebview.
         """
         # Position below the macOS menu area; use physical pixels because
@@ -1180,12 +1135,7 @@ class AreaSelector:
         if scale <= 0:
             scale = 1.0
         macos_offset = int(round(get_macos_menu_offset()))
-        left, top, width, height = self._to_window_coords(
-            0,
-            macos_offset,
-            SCREEN_WIDTH,
-            max(1, SCREEN_HEIGHT - macos_offset),
-        )
+        left, top, width, height = self._to_window_coords(0, macos_offset, SCREEN_WIDTH, max(1, SCREEN_HEIGHT - macos_offset))
         if self._open and self.overlay_window:
             # If already open, shift/resize it instead of duplicating
             self.resize(left, top, width, height, already_logical=True)
@@ -1201,7 +1151,6 @@ class AreaSelector:
         self.top = top
         self.width = width
         self.height = height
-
         # Thin js_api only. Do not pass self — it holds the pywebview Window,
         # and pywebview walks that into AccessibilityObject.Bounds recursion.
         outer = self
@@ -1215,23 +1164,7 @@ class AreaSelector:
             def save_areas(self, areas):
                 return outer.save_areas(areas)
 
-        self.overlay_window = webview.create_window(
-            "Area Selector",
-            self.HTML_FILE,
-            js_api=_AreaSelectorApi(),
-            transparent=False,
-            frameless=True,
-            easy_drag=False,
-            on_top=True,
-            resizable=False,
-            focus=True,
-            width=self.width,
-            height=self.height,
-            x=self.left,
-            y=self.top,
-            background_color="#000000",
-            min_size=(10, 10),
-        )
+        self.overlay_window = webview.create_window("Area Selector", self.HTML_FILE, js_api=_AreaSelectorApi(), transparent=False, frameless=True, easy_drag=False, on_top=True, resizable=False, focus=True, width=self.width, height=self.height, x=self.left, y=self.top, background_color="#000000", min_size=(10, 10))
         self._open = True
         self._visible = True
         self.overlay_window.events.closed += self._on_closed
@@ -1246,6 +1179,7 @@ class AreaSelector:
                         self.parent_app.set_status("Failed to maximize area selector:", e)
                     except Exception:
                         pass
+
             self.overlay_window.events.shown += maximize_area_selector
     def hide(self):
         """Destroys the current window instance completely.
@@ -1285,15 +1219,14 @@ class AreaSelector:
             try:
                 # Pass As Return Value Of A Dedicated Getter Instead Of
                 # Embedding A Huge String In Evaluate_Js When Possible.
-                self.overlay_window.evaluate_js(
-                    "window.__applyScreenshot && window.__applyScreenshot()"
-                )
+                self.overlay_window.evaluate_js("window.__applyScreenshot && window.__applyScreenshot()")
             except Exception:
                 pass
 
         self._page_ready = True
         self._flush_pending_js()
         return None
+
     def update(self, areas_dict, data):
         self.clear()
         scale = get_scale_factor() or 1.0
@@ -1406,7 +1339,6 @@ class AreaSelector:
                 # Window may already be disposed (race with stop_macro / hide)
                 self._open = False
                 self.overlay_window = None
-
     def pixels_to_ratios(self, area):
         """Convert pixels to ratios by dividing values by screen width and height"""
         if not isinstance(area, dict):
@@ -1467,6 +1399,7 @@ class AreaSelector:
         for name, box in areas.items():
             if name not in self._areas or not isinstance(box, dict):
                 continue
+
             # Canvas pixels → absolute screen position (undo menu offset on Y)
             abs_x = float(box.get("x", 0))
             abs_y = float(box.get("y", 0)) + menu_offset_logical
@@ -1486,24 +1419,21 @@ class AreaSelector:
             self.parent_app.bar_areas[name] = dict(self._areas[name])
         self.parent_app.save_misc_settings()
         try:
-            self.parent_app.set_status(
-                f"Areas saved relative to Roblox ({int(r_left)}, {int(r_top)}, {int(r_w)}×{int(r_h)})"
-            )
+            self.parent_app.set_status(f"Areas saved relative to Roblox ({int(r_left)}, {int(r_top)}, {int(r_w)}×{int(r_h)})")
         except Exception:
             pass
-        self.hide()
 
+        self.hide()
     def request_save_and_close(self):
         """Ask the page to persist its current boxes before closing."""
         if not self._open or not self.overlay_window:
             return
+
         if not self._page_ready:
             self.hide()
             return
-        self.overlay_window.evaluate_js(
-            "window.fishOverlay && window.fishOverlay.saveAndClose()"
-        )
 
+        self.overlay_window.evaluate_js("window.fishOverlay && window.fishOverlay.saveAndClose()")
     def draw_box(self, x1, y1, x2, y2, color, show_bar_center=False, label=""):
         """Evaluates JS drawing contexts based on calculations inside the viewport.
         bar_center / box_size / canvas_offset are in physical pixels relative to
@@ -1530,22 +1460,23 @@ class AreaSelector:
     def _eval(self, script):
         """Safely executes JavaScript strings within the running window environment.
         Calls made before the page is ready are queued — evaluate_js during
-        create_window can fail and must not tear the overlay down (that was
-        dropping the screenshot)."""
+        create_window can fail and must not tear the overlay down (that was dropping the screenshot)."""
         if not (self.overlay_window and self._open):
             return
+
         if not self._page_ready:
             self._pending_js.append(script)
             return
+
         try:
             self.overlay_window.evaluate_js(script)
         except Exception:
             # Page may not be attached yet; keep the window and retry later.
             self._pending_js.append(script)
-
     def _flush_pending_js(self):
         if not (self.overlay_window and self._open and self._page_ready):
             return
+
         pending = self._pending_js
         self._pending_js = []
         for script in pending:
@@ -1553,12 +1484,10 @@ class AreaSelector:
                 self.overlay_window.evaluate_js(script)
             except Exception:
                 self._pending_js.append(script)
-
     def _capture_and_crop(self):
         """Capture full screen and remove the macOS menu bar strip so the
         image matches the frameless window geometry (no menu bar)."""
         frame = self.parent_app.capture_single_frame()
-        
         if frame is None:
             return None
 
@@ -1608,8 +1537,7 @@ class AreaSelector:
 class Eyedropper:
     """
     Fullscreen transparent overlay for color picking using pywebview.
-    Captures a frozen screenshot (menu bar cropped so it matches the
-    frameless window), renders it in the canvas, and returns the picked color.
+    Captures a frozen screenshot (menu bar cropped so it matches the frameless window), renders it in the canvas, and returns the picked color.
     """
     # Prevent Pywebview From Walking This Object When The Main Api Is Js_Api
     # (Window.Native.Accessibilityobject.Bounds Recursion / Webview2 Com).
@@ -1671,10 +1599,8 @@ class Eyedropper:
         """Open the eyedropper overlay. Optional color_key is the settings
         field that should receive the picked color (e.g. 'fish_color').
         Thin js_api object — only exposes the methods the HTML page calls.
-        Do NOT pass `self` (or any object that holds a reference to the
-        pywebview Window): on macOS Cocoa that triggers infinite recursion
-        via AccessibilityObject.Bounds (same crash previously fixed for
-        AreaSelector).
+        Do NOT pass `self` (or any object that holds a reference to the pywebview Window): on macOS Cocoa that triggers infinite recursion
+        via AccessibilityObject.Bounds (same crash previously fixed for AreaSelector).
         """
         if self._open and self.eyedropper_window:
             return
@@ -1707,22 +1633,7 @@ class Eyedropper:
         self.top = SCREEN_TOP
         self.width = SCREEN_WIDTH
         self.height = win_h
-        self.eyedropper_window = webview.create_window(
-            "Eyedropper",
-            self.HTML_FILE,
-            js_api=_EyedropperApi(),
-            transparent=False,
-            frameless=True,
-            easy_drag=False,
-            on_top=True,
-            resizable=False,
-            focus=True,
-            width=self.width,
-            height=self.height,
-            x=self.left,
-            y=self.top,
-            background_color="#000000",
-        )
+        self.eyedropper_window = webview.create_window("Eyedropper", self.HTML_FILE, js_api=_EyedropperApi(), transparent=False, frameless=True, easy_drag=False, on_top=True, resizable=False, focus=True, width=self.width, height=self.height, x=self.left, y=self.top, background_color="#000000")
         self._open = True
         self._visible = True
         self.eyedropper_window.events.closed += self._on_closed
@@ -1737,9 +1648,7 @@ class Eyedropper:
                     self.parent.set_status("Failed to maximize area selector:", e)
             self.eyedropper_window.events.shown += maximize_area_selector
         try:
-            self.parent.set_status(
-                "Eyedropper opened • Hover to preview • Click to pick • Esc to cancel"
-            )
+            self.parent.set_status("Eyedropper opened • Hover to preview • Click to pick • Esc to cancel")
         except Exception:
             pass
 
@@ -1774,9 +1683,7 @@ class Eyedropper:
             try:
                 # Pass As Return Value Of A Dedicated Getter Instead Of
                 # Embedding A Huge String In Evaluate_Js When Possible.
-                self.eyedropper_window.evaluate_js(
-                    "window.__applyScreenshot && window.__applyScreenshot()"
-                )
+                self.eyedropper_window.evaluate_js("window.__applyScreenshot && window.__applyScreenshot()")
             except Exception:
                 pass
 
@@ -1931,8 +1838,7 @@ class FishOverlay:
 
     def show(self, left, top, width, height):
         """Creates and displays the transparent frameless overlay window.
-        Arguments are physical-pixel screen coordinates (same space as
-        _get_areas / capture_frame). They are converted to logical points
+        Arguments are physical-pixel screen coordinates (same space as _get_areas / capture_frame). They are converted to logical points
         for pywebview.
         """
         left, top, width, height = self._to_window_coords(left, top, width, height)
@@ -1945,22 +1851,7 @@ class FishOverlay:
         self.top = top
         self.width = width
         self.height = height
-        self._overlay_window = webview.create_window(
-            "Fish Overlay",
-            url=self.HTML_FILE,
-            transparent=False,
-            frameless=True,
-            easy_drag=False,
-            on_top=True,
-            resizable=False,
-            focus=False,
-            width=self.width,
-            height=self.height,
-            x=self.left,
-            y=self.top,
-            background_color="#ffffff",
-            min_size=(0.03 * SCREEN_WIDTH, 0.05 * SCREEN_HEIGHT),
-        )
+        self._overlay_window = webview.create_window("Fish Overlay", url=self.HTML_FILE, transparent=False, frameless=True, easy_drag=False, on_top=True, resizable=False, focus=False, width=self.width, height=self.height, x=self.left, y=self.top, background_color="#ffffff", min_size=(0.03 * SCREEN_WIDTH, 0.05 * SCREEN_HEIGHT))
         self._open = True
         self._visible = True
         self._overlay_window.events.closed += self._on_closed
@@ -2096,39 +1987,16 @@ class StatusOverlay:
         Creates and displays the status overlay window.
         Arguments are physical-pixel screen coordinates.
         """
-        left, top, width, height = self._to_window_coords(
-            left, top, width, height
-        )
+        left, top, width, height = self._to_window_coords(left, top, width, height)
         if self._open and self._overlay_window:
-            self.resize(
-                left,
-                top,
-                width,
-                height,
-                already_logical=True
-            )
+            self.resize(left, top, width, height, already_logical=True)
             return
 
         self.left = left
         self.top = top
         self.width = width
         self.height = height
-        self._overlay_window = webview.create_window(
-            "Status Overlay",
-            url=self.HTML_FILE,
-            transparent=False,
-            frameless=True,
-            easy_drag=False,
-            on_top=True,
-            resizable=False,
-            focus=False,
-            width=self.width,
-            height=self.height,
-            x=self.left,
-            y=self.top,
-            background_color="#000000",
-            min_size=(0.1 * SCREEN_WIDTH, 0.1 * SCREEN_HEIGHT),
-        )
+        self._overlay_window = webview.create_window("Status Overlay", url=self.HTML_FILE, transparent=False, frameless=True, easy_drag=False, on_top=True, resizable=False, focus=False, width=self.width, height=self.height, x=self.left, y=self.top, background_color="#000000", min_size=(0.1 * SCREEN_WIDTH, 0.1 * SCREEN_HEIGHT))
         self._open = True
         self._visible = True
         self._overlay_window.events.closed += self._on_closed
@@ -2155,26 +2023,15 @@ class StatusOverlay:
         Pass already_logical=True when already converted.
         """
         if not already_logical:
-            left, top, width, height = self._to_window_coords(
-                left,
-                top,
-                width,
-                height
-            )
+            left, top, width, height = self._to_window_coords(left, top, width, height)
         self.left = left
         self.top = top
         self.width = width
         self.height = height
         if self._overlay_window and self._open:
             try:
-                self._overlay_window.move(
-                    self.left,
-                    self.top
-                )
-                self._overlay_window.resize(
-                    self.width,
-                    self.height
-                )
+                self._overlay_window.move(self.left, self.top)
+                self._overlay_window.resize(self.width, self.height)
             except Exception:
                 self._open = False
                 self._overlay_window = None
@@ -2182,20 +2039,12 @@ class StatusOverlay:
         """
         Updates the overlay title.
         """
-        self._eval(
-            f"window.statusOverlay && "
-            f"window.statusOverlay.setTitle("
-            f"{json.dumps(str(title))})"
-        )
+        self._eval(f"window.statusOverlay && " f"window.statusOverlay.setTitle(" f"{json.dumps(str(title))})")
     def set_main_status(self, status):
         """
         Updates the main process/status label.
         """
-        self._eval(
-            f"window.statusOverlay && "
-            f"window.statusOverlay.setMainStatus("
-            f"{json.dumps(str(status))})"
-        )
+        self._eval(f"window.statusOverlay && " f"window.statusOverlay.setMainStatus(" f"{json.dumps(str(status))})")
     def set_line(self, number, label, value):
         """
         Updates one of the four status lines.
@@ -2204,13 +2053,7 @@ class StatusOverlay:
         if number not in (1, 2, 3, 4):
             raise ValueError("Status line number must be 1, 2, 3, or 4")
 
-        self._eval(
-            f"window.statusOverlay && "
-            f"window.statusOverlay.setLine("
-            f"{number}, "
-            f"{json.dumps(str(label))}, "
-            f"{json.dumps(str(value))})"
-        )
+        self._eval(f"window.statusOverlay && " f"window.statusOverlay.setLine(" f"{number}, " f"{json.dumps(str(label))}, " f"{json.dumps(str(value))})")
     def set_status(self, title, main_status, line1, line2, line3, line4=None):
         """
         Updates the entire status overlay.
@@ -2228,10 +2071,7 @@ class StatusOverlay:
         """
         Resets the status overlay to its default state.
         """
-        self._eval(
-            "window.statusOverlay && "
-            "window.statusOverlay.clear()"
-        )
+        self._eval("window.statusOverlay && " "window.statusOverlay.clear()")
     def _eval(self, script):
         """
         Safely executes JavaScript within the WebView.
@@ -2255,14 +2095,12 @@ class StatusOverlay:
 class PointSelect:
     """
     Fullscreen overlay for selecting a screen point as normalized ratios (0-1).
-    Captures a frozen screenshot (menu bar cropped so it matches the
-    frameless window), renders it in the canvas, and returns the picked ratios.
+    Captures a frozen screenshot (menu bar cropped so it matches the frameless window), renders it in the canvas, and returns the picked ratios.
     """
     # Prevent Pywebview From Walking This Object When The Main Api Is Js_Api
     # (Window.Native.Accessibilityobject.Bounds Recursion / Webview2 Com).
     _serializable = False
     HTML_FILE = os.path.join(UI_PATH, "point_select.html")
-
     def __init__(self, parent_app):
         self.parent = parent_app
         self.overlay_window = None
@@ -2278,7 +2116,6 @@ class PointSelect:
         self.top = 0
         self.width = 0
         self.height = 0
-
     def is_open(self):
         return self._open and self.overlay_window is not None
 
@@ -2322,8 +2159,7 @@ class PointSelect:
         """Open the point selector overlay. Optional field_id is the settings
         field that should receive the picked ratios (e.g. 'mirror_ratio').
         Thin js_api object — only exposes the methods the HTML page calls.
-        Do NOT pass `self` (or any object that holds a reference to the
-        pywebview Window): on macOS Cocoa that triggers infinite recursion
+        Do NOT pass `self` (or any object that holds a reference to the pywebview Window): on macOS Cocoa that triggers infinite recursion
         via AccessibilityObject.Bounds.
         """
         if self._open and self.overlay_window:
@@ -2357,22 +2193,7 @@ class PointSelect:
         self.top = SCREEN_TOP + int(round(menu_offset))
         self.width = SCREEN_WIDTH
         self.height = win_h
-        self.overlay_window = webview.create_window(
-            "Point Select",
-            self.HTML_FILE,
-            js_api=_PointSelectApi(),
-            transparent=False,
-            frameless=True,
-            easy_drag=False,
-            on_top=True,
-            resizable=False,
-            focus=True,
-            width=self.width,
-            height=self.height,
-            x=self.left,
-            y=self.top,
-            background_color="#000000",
-        )
+        self.overlay_window = webview.create_window("Point Select", self.HTML_FILE, js_api=_PointSelectApi(), transparent=False, frameless=True, easy_drag=False, on_top=True, resizable=False, focus=True, width=self.width, height=self.height, x=self.left, y=self.top, background_color="#000000")
         self._open = True
         self._visible = True
         self.overlay_window.events.closed += self._on_closed
@@ -2384,8 +2205,8 @@ class PointSelect:
                         user32.ShowWindow(wintypes.HWND(hwnd), SW_MAXIMIZE)
                 except Exception:
                     pass
-            self.overlay_window.events.shown += maximize_point_select
 
+            self.overlay_window.events.shown += maximize_point_select
     def hide(self):
         """Destroys the current window instance completely.
         Destroy is scheduled off the JS-API thread to avoid pywebview deadlock.
@@ -2400,16 +2221,14 @@ class PointSelect:
         self._visible = False
         self.overlay_window = None
         _schedule_webview_destroy(win, after=self._on_closed)
-
     def window_ready(self, win_x, win_y, width=None, height=None):
         """JS signals the page is ready — push screenshot."""
         if self._screenshot_b64 and self.overlay_window and self._open:
             try:
-                self.overlay_window.evaluate_js(
-                    "window.__applyScreenshot && window.__applyScreenshot()"
-                )
+                self.overlay_window.evaluate_js("window.__applyScreenshot && window.__applyScreenshot()")
             except Exception:
                 pass
+
         return None
 
     def get_screenshot_data(self):
@@ -2423,11 +2242,11 @@ class PointSelect:
         """
         menu_offset = get_macos_menu_offset()
         return {
+
             "menu_offset": float(menu_offset),
             "screen_w": float(SCREEN_WIDTH),
             "screen_h": float(SCREEN_HEIGHT),
         }
-
     def pick_point(self, ratio_x, ratio_y):
         """Called by JS when the user clicks.
         ratio_x / ratio_y are already normalized 0–1 relative to the overlay
@@ -2444,7 +2263,6 @@ class PointSelect:
         self.last_picked = (rx, ry)
         self._cancelled = False
         label = f"{rx:.3f}, {ry:.3f}"
-
         # Write into settings vars when a target key was provided
         field_id = self._field_id
         if field_id:
@@ -2476,7 +2294,6 @@ class PointSelect:
             pass
 
         self.hide()
-
     def _notify_main_ui(self, label, field_id=None):
         """Push the picked ratios into the main pywebview window."""
         try:
@@ -2547,8 +2364,7 @@ class TermsOfServiceDialogue:
 
     def show(self, left, top, width, height, already_logical=False):
         """Creates and displays the transparent frameless overlay window.
-        By default arguments are physical-pixel screen coordinates (same space as
-        _get_areas / capture_frame) and are converted to logical points for pywebview.
+        By default arguments are physical-pixel screen coordinates (same space as _get_areas / capture_frame) and are converted to logical points for pywebview.
         Pass already_logical=True to use the values as-is (logical points).
         """
         if not already_logical:
@@ -2562,7 +2378,6 @@ class TermsOfServiceDialogue:
         self.top = top
         self.width = width
         self.height = height
-
         outer = self
         class _TosApi:
             def close_window(self):
@@ -2577,23 +2392,7 @@ class TermsOfServiceDialogue:
             def close_app(self):
                 return outer.close_app()
 
-        self._tos_dialogue = webview.create_window(
-            "Terms of Service",
-            url=self.HTML_FILE,
-            js_api=_TosApi(),
-            transparent=False,
-            frameless=True,
-            easy_drag=False,
-            on_top=False,
-            resizable=False,
-            focus=True,
-            width=self.width,
-            height=self.height,
-            x=self.left,
-            y=self.top,
-            background_color="#161b22",
-            min_size=(800, 600),
-        )
+        self._tos_dialogue = webview.create_window("Terms of Service", url=self.HTML_FILE, js_api=_TosApi(), transparent=False, frameless=True, easy_drag=False, on_top=False, resizable=False, focus=True, width=self.width, height=self.height, x=self.left, y=self.top, background_color="#161b22", min_size=(800, 600))
         self._open = True
         self._visible = True
         self._tos_dialogue.events.closed += self._on_closed
@@ -2639,16 +2438,15 @@ class TermsOfServiceDialogue:
         self._tos_dialogue = None
         self._open = False
         self._visible = False
-
     def close_window(self):
         """Close button: quit the app (TOS is required to continue)."""
         self.close_app()
-
     def minimize_window(self):
         """Minimize the Terms of Service window."""
         win = self._tos_dialogue
         if not win or not self._open:
             return
+
         try:
             win.minimize()
         except Exception:
@@ -2661,6 +2459,7 @@ class TermsOfServiceDialogue:
             self.parent_app.save_misc_settings()
         except Exception:
             pass
+
         self.hide()
         try:
             # Main window is stored as api._window (set after create_window)
@@ -2683,6 +2482,7 @@ class TermsOfServiceDialogue:
                 _schedule_webview_destroy(main_win)
         except Exception:
             pass
+
 class Api:
     def __init__(self):
         self.vars = {} # Save Entry Variables Here
@@ -2692,6 +2492,7 @@ class Api:
             self.load_settings(self.current_config or None)
         except Exception:
             pass
+
         # Start Hotkey Listener
         self.hotkey_state = 0
         self.rebind_target = None
@@ -2729,7 +2530,7 @@ class Api:
         self.bar_areas = {name: None for name in AREA_ORDER}
         self.roblox_bounds_cache = None
         self.current_rod_name = "Default"
-        self.session_start = None
+        self.session_start = 0.0
         self.catch_rate = 0.0
         # Message box synchronization (custom banner)
         self.misc_settings = {}
@@ -2749,17 +2550,12 @@ class Api:
         self._ensure_default_config()
         # check_setup_guide is called from window.events.loaded (see main window setup)
         # so that the pywebview window exists before evaluate_js is used.
-
     def _html_attr(self, attrs, name):
-        match = re.search(
-            r"""\b""" + re.escape(name) + r"""\s*=\s*(?:['"]([^'"]*)['"]|([^\s>]+))""",
-            attrs,
-            re.IGNORECASE,
-        )
+        match = re.search(r"""\b""" + re.escape(name) + r"""\s*=\s*(?:['"]([^'"]*)['"]|([^\s>]+))""", attrs, re.IGNORECASE)
         if not match:
             return None
-        return (match.group(1) if match.group(1) is not None else match.group(2) or "").strip()
 
+        return (match.group(1) if match.group(1) is not None else match.group(2) or "").strip()
 
     def _get_prompt_defaults(self):
         """Defaults from index.html placeholders, value attributes, and first options."""
@@ -2769,7 +2565,7 @@ class Api:
 
         defaults = {}
         try:
-            with open(UI_PATH / "index.html", "r", encoding="utf-8") as file:
+            with open(os.path.join(UI_PATH, "index.html"), "r", encoding="utf-8") as file:
                 html = file.read()
         except Exception:
             _PROMPT_DEFAULTS = {}
@@ -2780,14 +2576,18 @@ class Api:
                 field_id = self._html_attr(attrs, "id")
                 if not field_id or field_id == "config_list" or field_id.startswith("_"):
                     continue
+
                 input_type = (self._html_attr(attrs, "type") or "text").lower()
                 if input_type == "range" or field_id.endswith("_slider"):
                     continue
+
                 if input_type == "checkbox":
                     defaults[field_id] = bool(re.search(r"\bchecked\b", attrs, re.IGNORECASE))
                     continue
+
                 if input_type in ("button", "submit", "file", "image", "hidden"):
                     continue
+
                 value = self._html_attr(attrs, "value")
                 placeholder = self._html_attr(attrs, "placeholder")
                 if value is not None and value != "":
@@ -2798,29 +2598,26 @@ class Api:
             pass
 
         try:
-            select_pattern = re.compile(
-                r"<select\b([^>]*)>(.*?)</select>",
-                re.IGNORECASE | re.DOTALL,
-            )
-            option_pattern = re.compile(
-                r"<option\b([^>]*)>",
-                re.IGNORECASE,
-            )
+            select_pattern = re.compile(r"<select\b([^>]*)>(.*?)</select>", re.IGNORECASE | re.DOTALL)
+            option_pattern = re.compile(r"<option\b([^>]*)>", re.IGNORECASE)
             for attrs, body in select_pattern.findall(html):
                 field_id = self._html_attr(attrs, "id")
                 if not field_id or field_id == "config_list" or field_id.startswith("_"):
                     continue
+
                 chosen = None
                 first = None
                 for option_attrs in option_pattern.findall(body):
                     option_value = self._html_attr(option_attrs, "value")
                     if option_value is None:
                         continue
+
                     if first is None:
                         first = option_value
                     if re.search(r"\bselected\b", option_attrs, re.IGNORECASE):
                         chosen = option_value
                         break
+
                 defaults[field_id] = chosen if chosen is not None else (first or "")
         except Exception:
             pass
@@ -2831,34 +2628,32 @@ class Api:
         _PROMPT_DEFAULTS = defaults
         return dict(defaults)
 
-
     def _get_saved_default_config(self):
         default_path = os.path.join(CONFIGS_PATH, "Default", "config.json")
         try:
             with open(default_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
             return data if isinstance(data, dict) else {}
+
         except Exception:
             return {}
-
 
     def _get_config_defaults(self):
         defaults = self._get_saved_default_config()
         defaults.update(self._get_prompt_defaults())
         return defaults
 
-
     def _is_blank_setting(self, value):
         if value is None:
             return True
+
         if isinstance(value, str) and value.strip() == "":
             return True
-        return False
 
+        return False
 
     def _fill_blank_settings(self, settings):
         """Fill missing or empty keys from Default config + HTML placeholders.
-
         A single bad key is skipped so one corrupt value cannot wipe the rest.
         """
         filled = {}
@@ -2866,7 +2661,6 @@ class Api:
             defaults = self._get_config_defaults()
         except Exception:
             defaults = {}
-
         try:
             for key, value in defaults.items():
                 try:
@@ -2874,6 +2668,7 @@ class Api:
                         filled[key] = value
                 except Exception:
                     continue
+
         except Exception:
             pass
 
@@ -2883,16 +2678,18 @@ class Api:
                 try:
                     if not key or str(key).startswith("_") or str(key).endswith("_slider") or key == "config_list":
                         continue
+
                     if self._is_blank_setting(value):
                         continue
+
                     filled[key] = value
                 except Exception:
                     continue
+
         except Exception:
             pass
 
         return filled
-
 
     def _safe_config_name(self, name):
         name = str(name or "").strip()
@@ -2902,14 +2699,11 @@ class Api:
         name = name.replace("\\", "").replace("/", "").strip()
         return name
 
-
     def _config_folder(self, config_name):
         return os.path.join(CONFIGS_PATH, config_name)
 
-
     def _config_file(self, config_name):
         return os.path.join(self._config_folder(config_name), "config.json")
-
 
     def _ensure_default_config(self):
         os.makedirs(CONFIGS_PATH, exist_ok=True)
@@ -2927,23 +2721,21 @@ class Api:
         if not os.path.exists(path):
             with open(path, "w", encoding="utf-8") as file:
                 json.dump({}, file, indent=4)
-
     # Stop pywebview from walking this object when it is used as js_api
     # (Window.native.AccessibilityObject.Bounds recursion / WebView2 COM).
     _serializable = False
-
     def close_window(self):
         win = window
         if win is None and webview.windows:
             win = webview.windows[0]
         _schedule_webview_destroy(win)
-
     def minimize_window(self):
         win = window
         if win is None and webview.windows:
             win = webview.windows[0]
         if win is None:
             return
+
         try:
             win.minimize()
         except Exception:
@@ -2954,7 +2746,6 @@ class Api:
         "area_selector_key": "Area Selector Key",
         "stop_key": "Stop Key",
     }
-
     def rebind_hotkeys(self, hotkey):
         """Arm rebind. on_key_press sees hotkey_state == 1 and ignores start/stop/area."""
         name = str(hotkey or "").strip()
@@ -2963,10 +2754,10 @@ class Api:
             self.rebind_target = None
             self.set_status("Unknown hotkey")
             return
+
         self.rebind_target = name
         self.hotkey_state = 1
         self.set_status(f"Rebind {self._HOTKEY_LABELS[name]}: press any key")
-
     def _finish_hotkey_rebind(self, key):
         target = self.rebind_target
         self.hotkey_state = 0
@@ -2975,6 +2766,7 @@ class Api:
         if not target or target not in self._HOTKEY_LABELS or not key:
             self.set_status("Hotkey rebind cancelled")
             return
+
         if not isinstance(self.vars, dict):
             self.vars = {}
         self.vars[target] = key
@@ -2982,27 +2774,20 @@ class Api:
             self.save_settings(self.current_config, self.vars)
         except Exception:
             pass
+
         label = self._HOTKEY_LABELS[target]
         try:
-            window.evaluate_js(
-                "window.applyHotkey && window.applyHotkey("
-                + json.dumps(target) + ", " + json.dumps(key) + ")"
-            )
+            window.evaluate_js("window.applyHotkey && window.applyHotkey(" + json.dumps(target) + ", " + json.dumps(key) + ")")
         except Exception:
             pass
-        self.set_status(f"{label} set to {key.upper()}")
 
+        self.set_status(f"{label} set to {key.upper()}")
     def list_configs(self):
         try:
             self._ensure_default_config()
-            configs = sorted(
-                [
-                    folder
-                    for folder in os.listdir(CONFIGS_PATH)
-                    if os.path.isdir(os.path.join(CONFIGS_PATH, folder))
-                ]
-            )
+            configs = sorted([ folder for folder in os.listdir(CONFIGS_PATH) if os.path.isdir(os.path.join(CONFIGS_PATH, folder)) ])
             return configs
+
         except Exception:
             return []
 
@@ -3012,10 +2797,12 @@ class Api:
             target = folder or CONFIGS_PATH or EDITABLE_PATH
             if not target:
                 return {"success": False, "error": "No folder path."}
+
             os.makedirs(target, exist_ok=True)
             # Call the module-level helper (handles win/mac/linux).
             open_base_folder(target)
             return {"success": True, "path": target}
+
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
@@ -3028,7 +2815,6 @@ class Api:
             config_name = self.current_config or self.get_last_config() or "config"
             safe_name = self._safe_config_name(config_name) or "config"
             filename = f"{safe_name}.json"
-
             dialog_type = None
             try:
                 dialog_type = webview.FileDialog.SAVE
@@ -3037,10 +2823,7 @@ class Api:
             if dialog_type is None:
                 return {"success": False, "error": "Save dialog is unavailable."}
 
-            path = webview.windows[0].create_file_dialog(
-                dialog_type,
-                save_filename=filename
-            )
+            path = webview.windows[0].create_file_dialog(dialog_type, save_filename=filename)
             if not path:
                 return {"success": False, "error": "Cancelled"}
 
@@ -3052,6 +2835,7 @@ class Api:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=4)
             return {"success": True, "path": path, "filename": os.path.basename(path)}
+
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -3060,6 +2844,7 @@ class Api:
             config_name = self._safe_config_name(config_name)
             if not config_name:
                 return {"success": False, "error": "No config name provided."}
+
             if config_name.lower() == "default":
                 return {"success": False, "error": "Cannot delete the Default configuration."}
 
@@ -3068,15 +2853,14 @@ class Api:
                 return {"success": False, "error": "Configuration not found."}
 
             shutil.rmtree(folder)
-
             # If we deleted the current one, switch to another
             if getattr(self, "current_config", None) == config_name:
                 remaining = self.list_configs()
                 next_config = remaining[0] if remaining else "Default"
                 self.current_config = next_config
                 self.save_last_config(next_config)
-
             return {"success": True, "config_name": config_name}
+
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
@@ -3087,14 +2871,17 @@ class Api:
                     data = json.load(file)
                 if isinstance(data, dict):
                     return data.get("last_config", "") or ""
+
         except Exception:
             pass
+
         return ""
 
     def save_last_config(self, config_name):
         config_name = self._safe_config_name(config_name)
         if not config_name:
             return False
+
         try:
             data = {}
             if os.path.exists(LAST_CONFIG):
@@ -3110,6 +2897,7 @@ class Api:
             with open(LAST_CONFIG, "w", encoding="utf-8") as file:
                 json.dump(data, file, indent=4)
             return True
+
         except Exception:
             return False
 
@@ -3118,12 +2906,15 @@ class Api:
         wanted = self._safe_config_name(config_name)
         if wanted in configs:
             return wanted
+
         for name in configs:
             if name.lower() == wanted.lower():
                 return name
+
         last = self._safe_config_name(self.get_last_config())
         if last in configs:
             return last
+
         return configs[0] if configs else ""
 
     def convert_to_json(self, content, file_extension):
@@ -3135,10 +2926,11 @@ class Api:
         def parse_ini_key(line):
             if "=" not in line:
                 return None, None
+
             key, value = line.split("=", 1)   # split only on the first =
             value = value.lower()
             return key.strip(), value.strip()
-        
+
         def bgr_to_rgb(value: str) -> str:
             """Convert '0xBBGGRR' -> '#RRGGBB'."""
             hex_str = value.strip().lower()
@@ -3147,7 +2939,7 @@ class Api:
             hex_str = hex_str.zfill(6)  # handle e.g. 0x0
             b, g, r = hex_str[0:2], hex_str[2:4], hex_str[4:6]
             return f"#{r}{g}{b}".upper()
-        
+
         try:
             if file_extension == "ini":
                 ini_mapping = ["CastScanDelay", "DelayBeforeCating", "DelayBeforeCasting", "CastDuration", "DelayAfterCasting", 
@@ -3155,14 +2947,15 @@ class Api:
                                "SundialDelay", "CastTimeout", "ReleaseDelay", "AnimationDelay"]
                 lines = str(content or "").splitlines()
                 result = {}
-
                 for line in lines:                  # just iterate the lines directly
                     line = line.strip()
                     if not line or line.startswith("#") or line.startswith(";"):
                         continue
+
                     key, value = parse_ini_key(line)
                     if key is None:
                         continue
+
                     if key.lower() == "leftcolor":
                         key = "BarColor"
                     if key.lower() == "rightcolor":
@@ -3182,10 +2975,11 @@ class Api:
                             value = round(value2 / 1000, 4)
                         except (ValueError, TypeError):
                             pass  # leave non-numeric values unchanged
-                    result[to_snake_case(key)] = value
 
+                    result[to_snake_case(key)] = value
                 # Return proper JSON string
                 return {"success": True, "json_text": json.dumps(result, indent=4)}
+
             else:
                 # TXT path (semicolon-separated DF1 format)
                 # Note: DF1 colors are 0xRRGGBB (unlike INI which is 0xBBGGRR)
@@ -3206,14 +3000,15 @@ class Api:
                     """Split comma-separated colors into base / base_2 / base_3 ... and set count."""
                     if not raw:
                         return
+
                     colors = [c.strip() for c in raw.split(",") if c.strip()]
                     if not colors:
                         return
+
                     for i, col in enumerate(colors, start=1):
                         key = base_key if i == 1 else f"{base_key}_{i}"
                         result[key] = rgb_hex(col)
                     result[f"{base_key}_count"] = len(colors)
-
                 def raw_field(idx: int) -> str:
                     return parts[idx] if idx < len(parts) else ""
 
@@ -3227,10 +3022,8 @@ class Api:
                 # 10 = arrow tolerance
                 if raw_field(2):
                     result["fish_tolerance"] = raw_field(2)
-
                 if raw_field(5):
                     assign_colors("fish_color", raw_field(5))
-
                 # Interleave left (field 6) and right (field 7): left1, right1, left2, right2, ...
                 left_colors = [c.strip() for c in raw_field(6).split(",") if c.strip()]
                 right_colors = [c.strip() for c in raw_field(7).split(",") if c.strip()]
@@ -3243,19 +3036,15 @@ class Api:
                         bar_colors.append(right_colors[i])
                 if bar_colors:
                     assign_colors("bar_color", ",".join(bar_colors))
-
                 if raw_field(8):
                     result["bar_tolerance"] = raw_field(8)
-
                 if raw_field(9):
                     assign_colors("arrow_color", raw_field(9))
-
                 if raw_field(10):
                     result["arrow_tolerance"] = raw_field(10)
-
                 # Add more field mappings here as needed
-
                 return {"success": True, "json_text": json.dumps(result, indent=4)}
+
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
@@ -3265,13 +3054,10 @@ class Api:
             if settings is None and isinstance(file_name, dict):
                 settings = file_name
                 file_name = None
-
             # Pull live UI data when settings are not supplied (save_settings called alone).
             if settings is None:
                 try:
-                    js_data = window.evaluate_js(
-                        "typeof collectSettingsData === 'function' ? collectSettingsData() : null"
-                    )
+                    js_data = window.evaluate_js("typeof collectSettingsData === 'function' ? collectSettingsData() : null")
                     if isinstance(js_data, dict):
                         settings = js_data
                     elif isinstance(js_data, str) and js_data.strip():
@@ -3281,6 +3067,7 @@ class Api:
                                 settings = parsed
                         except Exception:
                             pass
+
                 except Exception:
                     pass
 
@@ -3289,7 +3076,6 @@ class Api:
 
             if not file_name:
                 file_name = self.get_last_config() or "Default"
-
             # Prefer an exact/safe match for creation of new configs.
             # resolve_config_name falls back to an existing config when the name is new.
             safe_name = self._safe_config_name(file_name)
@@ -3299,7 +3085,6 @@ class Api:
                 config_name = safe_name
             else:
                 config_name = resolved or safe_name
-
             if not config_name:
                 return {"success": False, "error": "No config selected."}
 
@@ -3314,6 +3099,7 @@ class Api:
             self.save_last_config(config_name)
             self.save_misc_settings()
             return {"success": True, "config_name": config_name}
+
         except Exception as exc:
             return {"success": False, "error": str(exc)}
 
@@ -3330,7 +3116,6 @@ class Api:
         if "left_tolerance" in settings and not settings.get("bar_tolerance"):
             settings["bar_tolerance"] = settings["left_tolerance"]
             changed = True
-
         # right_color -> bar_color_2 (second)
         if "right_color" in settings:
             if not settings.get("bar_color_2"):
@@ -3346,13 +3131,11 @@ class Api:
             if count < 2:
                 settings["bar_color_count"] = 2
                 changed = True
-
         # Drop the old keys so they don't linger
         for old_key in ("left_color", "left_tolerance", "right_color", "right_tolerance"):
             if old_key in settings:
                 settings.pop(old_key, None)
                 changed = True
-
         return settings
 
     def load_settings(self, config_name=None):
@@ -3362,7 +3145,6 @@ class Api:
             name = self.resolve_config_name(config_name)
         except Exception:
             name = ""
-
         if name:
             config_path = self._config_file(name)
             try:
@@ -3373,20 +3155,18 @@ class Api:
                         settings = loaded
             except Exception:
                 settings = {}
-
         # Migrate old 5.12 left_color / right_color to the multi-color bar system
         settings = self._migrate_old_bar_colors(settings)
-
         settings = self._fill_blank_settings(settings)
         self.vars = self._settings_for_vars(settings)
         if name:
             self.current_config = name
-
         if name:
             try:
                 self.save_last_config(name)
             except Exception:
                 pass
+
             try:
                 os.makedirs(self._config_folder(name), exist_ok=True)
                 with open(self._config_file(name), "w", encoding="utf-8") as file:
@@ -3404,7 +3184,6 @@ class Api:
         result["settings"] = self._settings_for_vars(settings)
         self._load_misc_settings()
         return result
-
 
     def _load_misc_settings(self):
         """Load miscellaneous settings from last_config.json into self.misc_settings and apply them."""
@@ -3440,7 +3219,6 @@ class Api:
                 self.roblox_bounds_cache = None
         except Exception:
             self.roblox_bounds_cache = None
-
         # Hotkeys
         if "start_key" in self.vars and "area_selector_key" in self.vars and "stop_key" in self.vars:
             # Case 1: Hotkeys Are In self.vars
@@ -3477,13 +3255,7 @@ class Api:
             scale = get_scale_factor() or 1.0
             logical_w = SCREEN_WIDTH / scale
             logical_h = SCREEN_HEIGHT / scale
-            self.tos_dialogue.show(
-                (logical_w - 800) / 2,
-                (logical_h - 600) / 2,
-                800,
-                600,
-                already_logical=True,
-            )
+            self.tos_dialogue.show((logical_w - 800) / 2, (logical_h - 600) / 2, 800, 600, already_logical=True)
         else:
             self.tos_dialogue.hide()
         # Images
@@ -3498,7 +3270,6 @@ class Api:
         # Use self.misc_settings as the source of truth
         if not isinstance(getattr(self, "misc_settings", None), dict):
             self.misc_settings = {}
-
         # Clean Areas
         clean_bar_areas = {}
         for key in AREA_ORDER:
@@ -3533,19 +3304,21 @@ class Api:
         self.misc_settings["tos_accepted"] = bool(getattr(self, "tos_accepted", self.misc_settings.get("tos_accepted", False)))
         with open(path, "w") as f:
             json.dump(self.misc_settings, f, indent=4)
-
     def _settings_for_vars(self, settings):
         """Copy config values into self.vars. Skip UI-only and private keys."""
         cleaned = {}
         if not isinstance(settings, dict):
             return cleaned
+
         for key, value in settings.items():
             try:
                 if not key or str(key).startswith("_") or str(key).endswith("_slider") or key == "config_list":
                     continue
+
                 cleaned[key] = value
             except Exception:
                 continue
+
         return cleaned
 
     def open_link(self, url):
@@ -3562,32 +3335,33 @@ class Api:
                 "success": False,
                 "error": str(e)
             }
-
     def get_python_version_info(self):
         """Return the Python backend's app version, beta version, developer, and VERSION_ID."""
         return {
+
             "app_version": APP_VERSION,
             "beta_version": BETA_VERSION,
             "developer": DEVELOPER,
             "version_id": VERSION_ID
         }
-
     def get_js_version_info(self):
         """Retrieve the JS app version, beta version, developer name, and VERSION_ID via evaluate_js."""
         try:
-            result = window.evaluate_js(
-                "({ app_version: window.APP_VERSION || null, beta_version: window.BETA_VERSION || null, developer: window.DEVELOPER || null, version_id: window.VERSION_ID || null })"
-            )
+            result = window.evaluate_js("({ app_version: window.APP_VERSION || null, beta_version: window.BETA_VERSION || null, developer: window.DEVELOPER || null, version_id: window.VERSION_ID || null })")
             if isinstance(result, dict):
                 return result
+
             if isinstance(result, str) and result.strip():
                 try:
                     parsed = json.loads(result)
                     if isinstance(parsed, dict):
                         return parsed
+
                 except Exception:
                     pass
+
             return {
+
                 "app_version": None,
                 "beta_version": None,
                 "developer": None,
@@ -3595,13 +3369,13 @@ class Api:
             }
         except Exception as e:
             return {
+
                 "app_version": None,
                 "beta_version": None,
                 "developer": None,
                 "version_id": None,
                 "error": str(e)
             }
-
     def check_setup_guide(self):
         try:
             output = self.get_js_version_info()
@@ -3618,9 +3392,7 @@ class Api:
             if float(BETA_VERSION) != 0:
                 local_gui = True
             if developer != DEVELOPER:
-                result = self.message_box_javascript(f"""You tried to download an unauthorized version of Solar Fishing.
-                                            Please take actions against {developer} and download the official version.
-                                            Do you want to download the official version?""", "askyesno")
+                result = self.message_box_javascript(f"""You tried to download an unauthorized version of Solar Fishing. Please take actions against {developer} and download the official version. Do you want to download the official version?""", "askyesno")
             # VERSION_ID comparison:
             # - JS higher than Python: notify only (do not reload / fall back)
             # - JS lower than Python: fall back to local GUI
@@ -3668,35 +3440,27 @@ class Api:
 
     def message_box_javascript(self, message, dialogue_type="ok"):
         """Show a custom bottom banner instead of browser alert/confirm.
-
         dialogue_type:
           - "ok" (default): single OK button, returns None after dismiss
           - "askyesno": Yes / No buttons, returns True / False
         """
         try:
             # Escape for embedding in a single-quoted JS string
-            safe = (
-                (message or "")
-                .replace("\\", "\\\\")
-                .replace("'", "\\'")
-                .replace("`", "\\`")
-                .replace("\r", "")
-                .replace("\n", "\\n")
-            )
+            safe = ((message or "") .replace("\\", "\\\\") .replace("'", "\\'") .replace("`", "\\`") .replace("\r", "") .replace("\n", "\\n"))
             self._message_box_event = threading.Event()
             self._message_box_result = None
-
             js = f"showMessageBoxBanner('{safe}', '{dialogue_type}');"
             window.evaluate_js(js)
-
             # Block until the banner is answered (or timeout)
             if self._message_box_event.wait(timeout=300):
                 result = self._message_box_result
                 self._message_box_event = None
                 return result
+
             else:
                 self._message_box_event = None
                 return False if dialogue_type == "askyesno" else None
+
         except Exception:
             return False if dialogue_type == "askyesno" else None
 
@@ -3724,18 +3488,7 @@ class Api:
             elif sys.platform == "win32":
                 # Prefer Powershell Setclipboard For Reliable Unicode Support
                 try:
-                    completed = subprocess.run(
-                        [
-                            "powershell",
-                            "-NoProfile",
-                            "-Command",
-                            "Set-Clipboard -Value ([Console]::In.ReadToEnd())",
-                        ],
-                        input=text,
-                        text=True,
-                        capture_output=True,
-                        timeout=5,
-                    )
+                    completed = subprocess.run([ "powershell", "-NoProfile", "-Command", "Set-Clipboard -Value ([Console]::In.ReadToEnd())", ], input=text, text=True, capture_output=True, timeout=5)
                     if completed.returncode == 0:
                         return True
 
@@ -3744,12 +3497,7 @@ class Api:
 
                 # Fallback: Clip.Exe With Utf16Le
                 try:
-                    completed = subprocess.run(
-                        ["clip"],
-                        input=text.encode("utf-16le"),
-                        capture_output=True,
-                        timeout=5,
-                    )
+                    completed = subprocess.run(["clip"], input=text.encode("utf-16le"), capture_output=True, timeout=5)
                     return completed.returncode == 0
 
                 except Exception:
@@ -3758,17 +3506,9 @@ class Api:
             else:
                 # Linux: Try Xclip, Then Xsel
                 payload = text.encode("utf-8")
-                for cmd in (
-                    ["xclip", "-selection", "clipboard"],
-                    ["xsel", "--clipboard", "--input"],
-                ):
+                for cmd in (["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]):
                     try:
-                        completed = subprocess.run(
-                            cmd,
-                            input=payload,
-                            capture_output=True,
-                            timeout=5,
-                        )
+                        completed = subprocess.run(cmd, input=payload, capture_output=True, timeout=5)
                         if completed.returncode == 0:
                             return True
 
@@ -3859,7 +3599,6 @@ class Api:
             return
 
         self.set_status(f"Saved debug screenshots ({', '.join(saved)})")
-
     def _enumerate_windows(self):
         """Cross-platform window list (similar to SolarAutomateV3.refresh_windows).
         Returns a list of dicts with keys: title, exe, left, top, width, height.
@@ -3868,6 +3607,7 @@ class Api:
         if sys.platform == "win32":
             if gw is None:
                 return windows
+
             user32 = ctypes.windll.user32
             kernel32 = ctypes.windll.kernel32
             PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -3879,46 +3619,25 @@ class Api:
                     try:
                         pid = wintypes.DWORD()
                         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-                        handle = kernel32.OpenProcess(
-                            PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value
-                        )
+                        handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
                         if handle:
                             try:
                                 size = wintypes.DWORD(260)
                                 buf = ctypes.create_unicode_buffer(size.value)
-                                if kernel32.QueryFullProcessImageNameW(
-                                    handle, 0, buf, ctypes.byref(size)
-                                ):
+                                if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
                                     exe = os.path.basename(buf.value) or ""
                             finally:
                                 kernel32.CloseHandle(handle)
                     except Exception:
                         exe = ""
-                windows.append({
-                    "title": title,
-                    "exe": exe,
-                    "left": int(getattr(window, "left", 0) or 0),
-                    "top": int(getattr(window, "top", 0) or 0),
-                    "width": int(getattr(window, "width", 0) or 0),
-                    "height": int(getattr(window, "height", 0) or 0),
-                })
+                windows.append({ "title": title, "exe": exe, "left": int(getattr(window, "left", 0) or 0), "top": int(getattr(window, "top", 0) or 0), "width": int(getattr(window, "width", 0) or 0), "height": int(getattr(window, "height", 0) or 0), })
         elif sys.platform == "darwin":
-            window_list = Quartz.CGWindowListCopyWindowInfo(
-                Quartz.kCGWindowListExcludeDesktopElements | Quartz.kCGWindowListOptionOnScreenOnly,
-                Quartz.kCGNullWindowID,
-            )
+            window_list = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListExcludeDesktopElements | Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID)
             for window in window_list or []:
                 owner = window.get(Quartz.kCGWindowOwnerName, "") or ""
                 title = window.get(Quartz.kCGWindowName, "") or ""
                 bounds = window.get(Quartz.kCGWindowBounds, {}) or {}
-                windows.append({
-                    "title": title,
-                    "exe": owner,
-                    "left": int(bounds.get("X", 0) or 0),
-                    "top": int(bounds.get("Y", 0) or 0),
-                    "width": int(bounds.get("Width", 0) or 0),
-                    "height": int(bounds.get("Height", 0) or 0),
-                })
+                windows.append({ "title": title, "exe": owner, "left": int(bounds.get("X", 0) or 0), "top": int(bounds.get("Y", 0) or 0), "width": int(bounds.get("Width", 0) or 0), "height": int(bounds.get("Height", 0) or 0), })
         elif sys.platform.startswith("linux"):
             try:
                 disp = _get_xdisplay()
@@ -3934,6 +3653,7 @@ class Api:
                             window = disp.create_resource_object("window", win_id)
                         except Exception:
                             continue
+
                         title = ""
                         try:
                             net_name = window.get_full_property(NET_WM_NAME, UTF8_STRING)
@@ -3942,6 +3662,7 @@ class Api:
                                 title = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else str(raw)
                         except Exception:
                             pass
+
                         if not title:
                             try:
                                 wm_name = window.get_wm_name()
@@ -3949,6 +3670,7 @@ class Api:
                                     title = wm_name if isinstance(wm_name, str) else str(wm_name)
                             except Exception:
                                 pass
+
                         exe = ""
                         try:
                             pid_prop = window.get_full_property(NET_WM_PID, X.AnyPropertyType)
@@ -3958,6 +3680,7 @@ class Api:
                                     exe = comm.read().strip()
                         except Exception:
                             pass
+
                         left = top = width = height = 0
                         try:
                             geom = window.get_geometry()
@@ -3969,16 +3692,11 @@ class Api:
                                 left, top = geom.x, geom.y
                         except Exception:
                             pass
-                        windows.append({
-                            "title": title or "",
-                            "exe": exe,
-                            "left": int(left or 0),
-                            "top": int(top or 0),
-                            "width": int(width or 0),
-                            "height": int(height or 0),
-                        })
+
+                        windows.append({ "title": title or "", "exe": exe, "left": int(left or 0), "top": int(top or 0), "width": int(width or 0), "height": int(height or 0), })
             except Exception:
                 pass
+
         return windows
 
     def get_window_info(self, window_name):
@@ -3997,10 +3715,10 @@ class Api:
                     # Skip tiny / empty windows
                     if info.get("width", 0) < 50 or info.get("height", 0) < 50:
                         continue
+
                     candidates.append(info)
         except Exception:
             candidates = []
-
         if candidates:
             # Prefer windows whose title contains the name, then largest area
             def score(info):
@@ -4008,6 +3726,7 @@ class Api:
                 area = (info.get("width") or 0) * (info.get("height") or 0)
                 title_hit = 1 if name in title else 0
                 return (title_hit, area)
+
             best = max(candidates, key=score)
             return best["left"], best["top"], best["width"], best["height"]
 
@@ -4094,6 +3813,7 @@ class Api:
         if self.hotkey_state == 1:
             self._finish_hotkey_rebind(key)
             return
+
         self.save_settings()
         start_key, area_selector_key, stop_key = self._get_hotkeys()
         automation_mode = self.vars["automation_mode"]
@@ -4328,6 +4048,7 @@ class Api:
         """
         if not isinstance(area, dict):
             return {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0}
+
         # Ensure we have current Roblox bounds (detect if missing)
         roblox = getattr(self, "roblox_bounds", None)
         if not isinstance(roblox, dict) or float(roblox.get("width", 0) or 0) < 10:
@@ -4352,17 +4073,16 @@ class Api:
         abs_w = rel_w * r_w
         abs_h = rel_h * r_h
         return {
+
             "x": abs_x / float(SCREEN_WIDTH) if SCREEN_WIDTH else 0.0,
             "y": abs_y / float(SCREEN_HEIGHT) if SCREEN_HEIGHT else 0.0,
             "width": abs_w / float(SCREEN_WIDTH) if SCREEN_WIDTH else 0.0,
             "height": abs_h / float(SCREEN_HEIGHT) if SCREEN_HEIGHT else 0.0,
         }
-
     def get_areas(self, area_key):
         """Apply scale factor.  Area values are ratios 0-1.
         If a Roblox bounds cache exists, stored areas are relative to the Roblox
-        window and are mapped onto the current Roblox bounds (or full screen if
-        Roblox is not found).  Otherwise they are treated as absolute screen ratios
+        window and are mapped onto the current Roblox bounds (or full screen if Roblox is not found).  Otherwise they are treated as absolute screen ratios
         (legacy).  Returns physical pixels.
         """
         scale = get_scale_factor()
@@ -4475,7 +4195,6 @@ class Api:
 
         return None
 
-
     def _normalize_capture_size(self, frame):
         """Ensure the captured frame matches the physical pixel size expected by
         get_areas (SCREEN_* * scale). On macOS Retina, Quartz (kCGWindowImageDefault)
@@ -4485,6 +4204,7 @@ class Api:
         """
         if frame is None or not hasattr(frame, "shape") or len(frame.shape) < 2:
             return frame
+
         try:
             scale = get_scale_factor() or 1.0
             if scale <= 0:
@@ -4494,12 +4214,15 @@ class Api:
             h, w = frame.shape[:2]
             if w == expected_w and h == expected_h:
                 return frame
+
             # Only upscale/downscale when the ratio is close to an integer scale
             # (avoids accidental resizing of already-correct frames from other backends).
             if expected_w > 0 and expected_h > 0 and w > 0 and h > 0:
                 return cv2.resize(frame, (expected_w, expected_h), interpolation=cv2.INTER_LINEAR)
+
         except Exception:
             pass
+
         return frame
 
     def capture_single_frame(self):
@@ -4508,12 +4231,7 @@ class Api:
         Used by debug screenshots, eyedropper freeze, and Discord screenshot logging.
         """
         if sys.platform == "darwin":
-            image = Quartz.CGWindowListCreateImage(
-                Quartz.CGRectInfinite,
-                Quartz.kCGWindowListOptionOnScreenOnly,
-                Quartz.kCGNullWindowID,
-                Quartz.kCGWindowImageBestResolution
-            )
+            image = Quartz.CGWindowListCreateImage(Quartz.CGRectInfinite, Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID, Quartz.kCGWindowImageBestResolution)
             if image is None:
                 return None
 
@@ -4556,12 +4274,7 @@ class Api:
         self.capture_id = 0
         while self.macro_running:
             if sys.platform == "darwin":
-                image = Quartz.CGWindowListCreateImage(
-                    Quartz.CGRectInfinite,
-                    Quartz.kCGWindowListOptionOnScreenOnly,
-                    Quartz.kCGNullWindowID,
-                    Quartz.kCGWindowImageBestResolution
-                )
+                image = Quartz.CGWindowListCreateImage(Quartz.CGRectInfinite, Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID, Quartz.kCGWindowImageBestResolution)
             else:
                 image = None
             if image is None:
@@ -4580,11 +4293,9 @@ class Api:
         """Create an SCStream the same way the working ScreenCaptureKit probe does.
         Pixel size comes from the SCDisplay (pixels), not SCREEN_WIDTH * scale —
         a doubled Retina size starts cleanly and then never delivers a frame.
-
         We explicitly tag the stream as sRGB via colorSpaceName so SCK performs
         Display P3 -> sRGB conversion for us, matching what Quartz/MSS return.
-        Without this, the raw BGRA buffer is untagged (effectively Display P3 on
-        modern Macs) and running a second P3 -> sRGB ColorSync pass on it
+        Without this, the raw BGRA buffer is untagged (effectively Display P3 on modern Macs) and running a second P3 -> sRGB ColorSync pass on it
         over-converts greens (e.g. #9BFF9B -> #5CFF8A).
         """
         if sys.platform == "darwin":
@@ -4611,10 +4322,11 @@ class Api:
                 config.setMinimumFrameInterval_(_cm_time_make(1, 60))
             except Exception:
                 pass
+
             # Ask SCK to deliver sRGB. This makes the CVPixelBuffer carry an
             # sRGB-tagged color space, and SCK does the P3 -> sRGB transform
-            # internally, so the bytes we receive are already sRGB (matching
-            # MSS/Quartz). If we leave this unset, the buffer is untagged and
+            # internally, so the bytes we receive are already sRGB (matching # MSS/Quartz). 
+            # If we leave this unset, the buffer is untagged and
             # _sck_sample_to_bgr's ColorSync P3->sRGB pass double-converts.
             try:
                 from Foundation import NSString
@@ -4634,6 +4346,7 @@ class Api:
                 content_filter, config, None
             )
             return stream
+
         else:
             print("ScreenCaptureKit activated on windows, stopping.")
             raise RuntimeError("ScreenCaptureKit is not supported on Windows")
@@ -4651,7 +4364,7 @@ class Api:
             if not self.macro_running:
                 return
 
-            #  Resolve the primary display 
+            # 1. Resolve the primary display 
             display_holder = {"display": None, "error": None}
             done = threading.Event()
             def _content_handler(content, error):
@@ -4676,7 +4389,6 @@ class Api:
                     return
 
                 try:
-                    from Foundation import NSRunLoop
                     NSRunLoop.currentRunLoop().runUntilDate_(
                         NSDate.dateWithTimeIntervalSinceNow_(0.05)
                     )
@@ -4713,14 +4425,14 @@ class Api:
                 self.capture_id = self.capture_id + 1
             output = _SCStreamOutput.alloc().initWithCallback_(_on_sample)
             self._sck_output = output  # keep the delegate alive
-            #  Create + configure the stream -
+            # 2. Create + configure the stream
             try:
                 stream = self._build_sck_stream(display)
                 self._sck_stream = stream
                 added = stream.addStreamOutput_type_sampleHandlerQueue_error_(
                     output,
                     _SCK_OUTPUT_SCREEN,
-                    None,      # None = SCK-managed queue (same as the working probe)
+                    None,  # None = SCK-managed queue (same as the working probe)
                     None,
                 )
                 add_error = None
@@ -4738,7 +4450,7 @@ class Api:
                 print("ScreenCaptureKit setup failed:\n", traceback.format_exc())
                 return self.capture_loop_quartz()
 
-            #  Start and pump the run loop while waiting --
+            # 3. Start and pump the run loop while waiting
             started = threading.Event()
             start_error = {"error": None}
             def _start_handler(error):
@@ -4752,21 +4464,13 @@ class Api:
                 return self.capture_loop_quartz()
 
             start_deadline = time.time() + 5.0
-            while (self.macro_running
-                and not started.is_set()
-                and time.time() < start_deadline):
+            while (self.macro_running and not started.is_set() and time.time() < start_deadline):
                 try:
-                    from Foundation import NSRunLoop
-                    NSRunLoop.currentRunLoop().runUntilDate_(
-                        NSDate.dateWithTimeIntervalSinceNow_(0.05)
-                    )
+                    NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.05))
                 except Exception:
                     time.sleep(0.05)
             if not started.is_set() or start_error["error"] is not None:
-                self.set_status(
-                    f"ScreenCaptureKit start failed "
-                    f"({start_error['error']}); using Quartz"
-                )
+                self.set_status(f"ScreenCaptureKit start failed " f"({start_error['error']}); using Quartz")
                 print("ScreenCaptureKit start raised:\n", start_error['error'])
                 try:
                     stream.stopCaptureWithCompletionHandler_(lambda e: None)
@@ -4775,39 +4479,22 @@ class Api:
 
                 return self.capture_loop_quartz()
 
-            #  Wait for the FIRST frame 
-            # If the delegate never fires (permissions, bad format, blocked
-            # queue), capture_frame stays None forever. Detect that and fall
+            # 4. Wait for the FIRST frame 
+            # If the delegate never fires (permissions, bad format, blocked # queue), capture_frame stays None forever. Detect that and fall
             # back so the user doesn't get a silently dead macro.
             first_frame_deadline = time.time() + 3.0
-            while (self.macro_running
-                and self.capture_frame is None
-                and time.time() < first_frame_deadline):
+            while (self.macro_running and self.capture_frame is None and time.time() < first_frame_deadline):
                 try:
-                    from Foundation import NSRunLoop
-                    NSRunLoop.currentRunLoop().runUntilDate_(
-                        NSDate.dateWithTimeIntervalSinceNow_(0.05)
-                    )
+                    NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.05))
                 except Exception:
                     time.sleep(0.05)
             if self.capture_frame is None:
                 samples = getattr(self, "_sck_sample_count", 0)
                 failed = getattr(self, "_sck_convert_fail", 0)
                 if samples:
-                    self.set_status(
-                        f"ScreenCaptureKit frames failed color conversion "
-                        f"({failed}/{samples}); using Quartz"
-                    )
-                    print(
-                        f"ScreenCaptureKit received {samples} sample(s) but "
-                        f"color conversion failed ({failed}): "
-                        f"{getattr(_sck_sample_to_bgr, 'last_error', None)}"
-                    )
+                    self.set_status(f"ScreenCaptureKit frames failed color conversion " f"({failed}/{samples}); using Quartz")
                 else:
-                    self.set_status(
-                        "ScreenCaptureKit produced no frames; using Quartz"
-                    )
-                    print("ScreenCaptureKit produced no frames")
+                    self.set_status("ScreenCaptureKit produced no frames; using Quartz")
                 try:
                     stream.stopCaptureWithCompletionHandler_(lambda e: None)
                 except Exception:
@@ -4815,11 +4502,7 @@ class Api:
 
                 return self.capture_loop_quartz()
 
-            #  Idle loop — frames arrive on the SCK callback thread -
-            try:
-                from Foundation import NSRunLoop
-            except Exception:
-                NSRunLoop = None
+            # 5. Idle loop — frames arrive on the SCK callback thread -
             while self.macro_running:
                 if NSRunLoop is not None:
                     NSRunLoop.currentRunLoop().runUntilDate_(
@@ -4827,7 +4510,7 @@ class Api:
                     )
                 else:
                     time.sleep(0.05)
-            #  Stop cleanly --
+            # 6. Stop cleanly
             try:
                 stop_done = threading.Event()
                 def _stop_handler(error):
@@ -4876,6 +4559,8 @@ class Api:
         """
         Searches for the first or last pixel based on mode.
         Scan mode 0: First pixel; Mode 1: Last pixel
+        Uses the same per-channel tolerance box as _detect_fish_colors_in_frame:
+        each BGR channel must be within [color - tolerance, color + tolerance].
         """
         if frame is None or frame.size == 0:
             return None, None
@@ -4883,11 +4568,11 @@ class Api:
         if scan_mode not in (0, 1):
             raise RuntimeError("Invalid scan mode")
 
-        # Convert Tolerance To Int First, Handling String Inputs
+        # Convert tolerance to int, handling string inputs
         try:
             tolerance = int(tolerance)
         except (ValueError, TypeError):
-            tolerance = 0  # or some default value
+            tolerance = 0
         # Failsafe: None Hex
         if hex is None:
             return None, None
@@ -4895,11 +4580,12 @@ class Api:
         try:
             tolerance = int(np.clip(tolerance, 0, 255))
             b, g, r = self._hex_to_bgr(hex)
-            target = np.array([b, g, r], dtype=np.int32)
-            frame_i = frame.astype(np.int32)
-            diff = frame_i - target
-            mask = np.sqrt(np.sum(diff ** 2, axis=-1)) <= tolerance
-            coords = np.argwhere(mask)
+            # Same per-channel bounds as _detect_fish_colors_in_frame
+            lower_bound = np.array([ max(0, b - tolerance), max(0, g - tolerance), max(0, r - tolerance) ], dtype=np.uint8)
+            upper_bound = np.array([ min(255, b + tolerance), min(255, g + tolerance), min(255, r + tolerance) ], dtype=np.uint8)
+            # cv2.inRange gives the same mask as the detection function
+            mask = cv2.inRange(frame, lower_bound, upper_bound)
+            coords = np.argwhere(mask > 0)
             if coords.size > 0:
                 if scan_mode == 0:
                     y, x = coords[0]
@@ -4917,6 +4603,7 @@ class Api:
         loop_count = 1
         if optimize_mode not in (0, 1, 2):
             raise RuntimeError("Invalid optimize mode")
+
         while True:
             try:
                 color_id2 = self.vars[f"{color_id}_{loop_count}"]
@@ -4925,27 +4612,28 @@ class Api:
                 # No more numbered entries -> try the base color once
                 color_id2 = self.vars.get(color_id)
                 tolerance_id2 = self.vars.get(tolerance_id)
-
             # Scan optimize mode
             loop_divisible_by_2 = loop_count % 2
             if optimize_mode == 1 and loop_divisible_by_2 == 0:
                 loop_count += 1
                 continue
+
             if optimize_mode == 2 and loop_divisible_by_2 == 1:
                 loop_count += 1
                 continue
 
             if color_id2 is None:
                 return None, None
+
             if color_id2 in searched:
                 return None, None
-            searched.add(color_id2)
 
+            searched.add(color_id2)
             x, y = self.pixel_search(frame, color_id2, tolerance_id2, scan_mode)
             if x is not None and y is not None:
                 return x, y
-            loop_count += 1
 
+            loop_count += 1
     def find_color_cluster(self, frame, target_color_hex, tolerance=8, min_area=10):
         """
         Find the largest color cluster and return its center.
@@ -5014,11 +4702,11 @@ class Api:
             circles = cv2.HoughCircles(
                 gray,
                 cv2.HOUGH_GRADIENT,
-                dp=1, # Inverse ratio of accumulator resolution
+                dp=1,  # Inverse ratio of accumulator resolution
                 minDist=scaled_min_dist,  # Increased distance between circles to avoid overlapping detections
                 param1=100,   # Higher Canny threshold for edge detection
                 param2=100,   # Much higher accumulator threshold - only perfect circles
-                minRadius=scaled_min_radius, # Larger minimum radius to ignore small false positives
+                minRadius=scaled_min_radius,  # Larger minimum radius to ignore small false positives
                 maxRadius=scaled_max_radius   # Maximum circle radius
             )
             if circles is not None:
@@ -5059,16 +4747,7 @@ class Api:
             scaled_max_radius = int(300 * scale_factor)
             scaled_good_min_radius = int(50 * scale_factor)
             scaled_good_max_radius = int(120 * scale_factor)
-            circles = cv2.HoughCircles(
-                gray,
-                cv2.HOUGH_GRADIENT,
-                dp=1,
-                minDist=scaled_min_dist,
-                param1=100,
-                param2=100,
-                minRadius=scaled_min_radius,
-                maxRadius=scaled_max_radius
-            )
+            circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp=1, minDist=scaled_min_dist, param1=100, param2=100, minRadius=scaled_min_radius, maxRadius=scaled_max_radius)
             if circles is None:
                 return []
 
@@ -5184,11 +4863,8 @@ class Api:
         if pixels.ndim == 2 and pixels.shape[-1] >= 3:
             return pixels[..., :3]
 
-        raise ValueError(
+        raise ValueError( "Noiseform pixels must be a BGR line (N, 3) or image (H, W, 3), " f"got shape {getattr(pixels, 'shape', None)}")
 
-            "Noiseform pixels must be a BGR line (N, 3) or image (H, W, 3), "
-            f"got shape {getattr(pixels, 'shape', None)}"
-        )
     def _noiseform_first_xy(self, mask):
         """Return the first matching (x, y), or (None, None) if empty."""
         coords = np.argwhere(mask)
@@ -5259,11 +4935,7 @@ class Api:
         b = pixels[..., 0]
         g = pixels[..., 1]
         r = pixels[..., 2]
-        mask = (
-            (g >= int(min_green)) &
-            (g >= r + int(dominance)) &
-            (g >= b + int(dominance))
-        )
+        mask = ((g >= int(min_green)) & (g >= r + int(dominance)) & (g >= b + int(dominance)))
         return self._noiseform_first_xy(mask)
 
     def detect_noiseform_color(self, noiseform_img):
@@ -5334,9 +5006,7 @@ class Api:
         # threshold should be much smaller than the black-zone
         # difference.
         dark_threshold = max(3.0, normal_green * 0.08)
-        green_zone_mask = (
-            green_channel <= (normal_green - dark_threshold)
-        )
+        green_zone_mask = (green_channel <= (normal_green - dark_threshold))
         # 3. Remove tiny isolated pixels
         # A real Noiseform zone should occupy several neighbouring
         # pixels.  This prevents one noisy pixel from becoming a zone.
@@ -5358,10 +5028,7 @@ class Api:
             return None, None, None
 
         # Use the center of the detected darker segment.
-        green_start, green_end = max(
-            zones,
-            key=lambda zone: zone[1] - zone[0]
-        )
+        green_start, green_end = max(zones, key=lambda zone: zone[1] - zone[0])
         green_x = (green_start + green_end) // 2
         # 4. Find WHITE and BLACK using their configured thresholds (0-255)
         try:
@@ -5372,16 +5039,8 @@ class Api:
             noiseform_black_threshold = int(self.vars.get("noiseform_black_color", 30))
         except (TypeError, ValueError):
             noiseform_black_threshold = 30
-        white_x, white_y = self._detect_noiseform_white(
-            line,
-            noiseform_white_threshold,
-            5
-        )
-        black_x, black_y = self._detect_noiseform_black(
-            line,
-            noiseform_black_threshold,
-            5
-        )
+        white_x, white_y = self._detect_noiseform_white(line, noiseform_white_threshold, 5)
+        black_x, black_y = self._detect_noiseform_black(line, noiseform_black_threshold, 5)
         # 5. Return
         return white_x, green_x, black_x
 
@@ -5470,37 +5129,27 @@ class Api:
 
         self.set_status("Sending log...")
         if logging_mode == "screenshot":
-            thread = threading.Thread(
-                target=self._discord_screenshot_worker,
-                args=(webhook_url, f"{text}\n", loop_count),
-                daemon=True
-            )
+            thread = threading.Thread(target=self._discord_screenshot_worker, args=(webhook_url, f"{text}\n", loop_count), daemon=True)
         elif logging_mode == "file":
-            thread = threading.Thread(
-                target=self._debug_log_worker,
-                args=(text, loop_count),
-                daemon=True
-            )
+            thread = threading.Thread(target=self._debug_log_worker, args=(text, loop_count), daemon=True)
         else:
-            thread = threading.Thread(
-                target=self._discord_text_worker,
-                args=(webhook_url, f"{text}\n", loop_count),
-                daemon=True
-            )
+            thread = threading.Thread(target=self._discord_text_worker, args=(webhook_url, f"{text}\n", loop_count), daemon=True)
         thread.start()
         thread.join()  # Wait for Discord/file log to finish before continuing
-
     def _format_duration(self, seconds):
         if seconds is None or seconds < 0:
             return "N/A"
+
         seconds = int(seconds)
         h = seconds // 3600
         m = (seconds % 3600) // 60
         s = seconds % 60
         if h > 0:
             return f"{h}h {m}m {s}s"
+
         if m > 0:
             return f"{m}m {s}s"
+
         return f"{s}s"
 
     def _build_discord_embed(self, message_prefix, loop_count, include_image=False):
@@ -5509,7 +5158,6 @@ class Api:
         if not clean_title:
             clean_title = "Update"
         title = f"Solar Fishing | {clean_title}"
-
         # Extract a numeric cycle if present (e.g. "Cycle #1440" -> "1440")
         cycle_display = str(loop_count)
         m = re.search(r"#?\s*(\d+)", str(loop_count))
@@ -5517,17 +5165,13 @@ class Api:
             cycle_display = m.group(1)
         elif getattr(self, "current_cycle", 0):
             cycle_display = str(self.current_cycle)
-
         running = "N/A"
         if getattr(self, "session_start", None):
             running = self._format_duration(time.time() - self.session_start)
-
         catch_pct = int(getattr(self, "catch_rate", 0.0) * 100)
         perfect_pct = int(getattr(self, "perfect_catch_rate", 0.0) * 100)
         catch_display = f"{catch_pct}% | {perfect_pct}% Perfect"
-
         rod = getattr(self, "current_rod_name", None) or "Default"
-
         embed = {
             "title": title,
             "description": "**Fishing update**\nFishing session update",
@@ -5560,7 +5204,6 @@ class Api:
                 self.set_status(f"Error: Discord text failed: {response.status_code}")
         except Exception as e:
             self.set_status(f"Error sending Discord text: {e}")
-
     def _discord_screenshot_worker(self, webhook_url, message_prefix, loop_count):
         logging_name = self.vars["logging_name"]
         try:
@@ -5577,26 +5220,19 @@ class Api:
                 screenshot = cv2.cvtColor(screenshot, cv2.COLOR_BGRA2BGR)
             _, buffer = cv2.imencode(".png", screenshot)
             img_byte_arr = io.BytesIO(buffer.tobytes())
-
             embed = self._build_discord_embed(message_prefix, loop_count, include_image=True)
             payload = {
                 "username": logging_name,
                 "embeds": [embed],
             }
             files = {"file": ("screenshot.png", img_byte_arr, "image/png")}
-            response = requests.post(
-                webhook_url,
-                data={"payload_json": json.dumps(payload)},
-                files=files,
-                timeout=15,
-            )
+            response = requests.post(webhook_url, data={"payload_json": json.dumps(payload)}, files=files, timeout=15)
             if response.status_code in (200, 204):
                 self.set_status(f"Discord screenshot sent ({loop_count})")
             else:
                 self.set_status(f"Error: Discord screenshot failed: {response.status_code}")
         except Exception as e:
             self.set_status(f"Error sending Discord screenshot: {e}")
-
     def _debug_log_worker(self, text, loop_count):
         """Write debug logs to a text file."""
         try:
@@ -5604,18 +5240,9 @@ class Api:
             log_dir = EDITABLE_PATH
             os.makedirs(log_dir, exist_ok=True)
             # Daily Log File
-            log_file = os.path.join(
-                log_dir,
-                f"debug_{time.strftime('%Y-%m-%d')}.txt"
-            )
+            log_file = os.path.join(log_dir, f"debug_{time.strftime('%Y-%m-%d')}.txt")
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-            log_entry = (
-                "==========\n"
-                f"🎣 {text}\n"
-                f"🔄 {loop_count}\n"
-                f"🕐 {timestamp}\n"
-                "==========\n\n"
-            )
+            log_entry = ("==========\n" f"🎣 {text}\n" f"🔄 {loop_count}\n" f"🕐 {timestamp}\n" "==========\n\n")
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(log_entry)
             self.set_status(f"Debug log saved ({loop_count})")
@@ -5636,9 +5263,7 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            result = self.message_box_javascript(f"""An error occured during appraisal. 
-            Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            result = self.message_box_javascript(f"""An error occured during appraisal.  Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -5657,6 +5282,11 @@ class Api:
         # Delays
         appraisal_delay = float(self.vars["appraisal_delay"])
         # Configure appraisal delay
+        # Defaults so the ratios are always bound (avoids UnboundLocalError)
+        appraisal_x_ratio = 0.5
+        appraisal_y_ratio = 0.5
+        appraisal_x_ratio2 = 0.5
+        appraisal_y_ratio2 = 0.5
         if appraisal_mode == "normal":
             # Normal Appraisal
             raw_normal_appraisal_ratio = self.vars["normal_appraisal_click"]
@@ -5664,9 +5294,8 @@ class Api:
             try:
                 appraisal_x_ratio = float(normal_appraisal_ratio[0])
                 appraisal_y_ratio = float(normal_appraisal_ratio[1])
-            except:
-                pass
-
+            except Exception:
+                self.set_status("Warning: invalid normal_appraisal_click, using defaults")
         else:
             # Gamepass Appraisal
             raw_gamepass_appraisal_ratio = self.vars["gamepass_appraisal_click"]
@@ -5674,18 +5303,16 @@ class Api:
             try:
                 appraisal_x_ratio = float(gamepass_appraisal_ratio[0])
                 appraisal_y_ratio = float(gamepass_appraisal_ratio[1])
-            except:
-                pass
-
+            except Exception:
+                self.set_status("Warning: invalid gamepass_appraisal_click, using defaults")
             # Gamepass Appraisal 2
             raw_gamepass_appraisal_ratio2 = self.vars["gamepass_appraisal_click2"]
             gamepass_appraisal_ratio2 = raw_gamepass_appraisal_ratio2.replace(" ", "").split(",")
             try:
                 appraisal_x_ratio2 = float(gamepass_appraisal_ratio2[0])
                 appraisal_y_ratio2 = float(gamepass_appraisal_ratio2[1])
-            except:
-                pass
-
+            except Exception:
+                self.set_status("Warning: invalid gamepass_appraisal_click2, using defaults")
         appraisal_x = int(SCREEN_WIDTH * appraisal_x_ratio)
         appraisal_y = int(SCREEN_HEIGHT * appraisal_y_ratio)
         appraisal_x2 = int(SCREEN_WIDTH * appraisal_x_ratio2)
@@ -5732,9 +5359,7 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            result = self.message_box_javascript(f"""An error occured during appraisal. 
-            Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            result = self.message_box_javascript(f"""An error occured during appraisal.  Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -5760,9 +5385,7 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            result = self.message_box_javascript(f"""An error occured during appraisal.
-            Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            result = self.message_box_javascript(f"""An error occured during appraisal. Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -5849,8 +5472,7 @@ class Api:
             error_lines = full_error.splitlines()
             error_line = self.get_error_line(error_lines[1])
             result = self.message_box_javascript(f"""An error at line {error_line} occured. 
-                                                 Please copy the error and report the bug:\\n{e}\\n
-                                                 Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -5876,8 +5498,7 @@ class Api:
             time.sleep(0.2)
             full_error = traceback.format_exc()
             result = self.message_box_javascript(f"""An error occured during enchantment. 
-            Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -5955,9 +5576,7 @@ class Api:
             full_error = traceback.format_exc()
             error_lines = full_error.splitlines()
             error_line = self.get_error_line(error_lines[1])
-            result = self.message_box_javascript(f"""An error at line {error_line} occured. 
-                                                 Please copy the error and report the bug:\\n{e}\\n
-                                                 Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            result = self.message_box_javascript(f"""An error at line {error_line} occured.  Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -5982,9 +5601,7 @@ class Api:
         except Exception as e:
             time.sleep(0.2)
             full_error = traceback.format_exc()
-            result = self.message_box_javascript(f"""An error occured during angler. 
-            Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            result = self.message_box_javascript(f"""An error occured during angler.  Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -6011,13 +5628,6 @@ class Api:
         try:
             angler_click_position_x2 = float(angler_click_position2[0]) * SCREEN_WIDTH
             angler_click_position_y2 = float(angler_click_position2[1]) * SCREEN_HEIGHT
-        except:
-            pass
-
-        angler_click_position3 = self.vars["angler_click_position3"].replace(" ", "").split(",")
-        try:
-            angler_click_position_x3 = float(angler_click_position3[0]) * SCREEN_WIDTH
-            angler_click_position_y3 = float(angler_click_position3[1]) * SCREEN_HEIGHT
         except:
             pass
 
@@ -6073,11 +5683,7 @@ class Api:
                 gray_q = cv2.cvtColor(quest_region, cv2.COLOR_BGR2GRAY)
                 gray_q = cv2.resize(gray_q, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
                 gray_q = cv2.threshold(gray_q, 150, 255, cv2.THRESH_BINARY)[1]
-                ocr_data_q = pytesseract.image_to_data(
-                    gray_q,
-                    output_type=pytesseract.Output.DICT,
-                    config="--psm 11"
-                )
+                ocr_data_q = pytesseract.image_to_data(gray_q, output_type=pytesseract.Output.DICT, config="--psm 11")
                 quest_click_x, quest_click_y = None, None
                 # Normalize the required fish name once.
                 required_words = required_fish.strip().lower().split()
@@ -6160,8 +5766,7 @@ class Api:
             time.sleep(0.2)
             full_error = traceback.format_exc()
             result = self.message_box_javascript(f"""An error occured during angler. 
-            Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -6313,12 +5918,7 @@ class Api:
                     fish_top_overlay = fish_top - fish_height - fish_height
                 overlay_width = fish_right - fish_left
                 overlay_height = int(fish_height / 1.5)
-                self.fish_overlay.show(
-                    fish_left,
-                    fish_top_overlay,
-                    overlay_width,
-                    overlay_height,
-                )
+                self.fish_overlay.show(fish_left, fish_top_overlay, overlay_width, overlay_height)
             else:
                 self.fish_overlay.hide()
             # Status Overlay
@@ -6339,7 +5939,6 @@ class Api:
                 self._send_key("i", 0.05)
             self.status_overlay.set_line(1, "Zoom Count (Out)", "1/1")
             self._send_key("o", 0.01)
-
         # Main Loop (With Bug Reports)
         try:
             while self.macro_running:
@@ -6485,6 +6084,7 @@ class Api:
                             fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
                             if fish_x is not None or fish_y is not None:
                                 break
+
                         else:
                             lines = self._detect_lines_in_frame(fish_img)
                             if len(lines) >= 4:
@@ -6551,8 +6151,7 @@ class Api:
             full_error = traceback.format_exc()
             error_line = self.get_error_line(full_error)
             result = self.message_box_javascript(f"""An error at line {error_line} occured. 
-            Please copy the error and report the bug:\\n{e}\\n
-            Would you like to copy the full crash log to your clipboard?""", "askyesno")
+            Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
             if result == True:
                 if self.copy_to_clipboard(full_error):
                     self.message_box_javascript("Error copied over to clipboard")
@@ -6617,7 +6216,6 @@ class Api:
             self.send_logging("**Reconnect Success**", f"Cycle #{self.current_cycle}")
         else:
             self.send_logging("**Reconnect Failed**", f"Cycle #{self.current_cycle}")
-
     def hunt_detect(self, current_hunt):
         "current_hunt: Does nothing"
         try:
@@ -6641,10 +6239,7 @@ class Api:
             chat_left:chat_right
         ]
         gray = self.process_image_for_ocr(text)
-        text = pytesseract.image_to_string(
-            gray,
-            config="--psm 6"
-        )
+        text = pytesseract.image_to_string(gray, config="--psm 6")
         # Get The Bottommost Nonempty OCR Line
         lines = [
             line.strip()
@@ -6661,10 +6256,7 @@ class Api:
             hunt = hunt.strip()
             current_hunt = hunt
             if hunt.lower().replace(" ", "") in latest_line_normalized:
-                self.send_logging(
-                    f"<@{user_id}> Found {hunt}",
-                    self.current_cycle
-                )
+                self.send_logging(f"<@{user_id}> Found {hunt}", self.current_cycle)
                 return current_hunt
 
         return current_hunt
@@ -6757,19 +6349,20 @@ class Api:
             # Green Detection
             if is_green_tracking:
                 # Track In Subregion Around Last Known Green Position
-                green_area_top = max(0, green_abs_top - green_padding)
-                green_area_bottom = min(shake_img.shape[0], green_abs_top + green_padding)
-                green_area_left = max(0, green_abs_left - green_padding)
-                green_area_right = min(shake_img.shape[1], green_abs_right + green_padding)
+                # Cast to int so the subregion slice is valid
+                green_area_top = max(0, int(green_abs_top) - green_padding)
+                green_area_bottom = min(shake_img.shape[0], int(green_abs_top) + green_padding)
+                green_area_left = max(0, int(green_abs_left) - green_padding)
+                green_area_right = min(shake_img.shape[1], int(green_abs_right) + green_padding)
                 green_area = shake_img[green_area_top:green_area_bottom, green_area_left:green_area_right]
                 g_left, g_top = self.pixel_search_matrix(green_area, "green_cast_color", "green_cast_tolerance")
                 g_right, g_bottom = self.pixel_search_matrix(green_area, "green_cast_color", "green_cast_tolerance", 1)
                 if None not in (g_left, g_top, g_right, g_bottom):
-                    # Convert From Green_Area Coordinates To Shake_Img Coordinates
-                    green_abs_left = g_left + green_area_left
-                    green_abs_top = g_top + green_area_top
-                    green_abs_right = g_right + green_area_left
-                    green_abs_bottom = g_bottom + green_area_top
+                    # Keep coordinates as integers for array slicing
+                    green_abs_left = int(g_left) + green_area_left
+                    green_abs_top = int(g_top) + green_area_top
+                    green_abs_right = int(g_right) + green_area_left
+                    green_abs_bottom = int(g_bottom) + green_area_top
                     green_detected = True
                 else:
                     green_detected = False
@@ -6801,38 +6394,30 @@ class Api:
             self.status_overlay.set_line(1, "Green: ", f"{green_abs_left}, {green_abs_top}")
             # White Detection
             # Search vertically below the center of the green bar.
-            green_center_x = (green_abs_left + green_abs_right) // 2
+            # Ensure integer indices for NumPy slicing
+            try:
+                green_center_x = int((int(green_abs_left) + int(green_abs_right)) // 2)
+            except (TypeError, ValueError):
+                green_center_x = 0
             # Keep the coordinate inside shake_img.
-            green_center_x = max(
-                0,
-                min(green_center_x, shake_img.shape[1] - 1)
-            )
+            green_center_x = max(0, min(green_center_x, shake_img.shape[1] - 1))
             # Comet-style vertical scan:
             # start at the green bar and scan all the way to the
             # bottom of the captured region.
-            scan_start_y = max(0, green_abs_top)
+            try:
+                scan_start_y = int(max(0, green_abs_top))
+            except (TypeError, ValueError):
+                scan_start_y = 0
             scan_end_y = shake_img.shape[0]
-            white_column = shake_img[
-                scan_start_y:scan_end_y,
-                green_center_x:green_center_x + 1,
-                :
-            ]
+            white_column = shake_img[scan_start_y:scan_end_y, green_center_x:green_center_x + 1, :]
             # Per-channel tolerance:
             # a pixel matches when every B/G/R channel is within
             # white_cast_tolerance of the target color.
             white_b, white_g, white_r = self._hex_to_bgr(white_cast_color)
-            white_target = np.array(
-                [white_b, white_g, white_r],
-                dtype=np.int16
-            )
+            white_target = np.array([white_b, white_g, white_r], dtype=np.int16)
             white_column_i = white_column.astype(np.int16)
-            white_diff = np.abs(
-                white_column_i - white_target
-            )
-            white_mask = (
-                np.max(white_diff, axis=2)
-                <= white_cast_tolerance
-            )
+            white_diff = np.abs(white_column_i - white_target)
+            white_mask = (np.max(white_diff, axis=2) <= white_cast_tolerance)
             # Get every matching Y position on the center column.
             white_rows = np.flatnonzero(white_mask[:, 0])
             if white_rows.size == 0:
@@ -6846,21 +6431,15 @@ class Api:
             # methods to continue using total_distance.
             white_abs_bottom = scan_start_y + int(white_rows[-1])
             # Existing Solar distance calculations.
+            try: green_abs_top = float(green_abs_top)
+            except: green_abs_top = 0
             total_distance = white_abs_bottom - green_abs_top
             current_distance = white_abs_top - green_abs_top
             if total_distance <= 0:
-                self.status_overlay.set_line(
-                    2,
-                    "White: ",
-                    f"{total_distance} (Invalid)"
-                )
+                self.status_overlay.set_line(2, "White: ", f"{total_distance} (Invalid)")
                 continue
 
-            self.status_overlay.set_line(
-                2,
-                "White: ",
-                f"{green_center_x}, {white_abs_top}"
-            )
+            self.status_overlay.set_line(2, "White: ", f"{green_center_x}, {white_abs_top}")
             # Release Logic Based On Selected Method
             if perfect_cast_method == "simple":
                 # Simple (Percentage-Based) Method
@@ -7047,6 +6626,8 @@ class Api:
                     release_threshold = highest_cast_percentage
                 else:
                     release_threshold = highest_cast_percentage + (release_timing / 50.0) * 4.5
+                try: release_threshold = float(release_threshold)
+                except: release_threshold = 0
                 self.status_overlay.set_line(3, "Highest Cast Percentage: ", round(highest_cast_percentage, 2))
                 if reached_bottom_5_percent and predicted_fill_percentage >= release_threshold:
                     released = True
@@ -7143,7 +6724,6 @@ class Api:
                 overlay_top = shake_top - tranquility_small_gap - tranquility_small_gap
             else:
                 overlay_top = shake_top + tranquility_small_gap + tranquility_small_gap
-
             self.fish_overlay.resize(shake_left, overlay_top, shake_width, tranquility_small_gap)
         time.sleep(0.5)
         while self.macro_running:
@@ -7174,6 +6754,7 @@ class Api:
                         self.perfect_catch = 0
                     time.sleep(restart_delay)
                     return
+
             # Everything is in this loop
             for box in range(4):
                 scan_img = self.capture_frame[shake_top:shake_bottom, fish_left[box] + shake_left:fish_right[box] + shake_left]
@@ -7206,6 +6787,7 @@ class Api:
                                     mania_velocity = current_y - last_y[box]
                                     if mania_velocity <= 0:
                                         pass
+
                                     else:
                                         self.status_overlay.set_line((box + 1), f"Lane {box + 1}: ", f"Velocity: {mania_velocity}")
                                 except KeyError as e:
@@ -7214,8 +6796,10 @@ class Api:
                                 if abs(current_y - init_y) <= 50 + mania_velocity:
                                     hit = True
                                     break
+
                             if hit:
                                 break
+
                         if hit:
                             key = str(self.vars[f"tranquility_key_{box + 1}"])
                             self._send_key(key, self.scan_delay)
@@ -7262,12 +6846,7 @@ class Api:
                 fish_top_overlay = fish_top - fish_height - fish_height
             overlay_width = fish_right - fish_left
             overlay_height = int(fish_height / 1.5)
-            self.fish_overlay.show(
-                fish_left,
-                fish_top_overlay,
-                overlay_width,
-                overlay_height,
-            )
+            self.fish_overlay.show(fish_left, fish_top_overlay, overlay_width, overlay_height)
         # Minigame Settings
         lock_cursor = self.vars["lock_cursor"]
         self.scan_delay = float(self.vars["minigame_scan_delay"])
@@ -7354,12 +6933,12 @@ class Api:
                             left_x = right_x - last_bar_size
             else:
                 detection_source = 0
-            try:
+            if left_x is not None and right_x is not None:
                 bar_size = right_x - left_x
                 bar_center = left_x + int(bar_size / 2)
-            except:
-                bar_size = 0
+            else:
                 bar_center = 0
+                bar_size = 0
             # Track inside for catch rate (same as normal)
             currently_inside = False
             if left_x is not None and right_x is not None and fish_x is not None:
@@ -7468,12 +7047,7 @@ class Api:
                 fish_top_overlay = fish_top - fish_height - fish_height
             overlay_width = fish_right2 - fish_left
             overlay_height = int(fish_height / 1.5)
-            self.fish_overlay.show(
-                fish_left,
-                fish_top_overlay,
-                overlay_width,
-                overlay_height,
-            )
+            self.fish_overlay.show(fish_left, fish_top_overlay, overlay_width, overlay_height)
         # Minigame Settings
         scale = get_scale_factor()
         bag_slot = str(self.vars["bag_slot"])
@@ -7683,39 +7257,21 @@ class Api:
             right_boundary2 = fish_width2 - boundary2
             if fish_overlay == True:
                 # Bar 1 (relative coords already match overlay origin)
-                self.fish_overlay.draw_box(
-                    x1=left_x1, y1=overlay_height*0.15, x2=right_x1, y2=overlay_height*0.85, color="green",
-                    show_bar_center=True
-                )
+                self.fish_overlay.draw_box(x1=left_x1, y1=overlay_height*0.15, x2=right_x1, y2=overlay_height*0.85, color="green", show_bar_center=True)
                 if left_boundary1 is not None:
-                    self.fish_overlay.draw_box(
-                        x1=left_boundary1, y1=overlay_height*0.15, x2=left_boundary1 + 15, y2=overlay_height*0.85, color="lightblue"
-                    )
+                    self.fish_overlay.draw_box(x1=left_boundary1, y1=overlay_height*0.15, x2=left_boundary1 + 15, y2=overlay_height*0.85, color="lightblue")
                 if right_boundary1 is not None:
-                    self.fish_overlay.draw_box(
-                        x1=right_boundary1 - 15, y1=overlay_height*0.15, x2=right_boundary1, y2=overlay_height*0.85, color="lightblue"
-                    )
+                    self.fish_overlay.draw_box(x1=right_boundary1 - 15, y1=overlay_height*0.15, x2=right_boundary1, y2=overlay_height*0.85, color="lightblue")
                 if fish_x1 is not None:
-                    self.fish_overlay.draw_box(
-                        x1=fish_x1, y1=overlay_height*0.15, x2=fish_x1 + 15, y2=overlay_height*0.85, color="red"
-                    )
+                    self.fish_overlay.draw_box(x1=fish_x1, y1=overlay_height*0.15, x2=fish_x1 + 15, y2=overlay_height*0.85, color="red")
                 # Bar 2 — shift by right_bar_offset so it lines up on the shared overlay
-                self.fish_overlay.draw_box(
-                    x1=left_x2 + right_bar_offset, y1=overlay_height*0.15, x2=right_x2 + right_bar_offset, y2=overlay_height*0.85, color="green",
-                    show_bar_center=True
-                )
+                self.fish_overlay.draw_box(x1=left_x2 + right_bar_offset, y1=overlay_height*0.15, x2=right_x2 + right_bar_offset, y2=overlay_height*0.85, color="green", show_bar_center=True)
                 if left_boundary2 is not None:
-                    self.fish_overlay.draw_box(
-                        x1=left_boundary2 + right_bar_offset, y1=overlay_height*0.15, x2=left_boundary2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="lightblue"
-                    )
+                    self.fish_overlay.draw_box(x1=left_boundary2 + right_bar_offset, y1=overlay_height*0.15, x2=left_boundary2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="lightblue")
                 if right_boundary2 is not None:
-                    self.fish_overlay.draw_box(
-                        x1=right_boundary2 - 15 + right_bar_offset, y1=overlay_height*0.15, x2=right_boundary2 + right_bar_offset, y2=overlay_height*0.85, color="lightblue"
-                    )
+                    self.fish_overlay.draw_box(x1=right_boundary2 - 15 + right_bar_offset, y1=overlay_height*0.15, x2=right_boundary2 + right_bar_offset, y2=overlay_height*0.85, color="lightblue")
                 if fish_x2 is not None:
-                    self.fish_overlay.draw_box(
-                        x1=fish_x2 + right_bar_offset, y1=overlay_height*0.15, x2=fish_x2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="red"
-                    )
+                    self.fish_overlay.draw_box(x1=fish_x2 + right_bar_offset, y1=overlay_height*0.15, x2=fish_x2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="red")
             current_time = time.perf_counter()
             time_delta = current_time - last_time
             if time_delta < 0.001:
@@ -7799,12 +7355,7 @@ class Api:
                 fish_top_overlay = lullaby_top + fish_height + fish_height
             overlay_width = fish_right - fish_left
             overlay_height = int(fish_height / 1.5)
-            self.fish_overlay.resize(
-                lullaby_left,
-                fish_top_overlay,
-                lullaby_width,
-                overlay_height,
-            )
+            self.fish_overlay.resize(lullaby_left, fish_top_overlay, lullaby_width, overlay_height)
         # Collect all bar colors for multi-color masks
         bar_colors = []
         for i in range(1, 16):
@@ -7813,6 +7364,7 @@ class Api:
             c = self.vars.get(key)
             if not c:
                 break
+
             try:
                 t = int(self.vars.get(tol_key, 8))
             except:
@@ -7828,10 +7380,10 @@ class Api:
         # Cache Variables
         is_initial_run = True
         last_capture_id = 0
-        lullaby_area_x1 = None
-        lullaby_area_x2 = None
-        lullaby_area_y1 = None
-        lullaby_area_y2 = None
+        lullaby_area_x1 = 0
+        lullaby_area_x2 = 0
+        lullaby_area_y1 = 0
+        lullaby_area_y2 = 0
         metronome_inside = False
         last_metronome_inside = False
         # Initial Color Masks
@@ -7866,22 +7418,13 @@ class Api:
                 # Create Initial Masks (Colors Already Converted To Bgr Above)
                 left_diff = np.abs(lullaby_pixels - left_bgr)
                 right_diff = np.abs(lullaby_pixels - right_bgr)
-                initial_left_mask = np.all(
-                    left_diff <= bar_tolerance,
-                    axis=2
-                )
-                initial_right_mask = np.all(
-                    right_diff <= right_tolerance,
-                    axis=2
-                )
+                initial_left_mask = np.all(left_diff <= bar_tolerance, axis=2)
+                initial_right_mask = np.all(right_diff <= right_tolerance, axis=2)
                 # Get Coordinates Of The Initial Masks
                 left_y, left_x = np.where(initial_left_mask)
                 right_y, right_x = np.where(initial_right_mask)
                 # Make Sure Both Colors Were Found
-                if (
-                    len(left_x) == 0
-                    or len(right_x) == 0
-                ):
+                if (len(left_x) == 0 or len(right_x) == 0):
                     time.sleep(self.scan_delay)
                     last_capture_id = self.capture_id
                     continue
@@ -7890,39 +7433,15 @@ class Api:
                 initial_left_coords = (left_x, left_y)
                 initial_right_coords = (right_x, right_y)
                 # Calculate The Complete Initial Lullaby Area
-                lullaby_area_x1 = min(
-                    left_x.min(),
-                    right_x.min()
-                )
-                lullaby_area_x2 = max(
-                    left_x.max(),
-                    right_x.max()
-                )
-                lullaby_area_y1 = min(
-                    left_y.min(),
-                    right_y.min()
-                )
-                lullaby_area_y2 = max(
-                    left_y.max(),
-                    right_y.max()
-                )
+                lullaby_area_x1 = min(left_x.min(), right_x.min())
+                lullaby_area_x2 = max(left_x.max(), right_x.max())
+                lullaby_area_y1 = min(left_y.min(), right_y.min())
+                lullaby_area_y2 = max(left_y.max(), right_y.max())
                 # Add Padding For The Metronome
-                lullaby_area_x1 = max(
-                    0,
-                    lullaby_area_x1 - lullaby_metronome_padding
-                )
-                lullaby_area_x2 = min(
-                    lullaby_img.shape[1],
-                    lullaby_area_x2 + lullaby_metronome_padding
-                )
-                lullaby_area_y1 = max(
-                    0,
-                    lullaby_area_y1 - lullaby_metronome_padding
-                )
-                lullaby_area_y2 = min(
-                    lullaby_img.shape[0],
-                    lullaby_area_y2 + lullaby_metronome_padding
-                )
+                lullaby_area_x1 = max(0, lullaby_area_x1 - lullaby_metronome_padding)
+                lullaby_area_x2 = min(lullaby_img.shape[1], lullaby_area_x2 + lullaby_metronome_padding)
+                lullaby_area_y1 = max(0, lullaby_area_y1 - lullaby_metronome_padding)
+                lullaby_area_y2 = min(lullaby_img.shape[0], lullaby_area_y2 + lullaby_metronome_padding)
                 # Switch To The Smaller Region After Initialization.
                 is_initial_run = False
             # Subsequent Runs
@@ -7936,14 +7455,8 @@ class Api:
                 ]
                 # Create Current Color Masks Only Inside The Small Area
                 current_pixels = lullaby_img2.astype(np.int16)
-                current_left_mask = np.all(
-                    np.abs(current_pixels - left_bgr) <= bar_tolerance,
-                    axis=2
-                )
-                current_right_mask = np.all(
-                    np.abs(current_pixels - right_bgr) <= right_tolerance,
-                    axis=2
-                )
+                current_left_mask = np.all(np.abs(current_pixels - left_bgr) <= bar_tolerance, axis=2)
+                current_right_mask = np.all(np.abs(current_pixels - right_bgr) <= right_tolerance, axis=2)
                 # Compare Current Masks Against The Initial Masks.
                 # The Initial Masks Are In Full Lullaby Coordinates,
                 # So Crop Them To The Same Smaller Region First.
@@ -7956,35 +7469,22 @@ class Api:
                     lullaby_area_x1:lullaby_area_x2
                 ]
                 # Pixels That Existed Initially But Disappeared Now
-                left_missing_mask = (
-                    initial_left_small &
-                    ~current_left_mask
-                )
-                right_missing_mask = (
-                    initial_right_small &
-                    ~current_right_mask
-                )
+                left_missing_mask = (initial_left_small & ~current_left_mask)
+                right_missing_mask = (initial_right_small & ~current_right_mask)
                 # Calculate How Much Of The Original Mask Disappeared
                 initial_left_count = np.count_nonzero(initial_left_small)
                 initial_right_count = np.count_nonzero(initial_right_small)
                 left_missing_count = np.count_nonzero(left_missing_mask)
                 right_missing_count = np.count_nonzero(right_missing_mask)
-
                 # Calculate The Total Mask Count
                 initial_mask_count = initial_left_count + initial_right_count
-                current_mask_count = (
-                    np.count_nonzero(current_left_mask)
-                    + np.count_nonzero(current_right_mask)
-                )
-
+                current_mask_count = (np.count_nonzero(current_left_mask) + np.count_nonzero(current_right_mask))
                 # If The Current Mask Is Larger Than The Initial Mask,
                 # Update The Initial Mask Count To Prevent The Metronome
                 # From Occupying Too Much Of The Baseline.
                 if current_mask_count > initial_mask_count:
                     initial_mask_count = current_mask_count
-
                 mask_missing_count = left_missing_count + right_missing_count
-
                 self.status_overlay.set_line(1, "Initial Mask Count: ", initial_mask_count)
                 self.status_overlay.set_line(2, "Current Mask Count: ", mask_missing_count)
                 if left_missing_count + right_missing_count == 0:
@@ -8029,9 +7529,11 @@ class Api:
                             self.perfect_catch = 0
                     self.interruptible_sleep(restart_delay)
                     return
+
             else:
                 # Fallback: if no metronome detection for a while or similar, but for now use friend or end on lost
                 pass
+
             time.sleep(self.scan_delay)
             last_capture_id = self.capture_id
     def _enter_minigame(self):
@@ -8071,12 +7573,7 @@ class Api:
                 fish_top_overlay = fish_top - fish_height - fish_height
             overlay_width = fish_right - fish_left
             overlay_height = int(fish_height / 1.5)
-            self.fish_overlay.resize(
-                fish_left,
-                fish_top_overlay,
-                overlay_width,
-                overlay_height,
-            )
+            self.fish_overlay.resize(fish_left, fish_top_overlay, overlay_width, overlay_height)
         # Minigame Settings
         scale = get_scale_factor()
         bag_slot = str(self.vars["equipment_bag_slot"])
@@ -8132,7 +7629,6 @@ class Api:
         last_bar_center = fish_center_x_relative
         last_bar_size = 0
         last_error = 0
-        last_arrow_on_left_side = mouse_down
         # Velocities & Mechanics
         right_bar_cycle = 0
         bag_spam_cycle = 0
@@ -8188,9 +7684,9 @@ class Api:
                 if right_bar_cycle == 0:
                     right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
                 else:
-                    try:
+                    if left_x is not None and last_bar_size is not None:
                         right_x = left_x + last_bar_size
-                    except:
+                    else:
                         right_x = last_right_x
                 if left_x == None:
                     left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
@@ -8221,6 +7717,10 @@ class Api:
                     bar_detected = False
                     # Bars Not Found - Scan For Arrows
                     arrow_x, arrow_y = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
+                    try: last_bar_size = float(last_bar_size)
+                    except: last_bar_size = 0
+                    try: last_bar_center = float(last_bar_center)
+                    except: last_bar_center = 0
                     # Reconstruct Missing Bar Edge From Previous Geometry Instead Of Mouse State
                     if arrow_x is not None:
                         # Treat 0 As Unknown To Match The Previous None Semantics
@@ -8228,49 +7728,57 @@ class Api:
                             last_left_x = None
                         if last_right_x == 0:
                             last_right_x = None
-                        # If Exactly One Edge Is Missing, Reconstruct It Using The Last Known Bar Size
-                        if last_left_x is None and last_right_x is not None:
-                            last_left_x = last_right_x - last_bar_size
-                        elif last_right_x is None and last_left_x is not None:
-                            last_right_x = last_left_x + last_bar_size
                     if arrow_x is not None:
+                        # If we have previous bar data, determine which side the arrow is on
                         bar_detected = True
-                        arrow_on_left_side = arrow_x < last_bar_center
-                        dist_to_left = abs(arrow_x - last_left_x) if last_left_x is not None else fish_width
-                        dist_to_right = abs(arrow_x - last_right_x) if last_right_x is not None else fish_width
-                        proximity_threshold = int(last_bar_size / 4)
-                        # Flip Decision If Wrong
-                        if arrow_on_left_side:
-                            if dist_to_right < dist_to_left and dist_to_right < proximity_threshold:
-                                # Arrow Is Actually Closer To Right Bar  We Were Wrong!
-                                arrow_on_left_side = False  # Flip the decision
-                        else:
-                            if dist_to_left < dist_to_right and dist_to_left < proximity_threshold:
-                                # Arrow Is Actually Closer To Left Bar  We Were Wrong!
-                                arrow_on_left_side = True  # Flip the decision
-                        if arrow_on_left_side != last_arrow_on_left_side:
-                            if last_arrow_on_left_side == True and arrow_on_left_side == False:
-                                left_x = last_left_x
-                                right_x = arrow_x
-                            elif last_arrow_on_left_side == False and arrow_on_left_side == True:
-                                right_x = last_right_x
-                                left_x = arrow_x
-                        else:
+                        if last_bar_center is not None and bar_size is not None and bar_size > 0:
+                            arrow_on_left_side = arrow_x < last_bar_center
+                            dist_to_left = abs(arrow_x - last_left_x) if last_left_x is not None else fish_width
+                            dist_to_right = abs(arrow_x - last_right_x) if last_right_x is not None else fish_width
+                            if bar_size is not None:
+                                proximity_threshold = int(bar_size / 4)
+                            else:
+                                proximity_threshold = int(last_bar_size / 4)
+                            # Flip decision if wrong
+                            if arrow_on_left_side:
+                                if dist_to_right < dist_to_left and dist_to_right < proximity_threshold:
+                                    # Arrow is actually closer to RIGHT bar - we were wrong!
+                                    arrow_on_left_side = False  # Flip the decision
+                            else:
+                                if dist_to_left < dist_to_right and dist_to_left < proximity_threshold:
+                                    # Arrow is actually closer to LEFT bar - we were wrong!
+                                    arrow_on_left_side = True  # Flip the decision
                             if arrow_on_left_side:
                                 left_x = arrow_x
-                                right_x = left_x + last_bar_size
+                                right_x = last_right_x
+                                if right_x is None:
+                                    right_x = left_x + last_bar_size
                             else:
                                 right_x = arrow_x
-                                left_x = right_x - last_bar_size
-                        self.status_overlay.set_line(1, "Detection Source: ", "Arrows")
+                                left_x = last_left_x
+                                if left_x is None:
+                                    left_x = right_x - last_bar_size
+                            self.status_overlay.set_line(1, "Detection Source: ", "Arrows (Last center found)")
+                        # Fallback: Try to establish initial box size from previous positions
+                        elif last_left_x is not None and last_right_x is not None:
+                            bar_size = last_right_x - last_left_x
+                            last_bar_center = (last_left_x + last_right_x) / 2
+                            # Determine side based on arrow position relative to last center
+                            if arrow_x < last_bar_center:
+                                left_x = arrow_x
+                                right_x = left_x + bar_size
+                            else:
+                                right_x = arrow_x
+                                left_x = right_x - bar_size
+                            self.status_overlay.set_line(1, "Detection Source: ", "Arrows (Cache found)")
                     else:
                         # Use Cache
                         bar_detected = False
                         self.status_overlay.set_line(1, "Detection Source: ", "Cache")
-                try:
+                if left_x is not None and right_x is not None:
                     bar_center = int((left_x + right_x) / 2)
                     bar_size = right_x - left_x
-                except:
+                else:
                     bar_center = 0
                     bar_size = 0
             elif fishing_mode == "line":
@@ -8318,7 +7826,10 @@ class Api:
                                 fish_x = curr_left
                                 fish_x2 = curr_right
                         # If Best Gap Is More Than 4X Initial Gap, Keep Old Positions
-                        actual_gap = fish_x2 - fish_x
+                        if fish_x is not None and fish_x2 is not None:
+                            actual_gap = fish_x2 - fish_x
+                        else:
+                            actual_gap = 6 * (SCREEN_WIDTH / 1920)
                         if actual_gap > initial_target_gap * 4:
                             fish_x = last_fish_x
                             fish_x2 = last_fish_x2
@@ -8367,6 +7878,14 @@ class Api:
                     # Check If Lines Jumped More Than Threshold (Likely Detection Error Or Occlusion)
                     if last_fish_x is not None and last_fish_x2 is not None:
                         # Calculate Actual Jump Distances
+                        try: fish_x = float(fish_x)
+                        except: fish_x = fish_width / 2
+                        try: fish_x2 = float(fish_x2)
+                        except: fish_x2 = fish_width / 2
+                        try: left_x = float(left_x)
+                        except: left_x = fish_width / 2
+                        try: right_x = float(right_x)
+                        except: right_x = fish_width / 2
                         target_left_jump = abs(fish_x - last_fish_x)
                         target_right_jump = abs(fish_x2 - last_fish_x2)
                         left_bar_jump = abs(left_x - last_left_x) if last_left_x is not None else 0
@@ -8375,10 +7894,7 @@ class Api:
                         # If Movement Exceeds Threshold Percentage Of Screen Width, It Might Be A Teleport
                         if max_jump > TELEPORT_THRESHOLD:
                             # Potential Teleport - Check If It'S Consistent At This New Position
-                            if (potential_teleport_target_left == fish_x and
-                                potential_teleport_target_right == fish_x2 and
-                                potential_teleport_left_bar == left_x and
-                                potential_teleport_right_bar == right_x):
+                            if (potential_teleport_target_left == fish_x and potential_teleport_target_right == fish_x2 and potential_teleport_left_bar == left_x and potential_teleport_right_bar == right_x):
                                 # Same Position Detected Again - Track Time
                                 if teleport_first_detected_time is None:
                                     teleport_first_detected_time = current_time
@@ -8515,10 +8031,10 @@ class Api:
                 fish_x = last_fish_x
                 fish_detected = True
             # Set Status
-            try:
+            if bar_center is not None and last_bar_center is not None:
                 bar_velocity2 = round(bar_center - last_bar_center, 2)
                 self.status_overlay.set_line(2, "Bar Velocity: ", bar_velocity2)
-            except:
+            else:
                 bar_velocity2 = 0
                 self.status_overlay.set_line(2, "", "")
             # Shapes Detection (Noiseform warn flash + bar-zone target)
@@ -8572,6 +8088,7 @@ class Api:
             if fishing_profile == "notes":
                 # Note detection already done above
                 pass
+
             # Track whether fish/note is inside the bar for catch classification
             currently_inside = False
             if left_x is not None and right_x is not None and fish_x is not None:
@@ -8585,13 +8102,14 @@ class Api:
             else:
                 # For normal / reverse / dual the ever_out is enough
                 pass
+
             # Edge Boundary
             if bar_size is not None:
                 boundary = bar_size * bar_ratio_from_side
                 left_boundary = boundary
                 right_boundary = fish_right - boundary - fish_left
             else:
-                left_boundary = None
+                left_boundary = 0
                 right_boundary = fish_width
             # print("Boundary: ", left_boundary, right_boundary, " Fish: ", fish_x)
             # print("Last Cache: ", bar_center - last_bar_center)
@@ -8668,7 +8186,9 @@ class Api:
                             control_signal = error
                         last_error = error
                 elif controller_mode == "steady":
-                    # Steady: Asymmetric Pd Controller With Asymmetric Damping
+                    # ASYMMETRIC DAMPING CONTROL
+                    # Strong braking when approaching target (prevents overshoot)
+                    # Weak damping when chasing target (allows fast catch-up)
                     if is_initial_run == True:
                         control_signal = 0
                         last_error = error
@@ -8677,13 +8197,12 @@ class Api:
                         p_term = int(error / p_term_multiplier) * kp
                         bar_velocity = bar_center - last_bar_center
                         error_magnitude_decreasing = abs(error) < abs(last_error)
-                        bar_moving_toward_target = (
-                            (bar_velocity > 0 and error > 0)
-                            or (bar_velocity < 0 and error < 0)
-                        )
+                        bar_moving_toward_target = (bar_velocity > 0 and error > 0) or (bar_velocity < 0 and error < 0)
                         if error_magnitude_decreasing and bar_moving_toward_target:
+                            # APPROACHING TARGET - Very strong damping to prevent overshoot (5x)
                             steady_kd_multiplier = 5.0
                         else:
+                            # CHASING TARGET - Minimal damping to allow fast movement (0.2x)
                             steady_kd_multiplier = 0.2
                         # Tracking Override: If notes are detected the KD multiplier 
                         # is calculated based on error
@@ -8746,25 +8265,25 @@ class Api:
                         # On-bar: Use Stopping-distance / Counter-thrust Logic
                         if error > stopping_distance2:
                             # Bar Is Left Of Fish Beyond Stopping Distance → Hold To Move Right
-                            self.status_overlay.set_line(3, "Tracking:", "> (Chase)")
+                            self.status_overlay.set_line(4, "Tracking:", "> (Chase)")
                             control_signal = 30
                         elif error < -stopping_distance2:
                             # Bar Is Right Of Fish Beyond Stopping Distance → Release To Move Left
-                            self.status_overlay.set_line(3, "Tracking:", "< (Chase)")
+                            self.status_overlay.set_line(4, "Tracking:", "< (Chase)")
                             control_signal = -30
                         else:
                             # Within Stopping Distance — Counter-thrust Based On Relative Velocity
                             if relative_velocity > 0:
                                 # Bar Moving Right Relative To Fish → Release (Apply Left Thrust)
-                                self.status_overlay.set_line(3, "Tracking:", "< (Relative)")
+                                self.status_overlay.set_line(4, "Tracking:", "< (Relative)")
                                 control_signal = -30
                             else:
                                 # Bar Moving Left Relative To Fish → Hold (Apply Right Thrust)
-                                self.status_overlay.set_line(3, "Tracking:", "> (Relative)")
+                                self.status_overlay.set_line(4, "Tracking:", "> (Relative)")
                                 control_signal = 30
                     else:
                         control_signal = kp * error + kd * relative_velocity
-                        self.status_overlay.set_line(3, "Tracking:", "> (PD)" if control_signal > 0 else "< (PD)")
+                        self.status_overlay.set_line(4, "Tracking:", "> (PD)" if control_signal > 0 else "< (PD)")
                 else:
                     control_signal = error
             # Mouse State
@@ -8774,12 +8293,6 @@ class Api:
                 hold_mouse()
             else:
                 release_mouse()
-            # Update Cache
-            try:
-                last_arrow_on_left_side = arrow_on_left_side
-            except:
-                pass
-
             if noiseform_color is not None:
                 last_valid_noiseform_color = noiseform_color
             if bar_detected == True:
@@ -8808,17 +8321,9 @@ class Api:
         except:
             pass
 
-        if (
-            self.macro_thread
-            and self.macro_thread.is_alive()
-            and self.macro_thread is not threading.current_thread()
-        ):
+        if (self.macro_thread and self.macro_thread.is_alive() and self.macro_thread is not threading.current_thread()):
             self.macro_thread.join()
-        if (
-            self.capture_thread
-            and self.capture_thread.is_alive()
-            and self.capture_thread is not threading.current_thread()
-        ):
+        if (self.capture_thread and self.capture_thread.is_alive() and self.capture_thread is not threading.current_thread()):
             self.capture_thread.join()
         # Fully Release Dxcamera So A Later Dxcam.Create() Does Not Hit The
         # "instance already exists ... Delete the old object with `del obj`" warning.
@@ -8849,12 +8354,8 @@ class Api:
 def on_closed():
     # Tear down child overlays so webview.start() can return. Overlay hide()
     # methods must not block the GUI thread (eyedropper schedules destroy).
-    for closer in (
-        api.fish_overlay.hide,
-        api.status_overlay.hide,
-        api.eyedropper.hide,
-        api.area_selector.hide,
-    ):
+    for closer in (api.fish_overlay.hide, api.status_overlay.hide, 
+                   api.eyedropper.hide, api.area_selector.hide):
         try:
             closer()
         except Exception:
@@ -8863,7 +8364,6 @@ def on_closed():
 misc_settings = load_misc_settings(os.path.join(EDITABLE_PATH, "last_config.json"))
 using_local = misc_settings.get("use_local_gui", False) == True
 html_path = os.path.join(UI_PATH, "index.html") if using_local else "https://catman2608.github.io/PyWare-Backend/SolarFishingV5/index.html"
-
 api = Api()
 api.this_launch_local = using_local
 window = webview.create_window(

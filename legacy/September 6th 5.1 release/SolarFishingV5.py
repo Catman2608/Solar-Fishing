@@ -13,6 +13,7 @@ import subprocess
 import requests
 import io
 import base64
+import warnings
 import time
 import sys
 import webbrowser
@@ -1491,7 +1492,7 @@ class StatusOverlay:
             f"{json.dumps(str(label))}, "
             f"{json.dumps(str(value))})"
         )
-    def set_status( self, title, main_status, line1, line2, line3 ):
+    def set_status(self, title, main_status, line1, line2, line3):
         """
         Updates the entire status overlay.
         Each line should be a (label, value) tuple.
@@ -1611,12 +1612,12 @@ class Api:
         except Exception:
             return defaults
 
-        input_pattern = re.compile(r"<input\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))" r"(?=[^>]*\bplaceholder\s*=\s*['\"]([^'\"]*)['\"])[^>]*>", re.IGNORECASE,)
+        input_pattern = re.compile(r"<input\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))" r"(?=[^>]*\bplaceholder\s*=\s*['\"]([^'\"]*)['\"])[^>]*>", re.IGNORECASE)
         for field_id, placeholder in input_pattern.findall(html):
             prompt = placeholder.strip()
             defaults[field_id] = prompt
-        select_pattern = re.compile( r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL, )
-        option_pattern = re.compile( r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE, )
+        select_pattern = re.compile(r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL)
+        option_pattern = re.compile(r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE)
         for field_id, body in select_pattern.findall(html):
             match = option_pattern.search(body)
             if match:
@@ -1851,8 +1852,8 @@ class Api:
     # Delete Config
     def delete_config(self, config_name):
         try:
-            folder = os.path.join( CONFIGS_PATH, config_name )
-            config_path = os.path.join( folder, "config.json" )
+            folder = os.path.join(CONFIGS_PATH, config_name)
+            config_path = os.path.join(folder, "config.json")
             if os.path.exists(config_path):
                 os.remove(config_path)
             if os.path.exists(folder):
@@ -2122,7 +2123,7 @@ class Api:
             path = webview.windows[0].create_file_dialog(
                 webview.FileDialog.OPEN,
                 allow_multiple=False,
-                file_types=("JSON files (*.json)",)
+                file_types=("JSON files (*.json)")
             )
             if not path:
                 return {"success": False, "cancelled": True}
@@ -5019,7 +5020,7 @@ class Api:
                 #     f"Circle #{circle}: "
                 #     f"x{circles[circle][0]} y{circles[circle][1]} "
                 #     f"xr{circle_x_ratio} yr{circle_y_ratio}"
-                # )
+                #)
                 self.fish_overlay.draw_box(
                     x1=int(overlay_width * 0.15),
                     y1=circles[circle][1],
@@ -6299,7 +6300,7 @@ class Api:
                 left_boundary = boundary
                 right_boundary = fish_right - boundary - fish_left
             else:
-                left_boundary = None
+                left_boundary = 0
                 right_boundary = fish_width
             # print("Boundary: ", left_boundary, right_boundary, " Fish: ", fish_x)
             # print("Last Cache: ", bar_center - last_bar_center)

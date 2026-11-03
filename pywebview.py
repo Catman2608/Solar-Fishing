@@ -99,7 +99,7 @@ class Api:
 
         defaults = {}
         try:
-            with open(UI_PATH / "index.html", "r", encoding="utf-8") as file:
+            with open(os.path.join(UI_PATH, "index.html"), "r", encoding="utf-8") as file:
                 html = file.read()
         except Exception:
             _PROMPT_DEFAULTS = {}

@@ -13,6 +13,7 @@ import subprocess
 import requests
 import io
 import base64
+import warnings
 import time
 import sys
 import webbrowser
@@ -264,6 +265,10 @@ elif sys.platform == "darwin":
     # ScreenCaptureKit (preferred capture backend on macOS 12.3+)
     try:
         import ScreenCaptureKit as _SCK
+        try:
+            from Foundation import NSRunLoop
+        except:
+            NSRunLoop = None
         from ScreenCaptureKit import (
             SCShareableContent,
             SCContentFilter,
@@ -528,7 +533,7 @@ def _cm_time_make(value, timescale):
         # kCMTimeFlags_Valid = 1. Layout matches Apple's CMTime (24 bytes).
         import objc as _objc
         try:
-            cm_time = _objc.createStructType("CMTime", b"{CMTime=qiIq}", ["value", "timescale", "flags", "epoch"],)
+            cm_time = _objc.createStructType("CMTime", b"{CMTime=qiIq}", ["value", "timescale", "flags", "epoch"])
         except Exception:
             cm_time = _objc.lookUpStructType("CMTime")
         return cm_time(value, timescale, 1, 0)
@@ -781,7 +786,7 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
     except Exception:
         pass
 
-    import warnings
+    
     warnings.filterwarnings(
         "ignore",
         message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",
@@ -832,8 +837,8 @@ if sys.platform == "darwin" and _SCK_AVAILABLE:
     except Exception:
         pass
 
-    import warnings
-    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer",)
+    
+    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer")
 # Validate Tesseract Path
 def get_tesseract_path(configured_path=None):
     """
@@ -2136,12 +2141,12 @@ class Api:
         except Exception:
             return defaults
 
-        input_pattern = re.compile(r"<input\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))" r"(?=[^>]*\bplaceholder\s*=\s*['\"]([^'\"]*)['\"])[^>]*>", re.IGNORECASE,)
+        input_pattern = re.compile(r"<input\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))" r"(?=[^>]*\bplaceholder\s*=\s*['\"]([^'\"]*)['\"])[^>]*>", re.IGNORECASE)
         for field_id, placeholder in input_pattern.findall(html):
             prompt = placeholder.strip()
             defaults[field_id] = prompt
-        select_pattern = re.compile(r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL,)
-        option_pattern = re.compile(r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE,)
+        select_pattern = re.compile(r"<select\b(?=[^>]*\bid\s*=\s*['\"]?([^'\"\s>]+))[^>]*>" r"(.*?)</select>", re.IGNORECASE | re.DOTALL)
+        option_pattern = re.compile(r"<option\b[^>]*\bvalue\s*=\s*['\"]?([^'\"\s>]+)", re.IGNORECASE)
         for field_id, body in select_pattern.findall(html):
             match = option_pattern.search(body)
             if match:
@@ -2591,7 +2596,7 @@ class Api:
     def reset_areas(self):
         """Reset areas to default"""
         try:
-            config_path = os.path.join( EDITABLE_PATH, "last_config.json" )
+            config_path = os.path.join(EDITABLE_PATH, "last_config.json")
             if not os.path.exists(config_path):
                 return { "success": True }
             with open(config_path, "r") as f:
@@ -2642,7 +2647,7 @@ class Api:
             path = webview.windows[0].create_file_dialog(
                 webview.FileDialog.OPEN,
                 allow_multiple=False,
-                file_types=("JSON files (*.json)",)
+                file_types=("JSON files (*.json)")
             )
             if not path:
                 return {"success": False, "cancelled": True}
@@ -3436,7 +3441,6 @@ class Api:
                     return
 
                 try:
-                    from Foundation import NSRunLoop
                     NSRunLoop.currentRunLoop().runUntilDate_(
                         NSDate.dateWithTimeIntervalSinceNow_(0.05)
                     )
@@ -3516,7 +3520,6 @@ class Api:
                 and not started.is_set()
                 and time.time() < start_deadline):
                 try:
-                    from Foundation import NSRunLoop
                     NSRunLoop.currentRunLoop().runUntilDate_(
                         NSDate.dateWithTimeIntervalSinceNow_(0.05)
                     )
@@ -3544,7 +3547,6 @@ class Api:
                 and self.capture_frame is None
                 and time.time() < first_frame_deadline):
                 try:
-                    from Foundation import NSRunLoop
                     NSRunLoop.currentRunLoop().runUntilDate_(
                         NSDate.dateWithTimeIntervalSinceNow_(0.05)
                     )
@@ -3576,10 +3578,6 @@ class Api:
                 return self.capture_loop_quartz()
 
             #  Idle loop — frames arrive on the SCK callback thread -
-            try:
-                from Foundation import NSRunLoop
-            except Exception:
-                NSRunLoop = None
             while self.macro_running:
                 if NSRunLoop is not None:
                     NSRunLoop.currentRunLoop().runUntilDate_(
@@ -7187,7 +7185,7 @@ class Api:
                 left_boundary = boundary
                 right_boundary = fish_right - boundary - fish_left
             else:
-                left_boundary = None
+                left_boundary = 0
                 right_boundary = fish_width
             # print("Boundary: ", left_boundary, right_boundary, " Fish: ", fish_x)
             # print("Last Cache: ", bar_center - last_bar_center)
