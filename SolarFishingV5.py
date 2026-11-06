@@ -63,10 +63,25 @@ except (ImportError, OSError):
 # All Platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
-APP_VERSION = 5.2
+APP_VERSION = "2026.11.1"
 BETA_VERSION = 0
 DEVELOPER = "Catman2608"
-VERSION_ID = 1
+
+def _version_components(version):
+    """Parse a dotted numeric version into comparable integer components."""
+    parts = str(version).split(".")
+    if not parts or any(not part.isdigit() for part in parts):
+        raise ValueError(f"Invalid app version: {version}")
+    return tuple(int(part) for part in parts)
+
+def _compare_versions(left, right):
+    left_parts = _version_components(left)
+    right_parts = _version_components(right)
+    width = max(len(left_parts), len(right_parts))
+    left_parts += (0,) * (width - len(left_parts))
+    right_parts += (0,) * (width - len(right_parts))
+    return (left_parts > right_parts) - (left_parts < right_parts)
+
 def load_misc_settings(last_config_path):
     try:
         with open(last_config_path, "r", encoding="utf-8") as file:
@@ -511,329 +526,849 @@ elif sys.platform.startswith("linux"):
             time.sleep(delay)
             xtest.fake_input(d, X.KeyRelease, keycode)
             d.sync()
-def _cm_time_make(value, timescale):
-    """CMTime for SCStreamConfiguration.minimumFrameInterval.
-    CMTimeMake is CoreMedia, not Quartz. Quartz.CMTimeMake raises
-    AttributeError on current PyObjC (lazy import has no such symbol).
-    """
-    if sys.platform == "darwin":
-        value = int(value)
-        timescale = int(timescale)
-        try:
-            import CoreMedia
-            return CoreMedia.CMTimeMake(value, timescale)
 
-        except Exception:
-            pass
+# ---------------------------------------------------------------------------
+# ScreenCaptureKit region capture (inlined from DeepFish macOS v1.1.7)
+#
+# One stream per capture region, lazy pixel copy, blocking condition-based
+# frame handoff, MSS fallback with a format compatibility check, and
+# exclusion of the app's own windows (live preview, HUD).
+#
+# All public geometry is in Quartz screen points. Output is tightly packed
+# BGRA at pixel_scale pixels per point.
+# ---------------------------------------------------------------------------
 
-        maker = getattr(Quartz, "CMTimeMake", None) if sys.platform == "darwin" else None
-        if maker is not None:
-            try:
-                return maker(value, timescale)
+class NoNewFrame(TimeoutError):
+    '''The stream is alive but has no unconsumed complete frame.'''
 
-            except Exception:
-                pass
 
-        # kCMTimeFlags_Valid = 1. Layout matches Apple's CMTime (24 bytes).
-        import objc as _objc
-        try:
-            cm_time = _objc.createStructType("CMTime", b"{CMTime=qiIq}", ["value", "timescale", "flags", "epoch"])
-        except Exception:
-            cm_time = _objc.lookUpStructType("CMTime")
-        return cm_time(value, timescale, 1, 0)
+def _source_rect(region, display):
+    x, y, w, h = (region[k] for k in ('left', 'top', 'width', 'height'))
+    dx, dy, dw, dh = display
+    if w <= 0 or h <= 0 or x < dx or y < dy or x + w > dx + dw or y + h > dy + dh:
+        raise ValueError('Capture region must fit inside one display')
+    return (x - dx, y - dy), (w, h)
 
-    else:
-        return 0
 
-def _sck_cf_ptr(value):
-    """Address of a PyObjC opaque pointer (CMSampleBuffer / CVPixelBuffer)."""
-    if sys.platform == "darwin":
-        if value is None:
+def _copy_bgra(buffer, width, height, stride):
+    if width <= 0 or height <= 0 or stride < width * 4:
+        raise ValueError('Invalid BGRA frame dimensions')
+    rows = np.frombuffer(buffer, dtype=np.uint8, count=stride * height).reshape(height, stride)
+    return rows[:, :width * 4].reshape(height, width, 4).copy()
+
+
+def _compatible_pixels(native, reference):
+    '''Startup sanity check: native SCK output must match MSS format.
+
+    Own-process windows are excluded from SCK but not from MSS, so a patch
+    where one overlaps the region can differ; that must NOT send the region
+    to MSS (MSS would then show those windows to detection). A real format
+    mismatch (channel swap, wrong stride) makes nearly every coloured pixel
+    wrong, not a patch.
+    '''
+    if native.shape != reference.shape or native.dtype != np.uint8:
+        return False
+    delta = np.abs(native[::2, ::2, :3].astype(np.int16) - reference[::2, ::2, :3]).max(axis=2)
+    if float(np.quantile(delta, 0.75)) <= 12:
+        return True
+    ref = reference[::2, ::2, :3].astype(np.int16)
+    coloured = ref.max(axis=2) - ref.min(axis=2) >= 30
+    if coloured.mean() < 0.05:
+        return False
+    return float((delta[coloured] <= 12).mean()) >= 0.4
+
+
+class _PendingFrame:
+    '''A delivered SCK sample whose pixels are copied lazily, at most once.'''
+
+    def __init__(self, sample, width, height):
+        self.sample, self.width, self.height = sample, width, height
+        self.pixels = None
+        self.lock = threading.Lock()
+
+    def get(self):
+        if sys.platform != "darwin":
             return 0
+        with self.lock:
+            if self.pixels is None:
+                import Quartz as Q
+                import CoreMedia as CM
+                pixel = CM.CMSampleBufferGetImageBuffer(self.sample)
+                if Q.CVPixelBufferLockBaseAddress(pixel, Q.kCVPixelBufferLock_ReadOnly) != 0:
+                    raise RuntimeError('Could not lock capture pixels')
+                try:
+                    stride = Q.CVPixelBufferGetBytesPerRow(pixel)
+                    base = Q.CVPixelBufferGetBaseAddress(pixel)
+                    self.pixels = _copy_bgra(base.as_buffer(stride * self.height), self.width, self.height, stride)
+                finally:
+                    Q.CVPixelBufferUnlockBaseAddress(pixel, Q.kCVPixelBufferLock_ReadOnly)
+                self.sample = None
+            return self.pixels
 
-        if isinstance(value, int):
-            return value
 
-        try:
-            import objc as _objc
-            raw = _objc.pyobjc_id(value)
-            if raw:
-                return int(raw)
+def _pixels(frame):
+    if isinstance(frame, _PendingFrame):
+        return frame.get()
+    return frame
 
-        except Exception:
-            pass
 
-        for attr in ("pointer", "__pointer__", "ptr"):
-            raw = getattr(value, attr, None)
-            if raw is None:
-                continue
+class _LatestFrame:
+    '''Thread-safe single-slot holder for the newest complete frame.'''
 
-            try:
-                return int(raw)
+    def __init__(self):
+        self.condition = threading.Condition()
+        self.sequence = 0
+        self.frame = None
+        self.timestamp = 0.0
+        self.error = None
+        self.closed = False
 
-            except (TypeError, ValueError):
-                pass
+    def publish(self, frame, timestamp):
+        with self.condition:
+            if self.closed:
+                return
+            self.frame, self.timestamp = frame, timestamp
+            self.sequence += 1
+            self.condition.notify_all()
 
-        try:
-            return int(ctypes.cast(value, ctypes.c_void_p).value or 0)
+    def fail(self, error):
+        with self.condition:
+            self.error = error
+            self.condition.notify_all()
 
-        except Exception:
-            return 0
+    def read(self, after, timeout):
+        with self.condition:
+            self.condition.wait_for(
+                (lambda: self.sequence > after or self.error or self.closed), timeout)
+            if self.error:
+                raise RuntimeError(str(self.error))
+            if self.closed:
+                raise RuntimeError('Capture closed')
+            if self.sequence <= after:
+                raise NoNewFrame('Waiting for a fresh capture frame')
+            sequence, frame, timestamp = self.sequence, self.frame, self.timestamp
+        return sequence, _pixels(frame), timestamp
 
-    else:
-        return 0
+    def close(self):
+        with self.condition:
+            self.closed = True
+            self.frame = None
+            self.condition.notify_all()
 
-def _sck_coremedia():
-    if sys.platform == "darwin":
-        global _SCK_COREMEDIA
-        if _SCK_COREMEDIA is None:
-            lib = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreMedia.framework/CoreMedia")
-            lib.CMSampleBufferGetImageBuffer.argtypes = [ctypes.c_void_p]
-            lib.CMSampleBufferGetImageBuffer.restype = ctypes.c_void_p
-            _SCK_COREMEDIA = lib
-        return _SCK_COREMEDIA
 
-    else:
-        return None
+_receiver_class = None
+_receiver_lock = threading.Lock()
+_EXCLUSION_FAST, _EXCLUSION_SLOW = 0.15, 2.0
+_exclusion_burst_until = 0.0
 
-def _sck_corevideo():
-    if sys.platform == "darwin":
-        global _SCK_COREVIDEO
-        if _SCK_COREVIDEO is None:
-            lib = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreVideo.framework/CoreVideo")
-            lib.CVPixelBufferLockBaseAddress.argtypes = [ctypes.c_void_p, ctypes.c_int]
-            lib.CVPixelBufferLockBaseAddress.restype = ctypes.c_int
-            lib.CVPixelBufferUnlockBaseAddress.argtypes = [ctypes.c_void_p, ctypes.c_int]
-            lib.CVPixelBufferUnlockBaseAddress.restype = ctypes.c_int
-            lib.CVPixelBufferGetWidth.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetWidth.restype = ctypes.c_size_t
-            lib.CVPixelBufferGetHeight.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetHeight.restype = ctypes.c_size_t
-            lib.CVPixelBufferGetBytesPerRow.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetBytesPerRow.restype = ctypes.c_size_t
-            lib.CVPixelBufferGetBaseAddress.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetBaseAddress.restype = ctypes.c_void_p
-            lib.CVPixelBufferGetPixelFormatType.argtypes = [ctypes.c_void_p]
-            lib.CVPixelBufferGetPixelFormatType.restype = ctypes.c_uint32
-            _SCK_COREVIDEO = lib
-        return _SCK_COREVIDEO
 
-    else:
-        return None
+def expect_new_windows(seconds=2.5):
+    '''Call after showing a window that capture must leave out.'''
+    global _exclusion_burst_until
+    _exclusion_burst_until = max(_exclusion_burst_until, time.perf_counter() + seconds)
 
-def _sck_copy_bgra(pixel_addr):
-    """Copy a BGRA CVPixelBuffer by address. Returns a contiguous BGRA array."""
-    if sys.platform == "darwin":
-        cv = _sck_corevideo()
-        if cv.CVPixelBufferLockBaseAddress(pixel_addr, 1) != 0:
-            return None
 
-        try:
-            fmt = int(cv.CVPixelBufferGetPixelFormatType(pixel_addr))
-            if fmt != 0x42475241:
-                return None
+def _receiver_class_factory():
+    if sys.platform != "darwin":
+        return
+    global _receiver_class
+    with _receiver_lock:
+        if _receiver_class is not None:
+            return _receiver_class
+        import objc
+        import ScreenCaptureKit as SCK
+        import CoreMedia as CM
+        import Quartz as Q
+        from Foundation import NSObject
 
-            width = int(cv.CVPixelBufferGetWidth(pixel_addr))
-            height = int(cv.CVPixelBufferGetHeight(pixel_addr))
-            bytes_per_row = int(cv.CVPixelBufferGetBytesPerRow(pixel_addr))
-            base = cv.CVPixelBufferGetBaseAddress(pixel_addr)
-            if not base or width <= 0 or height <= 0 or bytes_per_row < width * 4:
-                return None
-
-            raw = np.frombuffer(ctypes.string_at(base, bytes_per_row * height), dtype=np.uint8).reshape(height, bytes_per_row)
-            return np.ascontiguousarray(raw[:, : width * 4]).reshape(height, width, 4)
-
-        finally:
-            cv.CVPixelBufferUnlockBaseAddress(pixel_addr, 1)
-    return np.empty((1, 1))
-
-def _sck_copy_bgra_pyobjc(image_buffer):
-    """PyObjC CoreVideo path. Base address exposes as_buffer; copy before unlock."""
-    if sys.platform == "darwin":
-        cv = getattr(Quartz, "CoreVideo", None)
-        if cv is None:
-            return None
-
-        width = int(cv.CVPixelBufferGetWidth(image_buffer))
-        height = int(cv.CVPixelBufferGetHeight(image_buffer))
-        bytes_per_row = int(cv.CVPixelBufferGetBytesPerRow(image_buffer))
-        if width <= 0 or height <= 0 or bytes_per_row < width * 4:
-            return None
-
-        cv.CVPixelBufferLockBaseAddress(image_buffer, 0)
-        try:
-            base = cv.CVPixelBufferGetBaseAddress(image_buffer)
-            if base is None or not hasattr(base, "as_buffer"):
-                return None
-
-            raw = np.frombuffer(base.as_buffer(bytes_per_row * height), dtype=np.uint8)
-            raw = raw.reshape(height, bytes_per_row)
-            return np.ascontiguousarray(raw[:, : width * 4]).reshape(height, width, 4)
-
-        finally:
-            cv.CVPixelBufferUnlockBaseAddress(image_buffer, 0)
-    else:
-        return np.empty((1, 1))
-
-def _sck_ci_to_srgb_bgr(image_buffer):
-    """Render a non-BGRA pixel buffer through CoreImage into sRGB BGR."""
-    if sys.platform == "darwin":
-        global _SCK_CI_CONTEXT
-        try:
-            ci_image = Quartz.CIImage.imageWithCVPixelBuffer_(image_buffer)
-        except Exception:
-            ci_image = None
-        if ci_image is None:
-            return None
-
-        try:
-            extent = ci_image.extent()
-            width = int(extent.size.width)
-            height = int(extent.size.height)
-        except Exception:
-            return None
-
-        if width <= 0 or height <= 0:
-            return None
-
-        try:
-            if _SCK_CI_CONTEXT is None:
-                options = {}
-                working = getattr(Quartz, "kCIContextWorkingColorSpace", None)
-                output = getattr(Quartz, "kCIContextOutputColorSpace", None)
-                if working is not None:
-                    options[working] = _QUARTZ_SRGB_COLOR_SPACE
-                if output is not None:
-                    options[output] = _QUARTZ_SRGB_COLOR_SPACE
-                _SCK_CI_CONTEXT = Quartz.CIContext.contextWithOptions_(options or None)
-            cg_image = _SCK_CI_CONTEXT.createCGImage_fromRect_(ci_image, extent)
-        except Exception:
-            return None
-
-        if cg_image is None:
-            return None
-
-        frame = cgimage_to_srgb_numpy(cg_image)
-        if frame is None:
-            return None
-
-        return np.ascontiguousarray(frame)
-
-    return np.empty((1, 1))
-
-def _sck_sample_to_bgr(sample_buffer):
-    """
-    ScreenCaptureKit sample -> contiguous sRGB BGR uint8. 
-    The SCStreamConfiguration is tagged with kCGColorSpaceSRGB, so SCK already performs 
-    Display P3 -> sRGB conversion before handing us the buffer. 
-    The raw BGRA bytes are therefore sRGB and must NOT be run through another ColorSync P3
-    -> sRGB pass (that double-converts greens, e.g. #9BFF9B -> #5CFF8A).
-    """
-    _sck_sample_to_bgr.last_error = None
-    if sys.platform != "darwin" or sample_buffer is None:
-        return None
-
-    try:
-        bgra = None
-        pixel_addr = _sck_coremedia().CMSampleBufferGetImageBuffer(_sck_cf_ptr(sample_buffer))
-        if pixel_addr:
-            bgra = _sck_copy_bgra(pixel_addr)
-        if bgra is None:
-            image_buffer = None
-            try:
-                import CoreMedia
-                image_buffer = CoreMedia.CMSampleBufferGetImageBuffer(sample_buffer)
-            except Exception as exc:
-                _sck_sample_to_bgr.last_error = exc
-                image_buffer = None
-            if image_buffer is not None:
-                bgra = _sck_copy_bgra_pyobjc(image_buffer)
-                if bgra is None:
-                    return _sck_ci_to_srgb_bgr(image_buffer)
-
-        if bgra is None:
-            if _sck_sample_to_bgr.last_error is None:
-                _sck_sample_to_bgr.last_error = "no BGRA image buffer"
-            return None
-
-        # Buffers are already sRGB (SCStreamConfiguration.colorSpaceName was # set to kCGColorSpaceSRGB), so just strip the alpha channel.
-        return np.ascontiguousarray(bgra[:, :, :3])
-
-    except Exception as exc:
-        _sck_sample_to_bgr.last_error = exc
-        return None
-
-_sck_sample_to_bgr.last_error = None
-_SCK_CI_CONTEXT = None
-_SCK_COREMEDIA = None
-_SCK_COREVIDEO = None
-# ScreenCaptureKit
-if sys.platform == "darwin" and _SCK_AVAILABLE:
-    # Register before the class exists so the callback argument is a
-    # CMSampleBuffer, not a generic pointer (that path warns and then # CMSampleBufferGetImageBuffer rejects it).
-    try:
-        objc.registerMetaDataForSelector(
-            b"NSObject",
-            b"stream:didOutputSampleBuffer:ofType:",
-            {
-                "arguments": {
-                    2: {"type": b"@"},
-                    3: {"type": b"^{opaqueCMSampleBuffer=}"},
-                    4: {"type": b"q"},
-                }
-            },
-        )
-    except Exception:
-        pass
-
-    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer")
-    class _SCStreamOutput(NSObject):
-        """
-        Delegate that receives CMSampleBuffers from an SCStream and forwards
-        them to a Python callback. Runs on a ScreenCaptureKit-owned thread.
-        """
-        def initWithCallback_(self, callback):
-            self = objc.super(_SCStreamOutput, self).init()
-            if self is None:
-                return None
-
-            self._callback = callback
-            return self
-
-        def stream_didOutputSampleBuffer_ofType_(self, stream, sample_buffer, output_type):
-            # SCStreamOutputTypeScreen is 0. A NewType wrapper must not drop frames.
-            try:
-                if int(output_type) != int(_SCK_OUTPUT_SCREEN):
+        class _CaptureReceiver(NSObject, protocols=[
+                objc.protocolNamed('SCStreamOutput'),
+                objc.protocolNamed('SCStreamDelegate')]):
+            def stream_didOutputSampleBuffer_ofType_(self, stream, sample, kind):
+                if kind != SCK.SCStreamOutputTypeScreen or self.owner is None:
                     return
+                owner = self.owner
+                try:
+                    attachments = CM.CMSampleBufferGetSampleAttachmentsArray(sample, False)
+                    if not attachments:
+                        return
+                    status = attachments[0].get(SCK.SCStreamFrameInfoStatus)
+                    owner.last_callback = time.perf_counter()
+                    if status == SCK.SCFrameStatusIdle:
+                        owner.last_idle = owner.last_callback
+                        return
+                    if status != SCK.SCFrameStatusComplete:
+                        return
+                    pixel = CM.CMSampleBufferGetImageBuffer(sample)
+                    if pixel is None:
+                        return
+                    if Q.CVPixelBufferGetPixelFormatType(pixel) != Q.kCVPixelFormatType_32BGRA:
+                        raise ValueError('ScreenCaptureKit did not return BGRA')
+                    width, height = Q.CVPixelBufferGetWidth(pixel), Q.CVPixelBufferGetHeight(pixel)
+                    if (width, height) != owner.size:
+                        raise ValueError('ScreenCaptureKit region scale changed')
+                    frame = _PendingFrame(sample, width, height)
+                    now_host = CM.CMTimeGetSeconds(CM.CMClockGetTime(CM.CMClockGetHostTimeClock()))
+                    pts = CM.CMTimeGetSeconds(CM.CMSampleBufferGetPresentationTimeStamp(sample))
+                    age = max(0.0, now_host - pts)
+                    if not np.isfinite(age) or age > 0.25:
+                        return
+                    owner.latest.publish(frame, time.perf_counter() - age)
+                except Exception as exc:
+                    owner.latest.fail(exc)
 
-            except Exception:
-                pass
+            def stream_didStopWithError_(self, stream, error):
+                if self.owner is not None:
+                    self.owner.latest.fail(error)
 
-            try:
-                self._callback(sample_buffer)
-            except Exception:
-                # Never let an exception escape into the ObjC/CoreMedia
-                # callback — it would crash the process.
-                pass
+        _receiver_class = _CaptureReceiver
+        return _receiver_class
 
-    # Without this, PyObjC wraps the callback argument as a generic pointer and
-    # warns "PyObjCPointer created: ... ^{opaqueCMSampleBuffer=}".
+
+def _display_refresh_rate(display_id, fallback=60.0):
+    if sys.platform != "darwin":
+        return 0
+    import Quartz as Q
     try:
-        objc.registerMetaDataForSelector(
-            b"NSObject",
-            b"stream:didOutputSampleBuffer:ofType:",
-            {
-                "arguments": {
-                    2: {"type": b"@"},
-                    3: {"type": b"^{opaqueCMSampleBuffer=}"},
-                    4: {"type": b"q"},
-                }
-            },
-        )
+        mode = Q.CGDisplayCopyDisplayMode(display_id)
+        rate = Q.CGDisplayModeGetRefreshRate(mode) if mode else 0.0
+        if rate and rate > 1:
+            return float(rate)
     except Exception:
         pass
+    try:
+        for screen in AppKit.NSScreen.screens():
+            number = screen.deviceDescription().get('NSScreenNumber')
+            if number is None:
+                continue
+            if int(number) == int(display_id):
+                rate = float(screen.maximumFramesPerSecond())
+                if rate > 1:
+                    return rate
+    except Exception:
+        pass
+    return fallback
 
-    warnings.filterwarnings("ignore", message=r"PyObjCPointer created:.*opaqueCMSampleBuffer")
+
+def _await_completion(operation, timeout=4.0):
+    done = threading.Event()
+    result = []
+
+    def complete(*args):
+        result.extend(args)
+        done.set()
+
+    operation(complete)
+    if not done.wait(timeout):
+        raise TimeoutError('ScreenCaptureKit operation timed out')
+    if result and result[-1] is not None:
+        raise RuntimeError(str(result[-1]))
+    if len(result) > 1:
+        return result[0]
+
+
+_EXCLUDED_WINDOW_TITLES = {'Solar Fishing Live Preview',
+                           'Solar Fishing Live Preview · Bellona 1',
+                           'Solar Fishing Live Preview · Bellona 2'}
+
+
+def _own_process_ids():
+    ids = {os.getpid()}
+    try:
+        import multiprocessing
+        ids.update(child.pid for child in multiprocessing.active_children() if child.pid)
+    except Exception:
+        pass
+    return ids
+
+
+def _excluded_windows(content):
+    own = _own_process_ids()
+    out = []
+    for window in content.windows():
+        app = window.owningApplication()
+        if app is None or int(app.processID()) not in own:
+            if str(window.title() or '') not in _EXCLUDED_WINDOW_TITLES:
+                continue
+        out.append(window)
+    return out
+
+
+class _NativeRegion:
+    '''One SCK stream for one capture region, in Quartz screen points.'''
+
+    def __init__(self, region, fps, pixel_scale=1.0):
+        if sys.platform != "darwin":
+            return
+        import ScreenCaptureKit as SCK
+        import CoreMedia as CM
+        import Quartz as Q
+        self.latest = _LatestFrame()
+        self.sequence = 0
+        self.size = int(region['width'] * pixel_scale), int(region['height'] * pixel_scale)
+        self.last_callback = time.perf_counter()
+        self.last_idle = 0.0
+        self.stream = None
+        self.receiver = None
+        self.filter_generation = 0
+        self._exclusion_inflight = False
+        content = _await_completion(
+            (lambda cb: SCK.SCShareableContent
+                .getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
+                    True, True, cb)))
+        display, crop = None, None
+        for candidate in content.displays():
+            bounds = Q.CGDisplayBounds(candidate.displayID())
+            try:
+                crop = _source_rect(region, (
+                    bounds.origin.x, bounds.origin.y,
+                    bounds.size.width, bounds.size.height))
+                display = candidate
+                break
+            except ValueError:
+                continue
+        if display is None:
+            raise ValueError('Region crosses displays or is outside the desktop')
+        self.refresh_rate = _display_refresh_rate(display.displayID())
+        config = SCK.SCStreamConfiguration.alloc().init()
+        config.setSourceRect_(crop)
+        config.setWidth_(self.size[0])
+        config.setHeight_(self.size[1])
+        config.setPixelFormat_(Q.kCVPixelFormatType_32BGRA)
+        config.setColorSpaceName_(Q.kCGColorSpaceSRGB)
+        config.setShowsCursor_(False)
+        config.setQueueDepth_(3)
+        config.setMinimumFrameInterval_(CM.CMTimeMake(1, self._capture_rate(fps)))
+        self.config, self.fps = config, fps
+        own = _excluded_windows(content)
+        self.display = display
+        self.excluded_ids = {window.windowID() for window in own}
+        self.filter_checked = time.perf_counter()
+        filter_ = SCK.SCContentFilter.alloc().initWithDisplay_excludingWindows_(display, own)
+        self.receiver = _receiver_class_factory().alloc().init()
+        self.receiver.owner = self
+        self.stream = SCK.SCStream.alloc().initWithFilter_configuration_delegate_(
+            filter_, config, self.receiver)
+        try:
+            ok, error = self.stream.addStreamOutput_type_sampleHandlerQueue_error_(
+                self.receiver, SCK.SCStreamOutputTypeScreen, None, None)
+            if not ok:
+                raise RuntimeError(str(error))
+            _await_completion(self.stream.startCaptureWithCompletionHandler_)
+        except Exception:
+            self.close()
+            raise
+
+    def _capture_rate(self, fps):
+        cap = round(self.refresh_rate) or 360
+        return max(1, min(360, int(fps), cap))
+
+    def set_fps(self, fps):
+        if sys.platform != "darwin":
+            return
+        if fps == self.fps:
+            return
+        import CoreMedia as CM
+        self.config.setMinimumFrameInterval_(CM.CMTimeMake(1, self._capture_rate(fps)))
+        _await_completion(
+            (lambda cb: self.stream.updateConfiguration_completionHandler_(self.config, cb)))
+        self.fps = fps
+
+    def refresh_exclusions(self):
+        '''Add windows shown after start (live preview) to the exclusion list.
+        Only one query is in flight at a time so bursts cannot pile up.
+        '''
+        if sys.platform != "darwin":
+            return
+        now = time.perf_counter()
+        interval = _EXCLUSION_FAST if now < _exclusion_burst_until else _EXCLUSION_SLOW
+        if now - getattr(self, 'filter_checked', now) < interval or self.stream is None:
+            return
+        if self._exclusion_inflight:
+            return
+        self._exclusion_inflight = True
+        self.filter_checked = now
+        import ScreenCaptureKit as SCK
+
+        def listed(content, error):
+            self._exclusion_inflight = False
+            if content is None or self.stream is None:
+                return
+            try:
+                windows = _excluded_windows(content)
+            except Exception:
+                return
+            try:
+                ids = {window.windowID() for window in windows}
+                if ids == self.excluded_ids:
+                    return
+                self.excluded_ids = ids
+                filter_ = SCK.SCContentFilter.alloc().initWithDisplay_excludingWindows_(
+                    self.display, windows)
+                self.stream.updateContentFilter_completionHandler_(filter_, None)
+                self.filter_generation += 1
+            except Exception:
+                return
+
+        SCK.SCShareableContent.getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
+            True, True, listed)
+
+    def grab(self, wait=True):
+        self.refresh_exclusions()
+        try:
+            timeout = 3.0 if not self.sequence else 0.1 if wait else 0.0
+            self.sequence, frame, stamp = self.latest.read(self.sequence, timeout)
+        except NoNewFrame:
+            if not self.sequence or time.perf_counter() - self.last_callback > 5:
+                raise RuntimeError('ScreenCaptureKit stopped delivering frames')
+            still = self.latest.frame
+            if still is not None and time.perf_counter() - self.last_idle <= 0.25:
+                return _pixels(still), self.last_idle
+            raise
+        if time.perf_counter() - stamp > 0.25:
+            raise NoNewFrame('Discarded stale frame')
+        return frame, stamp
+
+    def close(self):
+        self.latest.close()
+        if self.stream is not None:
+            try:
+                _await_completion(self.stream.stopCaptureWithCompletionHandler_, timeout=1.0)
+            except Exception:
+                pass
+        if self.receiver is not None:
+            self.receiver.owner = None
+        self.stream = self.receiver = None
+
+
+class _RegionCapture:
+    '''Worker-owned region streams with MSS fallback.'''
+
+    def __init__(self, fps=240, log=print, pixel_scale=1.0):
+        if sys.platform != "darwin":
+            return
+        self.fps = fps
+        self.log = log
+        self.pixel_scale = pixel_scale
+        self.fallback = None
+        self.regions = OrderedDict() if 'OrderedDict' in globals() else {}
+        self.timestamp = 0.0
+        self.backend = None
+        self.preference = 'ScreenCaptureKit'
+
+    def set_backend(self, preference):
+        if preference not in ('ScreenCaptureKit', 'MSS'):
+            raise ValueError('Unknown capture backend')
+        if preference == self.preference:
+            return
+        for native in self.regions.values():
+            if native is not None:
+                native.close()
+        self.regions.clear()
+        self.preference = preference
+        self.log(f'>>> CAPTURE: selected {preference}')
+
+    def _mss(self):
+        if self.fallback is None:
+            self.fallback = MSS()
+        return self.fallback
+
+    def set_fps(self, fps):
+        self.fps = fps
+        for key, native in list(self.regions.items()):
+            if native is not None:
+                try:
+                    native.set_fps(fps)
+                except Exception as exc:
+                    native.close()
+                    self.regions[key] = None
+                    self.log(f'>>> CAPTURE: rate update failed; using MSS ({exc})')
+                    continue
+
+    def grab(self, region, wait=True):
+        if self.preference == 'MSS':
+            frame = np.asarray(self._mss().grab(region))
+            self.timestamp, self.backend = time.perf_counter(), 'MSS'
+            return frame
+        key = tuple(int(region[k]) for k in ('left', 'top', 'width', 'height'))
+        if key not in self.regions:
+            if len(self.regions) >= 2:
+                _, old = self.regions.popitem(last=False)
+                if old is not None:
+                    old.close()
+            native = None
+            try:
+                native = _NativeRegion(region, self.fps, pixel_scale=self.pixel_scale)
+                frame, stamp = native.grab()
+                for attempt in range(3):
+                    try:
+                        reference = np.asarray(self._mss().grab(region))
+                    except Exception as exc:
+                        self.log(f'>>> CAPTURE: MSS comparison unavailable ({exc}); using native format checks')
+                        break
+                    if _compatible_pixels(frame, reference):
+                        break
+                    if attempt == 2:
+                        raise ValueError('RGB/Retina comparison differed from MSS')
+                    try:
+                        frame, stamp = native.grab()
+                    except NoNewFrame:
+                        continue
+                    except Exception:
+                        raise
+            except Exception as exc:
+                if native is not None:
+                    native.close()
+                self.regions[key] = None
+                self.log(f'>>> CAPTURE: using MSS fallback ({exc})')
+                frame = np.asarray(self._mss().grab(region))
+                self.timestamp, self.backend = time.perf_counter(), 'MSS'
+                return frame
+            self.regions[key] = native
+            self.timestamp, self.backend = stamp, 'ScreenCaptureKit'
+            self.log('>>> CAPTURE: ScreenCaptureKit region ready (BGRA)')
+            refresh_rate = getattr(native, 'refresh_rate', None)
+            if isinstance(refresh_rate, (int, float)) and self.fps > refresh_rate:
+                self.log(f'>>> CAPTURE: capturing at {round(refresh_rate)} fps '
+                         f'(display refresh) instead of {self.fps}')
+            return frame
+        native = self.regions[key]
+        try:
+            self.regions.move_to_end(key)
+        except AttributeError:
+            pass
+        if native is not None:
+            try:
+                native.set_fps(self.fps)
+                frame, self.timestamp = native.grab(wait=wait)
+                self.backend = 'ScreenCaptureKit'
+                return frame
+            except NoNewFrame:
+                raise
+            except Exception as exc:
+                native.close()
+                self.regions[key] = None
+                self.log(f'>>> CAPTURE: stream failed; using MSS ({exc})')
+        frame = np.asarray(self._mss().grab(region))
+        self.timestamp, self.backend = time.perf_counter(), 'MSS'
+        return frame
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        for native in self.regions.values():
+            if native is not None:
+                native.close()
+        self.regions.clear()
+        if self.fallback is not None:
+            self.fallback.close()
+            self.fallback = None
+
+# ---------------------------------------------------------------------------
+# Noiseform bar/fish detection (ported from DeepFish BETA v1.1.7)
+#
+# Noiseform's bar is a see-through box, so its fill takes the colour of
+# whatever is behind it and no bar colour can be matched. Like DeepFish, we
+# find it by shape instead: its two thin black borders and the black
+# arrowheads just inside them. The fish is a dark green line with a bright
+# green glow on both sides.
+#
+# This is a drop-in replacement for the old _detect_Noiseform_* helpers.
+# It only finds bar_left_x / bar_right_x / target_middle_x; the existing
+# minigame loop, controllers, overlay and profiles are untouched.
+# ---------------------------------------------------------------------------
+
+def _Noiseform_runs(flags):
+    padded = np.concatenate(([False], flags, [False])).astype(np.int8)
+    step = np.diff(padded)
+    return zip(np.flatnonzero(step == 1), np.flatnonzero(step == -1))
+
+
+class NoiseformDetector:
+    """Finds Noiseform's bar (by shape) and fish (by colour + glow).
+
+    Ported from DeepFish BETA v1.1.7._NoiseformDetector. Public surface is
+    deliberately the same as the old helpers: ``detect(frame, ...)``
+    returns a dict with ``target_line_x``, ``target_left_x``,
+    ``target_right_x``, ``target_middle_x``, ``bar_left_x``,
+    ``bar_right_x`` (any may be None). ``band``/``width`` are exposed for
+    callers that want to know whether the track was found.
+    """
+
+    DARK = 16
+    LINE_DARK = 50
+    RELEARN_FRAMES = 3
+    BAND_RECHECK = 6
+    FORGET_AFTER = 1.5
+    STILL_JITTER = 0.002
+    INSET_RATIO = 0.111
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.width = None
+        self.inset = None
+        self.center = None
+        self.fish = None
+        self.caps = None
+        self.band = None
+        self._misses = 0
+        self._last_seen = None
+        self._dt = None
+        self._pending = None
+        self._pending_count = 0
+        self._shown_left = None
+        self._shown_width = None
+
+    @staticmethod
+    def _level(frame):
+        """Brightest channel of each pixel (faster than np.max over axis=2)."""
+        b, g, r = cv2.split(np.ascontiguousarray(frame[..., :3]))
+        return cv2.max(cv2.max(b, g), r)
+
+    @classmethod
+    def _dark(cls, frame):
+        """Pixels that are border black (DARK) or near-black lines (LINE_DARK)."""
+        level = cls._level(frame).astype(np.int16)
+        padded = np.pad(level, ((0, 0), (3, 3)), mode='edge')
+        around = np.minimum(padded[:, :-6], padded[:, 6:])
+        return (level <= cls.DARK) | (level <= cls.LINE_DARK) & (level * 2 <= around)
+
+    def edges(self, frame):
+        """Centres of thin near-black columns: (bar borders, arrowhead tips)."""
+        width = frame.shape[1]
+        fill = self._dark(frame).mean(axis=0)
+        thin = max(3, round(width * 0.008) + 2)
+        runs = []
+        for start, end in _Noiseform_runs(fill >= 0.25):
+            if start == 0 or end == width:
+                continue
+            if runs and start - runs[-1][1] <= 3:
+                prev = runs.pop()
+                start = prev[0]
+            runs.append((start, end))
+        runs = [(s_, e_, float(fill[s_:e_].max())) for s_, e_ in runs]
+        tallest = max((f for s_, e_, f in runs if e_ - s_ <= thin), default=0.0)
+        if tallest < 0.35:
+            return [], []
+        borders, arrows = [], []
+        for start, end, height in runs:
+            centre = (start + end - 1) / 2.0
+            if end - start <= thin and height >= tallest * 0.94:
+                borders.append(centre)
+            elif end - start <= thin * 2.5 and height >= tallest * 0.25:
+                arrows.append(centre)
+        return borders, arrows
+
+    @staticmethod
+    def track_band(frame):
+        """Rows of the track, from the longest unbroken black column run."""
+        dark = NoiseformDetector._dark(frame)
+        height, width = dark.shape
+        run = np.zeros(width, np.int32)
+        best = np.zeros(width, np.int32)
+        bottom = np.zeros(width, np.int32)
+        for y in range(height):
+            run = np.where(dark[y], run + 1, 0)
+            longer = run > best
+            best = np.where(longer, run, best)
+            bottom = np.where(longer, y + 1, bottom)
+        thin = max(3, round(width * 0.008) + 2)
+        padded = np.pad(best, thin)
+        beside = np.maximum(padded[:width], padded[2 * thin:])
+        score = np.where(beside * 2 <= best, best, 0)
+        x = int(score.argmax())
+        if score[x] < max(6, height * 0.2):
+            return None
+        return int(bottom[x] - best[x]), int(bottom[x])
+
+    @classmethod
+    def _signatures(cls, borders, arrows, width, tol):
+        found = []
+        for i, left in enumerate(borders):
+            for right in borders[i + 1:]:
+                bar = right - left
+                if not width * 0.12 <= bar <= width * 0.7:
+                    continue
+                expected = bar * cls.INSET_RATIO
+                insets = [x - left for x in arrows if abs(x - left - expected) <= max(tol, bar * 0.04)]
+                insets += [right - x for x in arrows if abs(right - x - expected) <= max(tol, bar * 0.04)]
+                if insets:
+                    found.append((left, bar, sum(insets) / len(insets), len(insets)))
+        found.sort(key=(lambda s: -s[3]))
+        return found
+
+    def _fit(self, borders, arrows, tol):
+        step = self.width * max(0.25, 3 * (self._dt or 0))
+        roles = (0, borders), (self.inset, arrows), (self.width - self.inset, arrows), (self.width, borders)
+        best = None
+        for offset, pool in roles:
+            for edge in pool:
+                left = edge - offset
+                matched = []
+                for o, candidates in roles:
+                    if candidates:
+                        near = min(candidates, key=(lambda x: abs(x - (left + o))))
+                        if abs(near - (left + o)) <= tol:
+                            matched.append(near - o)
+                left = sum(matched) / len(matched)
+                drift = abs(left + self.width / 2.0 - self.center) if self.center is not None else 0
+                key = len(matched) - drift / step, len(matched)
+                if best is None or key > best[0]:
+                    best = key, left, len(matched), drift
+        if best is None:
+            return None, 0
+        _, left, votes, drift = best
+        if votes < 4 and drift > step * 2:
+            return None, 0
+        return left, votes
+
+    def _bar(self, frame):
+        width = frame.shape[1]
+        tol = max(3, round(width * 0.006))
+        borders, arrows = self.edges(frame)
+        if len(borders) >= 4 and borders[-1] - borders[0] > width * 0.75:
+            self.caps = borders[0], borders[-1]
+        if self.caps is not None:
+            near = max(1.0, width * 0.002)
+            borders = [b for b in borders if min((abs(b - c) for c in self.caps)) > near]
+        signatures = self._signatures(borders, arrows, width, tol)
+        if self.width is None:
+            if signatures and signatures[0][3] == 2:
+                left, self.width, self.inset = signatures[0][:3]
+                self._pending, self._pending_count = None, 0
+                return left
+            pairs = list(enumerate(borders))
+            if len(pairs) != 1 and not signatures:
+                self._pending, self._pending_count = None, 0
+                return None
+            left, size = pairs[0]
+            if self._pending is not None and abs(size - self._pending) <= tol:
+                self._pending_count += 1
+            else:
+                self._pending, self._pending_count = size, 1
+            if self._pending_count < self.RELEARN_FRAMES:
+                return None
+            self.width, self.inset = size, size * self.INSET_RATIO
+            self._pending, self._pending_count = None, 0
+            return left
+        left, votes = self._fit(borders, arrows, tol)
+        if votes >= 4:
+            for s_left, s_width, s_inset, _ in signatures:
+                if abs(s_left - left) <= tol and abs(s_width - self.width) <= tol:
+                    self.width += (s_width - self.width) * 0.2
+                    self.inset += (s_inset - self.inset) * 0.2
+                    break
+        if votes < 4 and signatures:
+            other = [s for s in signatures if abs(s[1] - self.width) > tol]
+            if other:
+                if self.center is not None:
+                    other.sort(key=(lambda s: (-s[3], abs(s[0] + s[1] / 2.0 - self.center))))
+                size = other[0][1]
+                if self._pending is not None and abs(size - self._pending) <= tol:
+                    self._pending_count += 1
+                else:
+                    self._pending, self._pending_count = size, 1
+                if self._pending_count >= self.RELEARN_FRAMES:
+                    left, self.width, self.inset = other[0][:3]
+                    self._pending, self._pending_count = None, 0
+                    return left
+        if left is not None and (left < -tol or left + self.width > width + tol):
+            return None
+        near_last = left is not None and self.center is not None and abs(left + self.width / 2.0 - self.center) <= self.width * 0.25
+        if votes >= 2 or votes == 1 and near_last:
+            return left
+        return None
+
+    @staticmethod
+    def _fish_candidates(frame, fish_colors, fish_tol, band=None):
+        """(left, right, score) of columns that look like the fish line."""
+        top, bottom = band if band is not None else (0, frame.shape[0])
+        f = frame.astype(np.int16)
+        blue, green, red = f[(..., 0)], f[(..., 1)], f[(..., 2)]
+        core = (green >= 25) & (green <= 100) & (red <= 80) & (blue <= 100)
+        for color in fish_colors or ():
+            core |= (np.abs(blue - color[0]) <= fish_tol) & (np.abs(green - color[1]) <= fish_tol) & (np.abs(red - color[2]) <= fish_tol)
+        glow = np.where((green >= 140) & (green - red >= 70), green, 0)
+        width = frame.shape[1]
+        reach = max(4, round(width * 0.015))
+        left_glow = np.zeros_like(glow)
+        right_glow = np.zeros_like(glow)
+        for d in range(1, reach + 1):
+            left_glow[:, d:] = np.maximum(left_glow[:, d:], glow[:, :-d])
+            right_glow[:, :-d] = np.maximum(right_glow[:, :-d], glow[:, d:])
+        fishy = core & (np.minimum(left_glow, right_glow) - green >= 80)
+        share = fishy[top:bottom].mean(axis=0)
+        reach_out = max(1, round((bottom - top) * 0.3))
+        outside = np.vstack([fishy[max(0, top - reach_out):top], fishy[bottom:bottom + reach_out]])
+        narrowest = max(2, round(width * 0.0025))
+        widest = max(8, round(width * 0.028))
+        if len(outside) >= 3:
+            cap = outside.mean(axis=0)
+            keep = (share >= 0.6) | (share >= 0.1) & (cap >= 0.8) | (share >= 0.3) & (cap >= 0.3)
+        else:
+            cap = np.zeros(width)
+            keep = share >= 0.3
+        found = []
+        for start, end in _Noiseform_runs(keep):
+            if narrowest <= end - start <= widest and start > 0 and end < width:
+                found.append((start, end - 1, float(share[start:end].max() + cap[start:end].max())))
+        return found
+
+    def detect(self, frame, fish_colors=None, fish_tol=0, now=None):
+        result = {'target_line_x': None, 'target_left_x': None, 'target_right_x': None,
+                  'target_middle_x': None, 'bar_left_x': None, 'bar_right_x': None,
+                  'source': 'Noiseform'}
+        if now is not None and self._last_seen is not None and now - self._last_seen > self.FORGET_AFTER:
+            self.reset()
+        self._dt = now - self._last_seen if now is not None and self._last_seen is not None else None
+        band = self.band
+        fresh = self.track_band(frame)
+        if fresh is not None and (band is None or self._misses >= self.BAND_RECHECK or
+                                  min(fresh[1], band[1]) - max(fresh[0], band[0]) >= (band[1] - band[0]) * 0.5):
+            band = fresh
+        if band is None:
+            return result
+        edge_rows = (self._level(frame[max(0, band[0] - 3):band[1]]) <= 40).astype(np.uint8)
+        need = max(2, int(frame.shape[1] * 0.12))
+        if not cv2.erode(edge_rows, np.ones((1, need), np.uint8),
+                         borderType=cv2.BORDER_CONSTANT, borderValue=0).any():
+            self._misses += 1
+            return result
+        full = frame
+        frame = frame[band[0]:band[1]]
+        left = self._bar(frame)
+        if left is not None:
+            previous = self._shown_left
+            if previous is not None and abs(left - previous) <= max(1.0, frame.shape[1] * self.STILL_JITTER) and self._shown_width == self.width:
+                left = previous
+            self._shown_left, self._shown_width = left, self.width
+            result['bar_left_x'] = int(round(left))
+            result['bar_right_x'] = int(round(left + self.width))
+            self.center = left + self.width / 2.0
+            self.band = band
+            self._misses = 0
+            if now is not None:
+                self._last_seen = now
+        else:
+            self._misses += 1
+        found = self._fish_candidates(full, fish_colors, fish_tol, band)
+        if found and left is not None:
+            near = max(3, frame.shape[1] * 0.006)
+            edges = left, left + self.width
+            found = [f for f in found if min((abs((f[0] + f[1]) / 2.0 - e) for e in edges)) > near]
+        if found:
+            width = frame.shape[1]
+            last = self.fish
+            pick = max(found, key=(lambda f: f[2] - (abs((f[0] + f[1]) / 2.0 - last) / width * 6 if last is None else 0)))
+            middle = (pick[0] + pick[1]) // 2
+            self.fish = middle
+            result.update(target_left_x=int(pick[0]), target_right_x=int(pick[1]),
+                          target_middle_x=int(middle), target_line_x=int(middle))
+        return result
+
 # Validate Tesseract Path
 def get_tesseract_path(configured_path=None):
     """
@@ -1042,7 +1577,7 @@ AREA_CONFIG = {
         "label": "Sovereign Box (Bar)",
         "default": {"x": 0.2844, "y": 0.8515, "width": 0.4297, "height": 0.0192},
     },
-    "noiseform": {
+    "Noiseform": {
         "color": "#ff9b00",
         "label": "Noiseform Box (Shapes)",
         "default": {"x": 0.4222, "y": 0.3686, "width": 0.2056, "height": 0.2873},
@@ -1257,7 +1792,7 @@ class AreaSelector:
             if data["sovereign_recharge"] == True:
                 visible_areas.append("sovereign")
             if fishing_profile == "shapes":
-                visible_areas.append("noiseform")
+                visible_areas.append("Noiseform")
             elif fishing_profile == "metronome":
                 visible_areas.append("lullaby")
         elif automation_mode == "appraisal":
@@ -2523,6 +3058,7 @@ class Api:
         self.status_overlay = StatusOverlay(self)
         self.point_select = PointSelect(self)
         self.tos_dialogue = TermsOfServiceDialogue(self)
+        self.noiseform_detector = NoiseformDetector()
         # Safe Defaults Before Key Listener Starts (Will Be Overwritten By Load_Misc_Settings)
         self.js_version_info = {}
         scale = get_scale_factor()
@@ -2865,6 +3401,10 @@ class Api:
             return {"success": False, "error": str(exc)}
 
     def get_last_config(self):
+        if getattr(self, "current_config", None):
+            return self.current_config
+        if isinstance(getattr(self, "misc_settings", None), dict) and self.misc_settings.get("last_config"):
+            return self.misc_settings["last_config"]
         try:
             if os.path.exists(LAST_CONFIG):
                 with open(LAST_CONFIG, "r", encoding="utf-8") as file:
@@ -2881,6 +3421,10 @@ class Api:
         config_name = self._safe_config_name(config_name)
         if not config_name:
             return False
+
+        self.current_config = config_name
+        if isinstance(getattr(self, "misc_settings", None), dict):
+            self.misc_settings["last_config"] = config_name
 
         try:
             data = {}
@@ -3075,7 +3619,15 @@ class Api:
                 return {"success": False, "error": "Settings must be an object."}
 
             if not file_name:
-                file_name = self.get_last_config() or "Default"
+                try:
+                    js_name = window.evaluate_js("typeof selectedConfigName === 'function' ? selectedConfigName() : (document.getElementById('config_list') ? document.getElementById('config_list').value : null)")
+                    if isinstance(js_name, str) and js_name.strip():
+                        file_name = js_name.strip()
+                except Exception:
+                    pass
+
+            if not file_name:
+                file_name = getattr(self, "current_config", None) or self.get_last_config() or "Default"
             # Prefer an exact/safe match for creation of new configs.
             # resolve_config_name falls back to an existing config when the name is new.
             safe_name = self._safe_config_name(file_name)
@@ -3302,6 +3854,10 @@ class Api:
         self.misc_settings["stop_key"] = self.vars.get("stop_key", "F7")
         # Terms of Service
         self.misc_settings["tos_accepted"] = bool(getattr(self, "tos_accepted", self.misc_settings.get("tos_accepted", False)))
+        # Keep last_config synchronized
+        current = getattr(self, "current_config", None)
+        if current:
+            self.misc_settings["last_config"] = self._safe_config_name(current)
         with open(path, "w") as f:
             json.dump(self.misc_settings, f, indent=4)
     def _settings_for_vars(self, settings):
@@ -3336,18 +3892,17 @@ class Api:
                 "error": str(e)
             }
     def get_python_version_info(self):
-        """Return the Python backend's app version, beta version, developer, and VERSION_ID."""
+        """Return the Python backend's app version, beta version, and developer."""
         return {
 
             "app_version": APP_VERSION,
             "beta_version": BETA_VERSION,
-            "developer": DEVELOPER,
-            "version_id": VERSION_ID
+            "developer": DEVELOPER
         }
     def get_js_version_info(self):
-        """Retrieve the JS app version, beta version, developer name, and VERSION_ID via evaluate_js."""
+        """Retrieve the JS app version, beta version, and developer name via evaluate_js."""
         try:
-            result = window.evaluate_js("({ app_version: window.APP_VERSION || null, beta_version: window.BETA_VERSION || null, developer: window.DEVELOPER || null, version_id: window.VERSION_ID || null })")
+            result = window.evaluate_js("({ app_version: window.APP_VERSION || null, beta_version: window.BETA_VERSION || null, developer: window.DEVELOPER || null })")
             if isinstance(result, dict):
                 return result
 
@@ -3364,8 +3919,7 @@ class Api:
 
                 "app_version": None,
                 "beta_version": None,
-                "developer": None,
-                "version_id": None
+                "developer": None
             }
         except Exception as e:
             return {
@@ -3373,43 +3927,25 @@ class Api:
                 "app_version": None,
                 "beta_version": None,
                 "developer": None,
-                "version_id": None,
                 "error": str(e)
             }
     def check_setup_guide(self):
         try:
             output = self.get_js_version_info()
-            app_version = float(output["app_version"])
+            app_version = output["app_version"]
             beta_version = int(output["beta_version"])
             developer = output["developer"]
-            version_id = int(output["version_id"])
             result = None
             local_gui = False
-            if float(app_version) > float(APP_VERSION):
+            version_comparison = _compare_versions(app_version, APP_VERSION)
+            if version_comparison > 0:
                 result = self.message_box_javascript(f"A new version of Solar Fishing is available: {app_version}.\nYou have {APP_VERSION}, do you want to update?", "askyesno")
-            elif float(app_version) < float(APP_VERSION):
+            elif version_comparison < 0:
                 local_gui = True
             if float(BETA_VERSION) != 0:
                 local_gui = True
             if developer != DEVELOPER:
                 result = self.message_box_javascript(f"""You tried to download an unauthorized version of Solar Fishing. Please take actions against {developer} and download the official version. Do you want to download the official version?""", "askyesno")
-            # VERSION_ID comparison:
-            # - JS higher than Python: notify only (do not reload / fall back)
-            # - JS lower than Python: fall back to local GUI
-            try:
-                js_vid = int(version_id)
-                py_vid = int(VERSION_ID)
-            except (TypeError, ValueError):
-                js_vid = None
-                py_vid = int(VERSION_ID)
-            if js_vid is not None and js_vid > py_vid:
-                # JS is newer than this Python build — inform the user, stay on current page
-                result = self.message_box_javascript(f"Your Solar Fishing installation is broken. Do you want to reinstall Solar Fishing?", "askyesno")
-            elif js_vid is None or js_vid < py_vid:
-                # JS is missing or older — fall back to local GUI
-                local_gui = True
-            elif js_vid == py_vid:
-                local_gui = False
             if result != None:
                 if result == True:
                     _ = self.open_link("https://drive.google.com/drive/folders/1cVzOE6zW7JTzFbjXMVK8wklH1-ExhCUo")
@@ -4289,18 +4825,20 @@ class Api:
             self.capture_frame = self._normalize_capture_size(frame)
             self.capture_id += 1
             time.sleep(self.scan_delay)
-    def _build_sck_stream(self, display):
-        """Create an SCStream the same way the working ScreenCaptureKit probe does.
-        Pixel size comes from the SCDisplay (pixels), not SCREEN_WIDTH * scale —
-        a doubled Retina size starts cleanly and then never delivers a frame.
-        We explicitly tag the stream as sRGB via colorSpaceName so SCK performs
-        Display P3 -> sRGB conversion for us, matching what Quartz/MSS return.
-        Without this, the raw BGRA buffer is untagged (effectively Display P3 on modern Macs) and running a second P3 -> sRGB ColorSync pass on it
-        over-converts greens (e.g. #9BFF9B -> #5CFF8A).
+    def _build_sck_stream(self, display, excluded_windows=None):
+        """Create an SCStream.
+
+        Optimizations ported from someone else's pull request using Claude Code:
+        - colorSpaceName = kCGColorSpaceSRGB (SCK does P3→sRGB)
+        - minimumFrameInterval capped to the display's real refresh rate
+        - queueDepth = 3
+        - optional exclusion of own-process windows
         """
         if sys.platform == "darwin":
+            if excluded_windows is None:
+                excluded_windows = []
             content_filter = SCContentFilter.alloc().initWithDisplay_excludingWindows_(
-                display, []
+                display, excluded_windows
             )
             config = SCStreamConfiguration.alloc().init()
             try:
@@ -4318,23 +4856,29 @@ class Api:
             config.setPixelFormat_(0x42475241)
             config.setShowsCursor_(False)
             try:
-                # 60 FPS -> interval = 1/60 s. CMTimeMake(1, 60).
-                config.setMinimumFrameInterval_(_cm_time_make(1, 60))
+                config.setQueueDepth_(3)
             except Exception:
                 pass
-
+            # Cap FPS to the display's real refresh rate (ProMotion / VRR aware).
+            try:
+                display_id = display.displayID()
+                refresh = _sck_display_refresh_rate(display_id, fallback=60.0)
+                fps = max(1, min(360, int(round(refresh)) or 60))
+                config.setMinimumFrameInterval_(_cm_time_make(1, fps))
+            except Exception:
+                try:
+                    config.setMinimumFrameInterval_(_cm_time_make(1, 60))
+                except Exception:
+                    pass
             # Ask SCK to deliver sRGB. This makes the CVPixelBuffer carry an
             # sRGB-tagged color space, and SCK does the P3 -> sRGB transform
-            # internally, so the bytes we receive are already sRGB (matching # MSS/Quartz). 
-            # If we leave this unset, the buffer is untagged and
-            # _sck_sample_to_bgr's ColorSync P3->sRGB pass double-converts.
+            # internally, so the bytes we receive are already sRGB (matching MSS/Quartz).
+            # If we leave this unset, the buffer is untagged and a later ColorSync
+            # P3->sRGB pass would double-convert.
             try:
                 from Foundation import NSString
-                # kCGColorSpaceSRGB is the CFString constant name CoreGraphics
-                # uses for the sRGB color space.
                 config.setColorSpaceName_("kCGColorSpaceSRGB")
             except Exception:
-                # Some PyObjC builds want the raw CFString value instead.
                 try:
                     config.setColorSpaceName_(Quartz.kCGColorSpaceSRGB)
                 except Exception:
@@ -4346,183 +4890,54 @@ class Api:
                 content_filter, config, None
             )
             return stream
-
         else:
             print("ScreenCaptureKit activated on windows, stopping.")
             raise RuntimeError("ScreenCaptureKit is not supported on Windows")
 
     def capture_loop_screencapturekit(self):
+        """Continuous capture via _RegionCapture (ScreenCaptureKit + MSS fallback).
+        Publishes self.capture_frame / self.capture_id for the macro to read.
         """
-        Continuous capture loop using ScreenCaptureKit (macOS 12.3+).
-        Falls back to capture_loop_quartz if SCK is unavailable, fails to
-        start, or produces no frames within a short grace period.
-        """
-        if sys.platform == "darwin":
-            if not _SCK_AVAILABLE:
-                return self.capture_loop_quartz()
+        if sys.platform != "darwin":
+            raise RuntimeError("ScreenCaptureKit is not supported on Windows")
+        if not _SCK_AVAILABLE:
+            return self.capture_loop_quartz()
+        if not self.macro_running:
+            return
 
-            if not self.macro_running:
-                return
+        scale = get_scale_factor() or 1.0
+        # region is in Quartz points (SCREEN_WIDTH/HEIGHT are points on macOS);
+        # pixel_scale makes SCK emit physical pixels to match get_areas().
+        region = {"left": 0, "top": 0,
+                "width": int(SCREEN_WIDTH), "height": int(SCREEN_HEIGHT)}
 
-            # 1. Resolve the primary display 
-            display_holder = {"display": None, "error": None}
-            done = threading.Event()
-            def _content_handler(content, error):
-                try:
-                    if error:
-                        display_holder["error"] = error
-                    elif content is None:
-                        display_holder["error"] = "no shareable content"
-                    else:
-                        displays = content.displays()
-                        if displays and len(displays) > 0:
-                            display_holder["display"] = displays[0]
-                        else:
-                            display_holder["error"] = "no displays"
-                finally:
-                    done.set()
-            SCShareableContent.getShareableContentWithCompletionHandler_(_content_handler)
-            # Pump the run loop while we wait (do NOT block on Event.wait here).
-            deadline = time.time() + 5.0
-            while not done.is_set() and time.time() < deadline:
-                if not self.macro_running:
-                    return
-
-                try:
-                    NSRunLoop.currentRunLoop().runUntilDate_(
-                        NSDate.dateWithTimeIntervalSinceNow_(0.05)
-                    )
-                except Exception:
-                    time.sleep(0.05)
-            display = display_holder.get("display")
-            if display is None:
-                err = display_holder.get("error")
-                self.set_status(f"ScreenCaptureKit unavailable ({err}); using Quartz")
-                print(f"ScreenCaptureKit Error\n{err}")
-                return self.capture_loop_quartz()
-
-            #  Sample callback (runs on SCK's dispatch queue) 
-            self._sck_sample_count = 0
-            self._sck_convert_fail = 0
-            def _on_sample(sample_buffer):
-                if not self.macro_running:
-                    return
-
-                self._sck_sample_count += 1
-                try:
-                    frame = _sck_sample_to_bgr(sample_buffer)
-                except Exception as exc:
-                    self._sck_convert_fail += 1
-                    self.set_status(f"ScreenCaptureKit sample conversion failed: {exc}")
-                    print("ScreenCaptureKit sample conversion error:\n", traceback.format_exc())
-                    return
-
-                if frame is None:
-                    self._sck_convert_fail += 1
-                    return
-
+        capture = _RegionCapture(fps=60, log=lambda m: None, pixel_scale=scale)
+        self._region_capture = capture
+        try:
+            try:
+                frame, _ = capture.grab(region, wait=True)
                 self.capture_frame = self._normalize_capture_size(frame)
-                self.capture_id = self.capture_id + 1
-            output = _SCStreamOutput.alloc().initWithCallback_(_on_sample)
-            self._sck_output = output  # keep the delegate alive
-            # 2. Create + configure the stream
-            try:
-                stream = self._build_sck_stream(display)
-                self._sck_stream = stream
-                added = stream.addStreamOutput_type_sampleHandlerQueue_error_(
-                    output,
-                    _SCK_OUTPUT_SCREEN,
-                    None,  # None = SCK-managed queue (same as the working probe)
-                    None,
-                )
-                add_error = None
-                if isinstance(added, tuple):
-                    add_ok = added[0]
-                    add_error = added[1] if len(added) > 1 else None
-                else:
-                    add_ok = added
-                # BOOL methods return True. None is success on builds that drop the error out-param.
-                if add_ok is False or add_error:
-                    raise RuntimeError(f"addStreamOutput failed: {add_error or add_ok}")
-
-            except Exception as e:
-                self.set_status(f"ScreenCaptureKit setup failed: {e}; using Quartz")
-                print("ScreenCaptureKit setup failed:\n", traceback.format_exc())
+                self.capture_id += 1
+            except Exception as exc:
+                self.set_status(f"ScreenCaptureKit unavailable ({exc}); using Quartz")
                 return self.capture_loop_quartz()
 
-            # 3. Start and pump the run loop while waiting
-            started = threading.Event()
-            start_error = {"error": None}
-            def _start_handler(error):
-                start_error["error"] = error
-                started.set()
-            try:
-                stream.startCaptureWithCompletionHandler_(_start_handler)
-            except Exception as e:
-                self.set_status(f"ScreenCaptureKit start raised: {e}; using Quartz")
-                print("ScreenCaptureKit start raised:\n", traceback.format_exc())
-                return self.capture_loop_quartz()
-
-            start_deadline = time.time() + 5.0
-            while (self.macro_running and not started.is_set() and time.time() < start_deadline):
-                try:
-                    NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.05))
-                except Exception:
-                    time.sleep(0.05)
-            if not started.is_set() or start_error["error"] is not None:
-                self.set_status(f"ScreenCaptureKit start failed " f"({start_error['error']}); using Quartz")
-                print("ScreenCaptureKit start raised:\n", start_error['error'])
-                try:
-                    stream.stopCaptureWithCompletionHandler_(lambda e: None)
-                except Exception:
-                    pass
-
-                return self.capture_loop_quartz()
-
-            # 4. Wait for the FIRST frame 
-            # If the delegate never fires (permissions, bad format, blocked # queue), capture_frame stays None forever. Detect that and fall
-            # back so the user doesn't get a silently dead macro.
-            first_frame_deadline = time.time() + 3.0
-            while (self.macro_running and self.capture_frame is None and time.time() < first_frame_deadline):
-                try:
-                    NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.05))
-                except Exception:
-                    time.sleep(0.05)
-            if self.capture_frame is None:
-                samples = getattr(self, "_sck_sample_count", 0)
-                failed = getattr(self, "_sck_convert_fail", 0)
-                if samples:
-                    self.set_status(f"ScreenCaptureKit frames failed color conversion " f"({failed}/{samples}); using Quartz")
-                else:
-                    self.set_status("ScreenCaptureKit produced no frames; using Quartz")
-                try:
-                    stream.stopCaptureWithCompletionHandler_(lambda e: None)
-                except Exception:
-                    pass
-
-                return self.capture_loop_quartz()
-
-            # 5. Idle loop — frames arrive on the SCK callback thread -
             while self.macro_running:
-                if NSRunLoop is not None:
-                    NSRunLoop.currentRunLoop().runUntilDate_(
-                        NSDate.dateWithTimeIntervalSinceNow_(0.05)
-                    )
-                else:
-                    time.sleep(0.05)
-            # 6. Stop cleanly
+                try:
+                    frame, _ = capture.grab(region, wait=True)
+                    self.capture_frame = self._normalize_capture_size(frame)
+                    self.capture_id += 1
+                except NoNewFrame:
+                    continue
+                except Exception as exc:
+                    self.set_status(f"ScreenCaptureKit failed ({exc}); using Quartz")
+                    return self.capture_loop_quartz()
+        finally:
             try:
-                stop_done = threading.Event()
-                def _stop_handler(error):
-                    stop_done.set()
-                stream.stopCaptureWithCompletionHandler_(_stop_handler)
-                stop_done.wait(timeout=3.0)
+                capture.__exit__(None, None, None)
             except Exception:
                 pass
-
-        else:
-            print("ScreenCaptureKit activated on windows, stopping.")
-            raise RuntimeError("ScreenCaptureKit is not supported on Windows")
+            self._region_capture = None
 
     def process_image_for_ocr(self, img):
         # Convert To Grayscale
@@ -4598,6 +5013,104 @@ class Api:
 
         return None, None
 
+    def pixel_search_upper(self, frame, hex, tolerance, scan_mode=0):
+        """
+        Searches for the first or last pixel based on mode.
+        Scan mode 0: First pixel; Mode 1: Last pixel
+        Uses one-sided per-channel tolerance matching _find_bar_edges:
+        each BGR channel must be >= (color - tolerance).
+        """
+        if frame is None or frame.size == 0:
+            return None, None
+
+        if scan_mode not in (0, 1):
+            raise RuntimeError("Invalid scan mode")
+
+        # Convert tolerance to int, handling string inputs
+        try:
+            tolerance = int(tolerance)
+        except (ValueError, TypeError):
+            tolerance = 0
+        # Failsafe: None Hex
+        if hex is None:
+            return None, None
+
+        try:
+            tol = int(np.clip(tolerance, 0, 255))
+            b, g, r = self._hex_to_bgr(hex)
+
+            # One-sided threshold like _find_bar_edges: channel >= (color - tol)
+            lower_bound = np.array([
+                max(0, b - tol),
+                max(0, g - tol),
+                max(0, r - tol),
+            ], dtype=np.uint8)
+
+            # Only lower bound is enforced; use 255 as the implicit upper bound
+            mask = cv2.inRange(frame, lower_bound, np.array([255, 255, 255], dtype=np.uint8))
+
+            coords = np.argwhere(mask > 0)
+            if coords.size > 0:
+                if scan_mode == 0:
+                    y, x = coords[0]
+                else:
+                    y, x = coords[-1]
+                return int(x), int(y)
+
+        except:
+            return None, None
+
+        return None, None
+
+    def pixel_search_lower(self, frame, hex, tolerance, scan_mode=0):
+        """
+        Searches for the first or last pixel based on mode.
+        Scan mode 0: First pixel; Mode 1: Last pixel
+        Uses one-sided per-channel tolerance (upper bound only):
+        each BGR channel must be <= (color + tolerance).
+        """
+        if frame is None or frame.size == 0:
+            return None, None
+
+        if scan_mode not in (0, 1):
+            raise RuntimeError("Invalid scan mode")
+
+        # Convert tolerance to int, handling string inputs
+        try:
+            tolerance = int(tolerance)
+        except (ValueError, TypeError):
+            tolerance = 0
+        # Failsafe: None Hex
+        if hex is None:
+            return None, None
+
+        try:
+            tol = int(np.clip(tolerance, 0, 255))
+            b, g, r = self._hex_to_bgr(hex)
+
+            # One-sided threshold (upper bound only): channel <= (color + tol)
+            upper_bound = np.array([
+                min(255, b + tol),
+                min(255, g + tol),
+                min(255, r + tol),
+            ], dtype=np.uint8)
+
+            # Only upper bound is enforced; 0 is the implicit lower bound
+            mask = cv2.inRange(frame, np.array([0, 0, 0], dtype=np.uint8), upper_bound)
+
+            coords = np.argwhere(mask > 0)
+            if coords.size > 0:
+                if scan_mode == 0:
+                    y, x = coords[0]
+                else:
+                    y, x = coords[-1]
+                return int(x), int(y)
+
+        except:
+            return None, None
+
+        return None, None
+
     def pixel_search_matrix(self, frame, color_id, tolerance_id, scan_mode=0, optimize_mode=0):
         searched = set()
         loop_count = 1
@@ -4612,6 +5125,7 @@ class Api:
                 # No more numbered entries -> try the base color once
                 color_id2 = self.vars.get(color_id)
                 tolerance_id2 = self.vars.get(tolerance_id)
+            tolerance_id3 = tolerance_id2.replace("<", "").replace(">", "")
             # Scan optimize mode
             loop_divisible_by_2 = loop_count % 2
             if optimize_mode == 1 and loop_divisible_by_2 == 0:
@@ -4629,7 +5143,12 @@ class Api:
                 return None, None
 
             searched.add(color_id2)
-            x, y = self.pixel_search(frame, color_id2, tolerance_id2, scan_mode)
+            if ">" in tolerance_id2:
+                x, y = self.pixel_search_upper(frame, color_id2, tolerance_id3, scan_mode)
+            elif "<" in tolerance_id2:
+                x, y = self.pixel_search_lower(frame, color_id2, tolerance_id3, scan_mode)
+            else:
+                x, y = self.pixel_search(frame, color_id2, tolerance_id3, scan_mode)
             if x is not None and y is not None:
                 return x, y
 
@@ -4850,199 +5369,6 @@ class Api:
         except Exception as e:
             # print(f"    Error in line detection: {e}")
             return []
-
-    def _normalize_noiseform_pixels(self, pixels):
-        """
-        Accept a BGR line (N, 3) or image (H, W, 3) and return a view
-        of the first three channels. Used by the Noiseform color masks.
-        """
-        pixels = np.asarray(pixels)
-        if pixels.ndim == 3 and pixels.shape[-1] >= 3:
-            return pixels[..., :3]
-
-        if pixels.ndim == 2 and pixels.shape[-1] >= 3:
-            return pixels[..., :3]
-
-        raise ValueError( "Noiseform pixels must be a BGR line (N, 3) or image (H, W, 3), " f"got shape {getattr(pixels, 'shape', None)}")
-
-    def _noiseform_first_xy(self, mask):
-        """Return the first matching (x, y), or (None, None) if empty."""
-        coords = np.argwhere(mask)
-        if coords.size == 0:
-            return None, None
-
-        if coords.shape[1] == 1:
-            return int(coords[0, 0]), 0
-
-        y, x = coords[0]
-        return int(x), int(y)
-
-    def _detect_noiseform_white(self, pixels, white_threshold, tolerance=0):
-        """
-        Detect the first Noiseform white pixel.
-        Every BGR channel must be >= (white_threshold - tolerance).
-        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
-        Returns (x, y) or (None, None).
-        """
-        if pixels is None or getattr(pixels, "size", 0) == 0 or white_threshold is None:
-            return None, None
-
-        try:
-            thr = int(np.clip(int(white_threshold), 0, 255))
-        except (TypeError, ValueError):
-            return None, None
-
-        white_bgr = np.array([thr, thr, thr], dtype=np.int16)
-        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
-        tol = int(np.clip(tolerance, 0, 255))
-        mask = np.all(pixels >= (white_bgr - tol), axis=-1)
-        return self._noiseform_first_xy(mask)
-
-    def _detect_noiseform_black(self, pixels, black_threshold, tolerance=0):
-        """
-        Detect the first Noiseform black pixel.
-        Opposite mask of `_detect_noiseform_white`:
-        every BGR channel must be <= (black_threshold + tolerance).
-        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
-        Returns (x, y) or (None, None).
-        """
-        if pixels is None or getattr(pixels, "size", 0) == 0 or black_threshold is None:
-            return None, None
-
-        try:
-            thr = int(np.clip(int(black_threshold), 0, 255))
-        except (TypeError, ValueError):
-            return None, None
-
-        black_bgr = np.array([thr, thr, thr], dtype=np.int16)
-        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
-        tol = int(np.clip(tolerance, 0, 255))
-        mask = np.all(pixels <= (black_bgr + tol), axis=-1)
-        return self._noiseform_first_xy(mask)
-
-    def _detect_noiseform_green(self, pixels, min_green=40, dominance=10):
-        """
-        Detect the first green-dominant Noiseform pixel.
-        A pixel is green-dominant when its green channel is strong
-        enough and exceeds both red and blue by `dominance`.
-        `pixels` may be a scan line (N, 3) or noiseform_img (H, W, 3).
-        Returns (x, y) or (None, None).
-        """
-        if pixels is None or getattr(pixels, "size", 0) == 0:
-            return None, None
-
-        pixels = self._normalize_noiseform_pixels(pixels).astype(np.int16)
-        b = pixels[..., 0]
-        g = pixels[..., 1]
-        r = pixels[..., 2]
-        mask = ((g >= int(min_green)) & (g >= r + int(dominance)) & (g >= b + int(dominance)))
-        return self._noiseform_first_xy(mask)
-
-    def detect_noiseform_color(self, noiseform_img):
-        """Classify the Noiseform warning flash: WHITE / GREEN / BLACK / "".
-        DeepFish ALPHA v1.4 NoiseWarnKind() is used as reference. `noiseform_img` is the Noiseform Box
-        crop from capture_frame (BGR). Geometry is computed in screen pixels
-        (center at 50% x, 51.94% y) then mapped into this crop, matching AHK's
-        WindowWidth/Height minus FishBarLeft/NoteTop mapping.
-        """
-        # Get thresholds (0-255)
-        try:
-            noiseform_white_threshold = int(self.vars.get("noiseform_white_color", 200))
-        except (TypeError, ValueError):
-            noiseform_white_threshold = 200
-        try:
-            noiseform_black_threshold = int(self.vars.get("noiseform_black_color", 30))
-        except (TypeError, ValueError):
-            noiseform_black_threshold = 30
-        # Detect colors
-        white_x, white_y = self._detect_noiseform_white(noiseform_img, noiseform_white_threshold, 5)
-        if white_x is not None:
-            return "white", white_x
-
-        black_x, black_y = self._detect_noiseform_black(noiseform_img, noiseform_black_threshold, 5)
-        if black_x is not None:
-            return "black", black_x
-
-        green_x, green_y = self._detect_noiseform_green(noiseform_img, 40, 10)
-        if green_x is not None:
-            return "green", green_x
-
-        return None, None
-
-    def scan_noiseform_zones(self, fish_img):
-        """Locate WHITE / GREEN / BLACK segments on the fish-bar strip.
-        The normal fish bar is green, while the Noiseform green zone is
-        only slightly darker than the normal bar. Therefore the green zone
-        is detected by looking for a sustained drop in green-channel
-        brightness rather than simply checking whether a pixel is green.
-        `fish_img` is the Fish Box crop (BGR).
-        Returns (white_x, green_x, black_x) in bar-relative pixels.
-        Missing zones are returned as None.
-        """
-        if fish_img is None or getattr(fish_img, "size", 0) == 0:
-            return None, None, None
-
-        pixels = self._normalize_noiseform_pixels(fish_img).astype(np.int16)
-        # If this is a full image, reduce it to a horizontal scan line.
-        # Using the middle of the crop avoids most UI/background edges.
-        if pixels.ndim == 3:
-            height = pixels.shape[0]
-            y = height // 2
-            line = pixels[y]
-        else:
-            line = pixels
-        width = line.shape[0]
-        if width < 3:
-            return None, None, None
-
-        # 1. Get the normal bar color
-        # The bar itself is green, so use the green-channel strength
-        # as the main signal.  A median is more resistant to the
-        # darker Noiseform segments than using one individual pixel.
-        green_channel = line[:, 1]
-        normal_green = float(np.median(green_channel))
-        # 2. Find pixels that are noticeably darker than the bar
-        # Noiseform's green zone is only slightly darker, so this
-        # threshold should be much smaller than the black-zone
-        # difference.
-        dark_threshold = max(3.0, normal_green * 0.08)
-        green_zone_mask = (green_channel <= (normal_green - dark_threshold))
-        # 3. Remove tiny isolated pixels
-        # A real Noiseform zone should occupy several neighbouring
-        # pixels.  This prevents one noisy pixel from becoming a zone.
-        min_zone_width = max(2, int(width * 0.01))
-        zones = []
-        start = None
-        for x, matched in enumerate(green_zone_mask):
-            if matched and start is None:
-                start = x
-            elif not matched and start is not None:
-                if x - start >= min_zone_width:
-                    zones.append((start, x - 1))
-                start = None
-        if start is not None and width - start >= min_zone_width:
-            zones.append((start, width - 1))
-        # No darker region means there is no detectable green zone.
-        if not zones:
-            self.noiseform_green_x = None
-            return None, None, None
-
-        # Use the center of the detected darker segment.
-        green_start, green_end = max(zones, key=lambda zone: zone[1] - zone[0])
-        green_x = (green_start + green_end) // 2
-        # 4. Find WHITE and BLACK using their configured thresholds (0-255)
-        try:
-            noiseform_white_threshold = int(self.vars.get("noiseform_white_color", 200))
-        except (TypeError, ValueError):
-            noiseform_white_threshold = 200
-        try:
-            noiseform_black_threshold = int(self.vars.get("noiseform_black_color", 30))
-        except (TypeError, ValueError):
-            noiseform_black_threshold = 30
-        white_x, white_y = self._detect_noiseform_white(line, noiseform_white_threshold, 5)
-        black_x, black_y = self._detect_noiseform_black(line, noiseform_black_threshold, 5)
-        # 5. Return
-        return white_x, green_x, black_x
 
     def auto_crop_template(self, template, lower_white=200):
         """
@@ -6685,133 +7011,178 @@ class Api:
         shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("fish_tranquility")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
         # Minigame Variables
-        tranquility_hit_ratio = float(self.vars["tranquility_hit_ratio"])
-        target_delay = float(self.vars["target_delay"])
-        tranquility_mode = self.vars["tranquility_mode"].lower()
+        lead_ms = float(self.vars.get("tranquility_lead", 45))
+        lead = lead_ms / 1000.0
         self.scan_delay = float(self.vars["minigame_scan_delay"])
         restart_delay = float(self.vars["restart_delay"])
         restart_method = self.vars["restart_method"].lower()
         self.ever_out = False
         self.ever_note_out_high = False
         last_capture_id = 0
-        # Last Values (Cache)
-        is_initial_run = True
-        tranquility_area_ratio = shake_width / 350
+        # Lane setup (relative to overlay / shake area)
+        tranquility_area_ratio = shake_width / 350.0
         tranquility_big_gap = int(tranquility_area_ratio * 80)
         tranquility_small_gap = int(tranquility_area_ratio * 10)
         fish_left = []
         fish_right = []
-        initial_positions = []
-        hit = False
-        current_y = 0
-        init_y = 0
-        last_y = {}
-        for pos in range(4): # Add more later
-            # Relative to overlay origin (shake_left).  Original used absolute
-            # screen coords and shake_right, which mismatched the overlay canvas.
+        for pos in range(4):
             left = (tranquility_big_gap * pos) + (tranquility_small_gap * pos)
             right = (tranquility_big_gap * (pos + 1)) + (tranquility_small_gap * pos)
             fish_left.append(left)
             fish_right.append(right)
-        # Resize Overlay
+        # Overlay
         fish_center_y = int((shake_top + shake_bottom) / 2)
         fish_overlay = self.vars["fish_overlay"]
         if fish_overlay == True:
-            # Position The Overlay Just Above Or Below The Fish Bar So It Does
-            # Not Cover The Actual Minigame.  Show() Expects (Left, Top, Width,
-            # Height) In Physical Pixels — Not Right/Bottom.
             if fish_center_y > HALF_HEIGHT:
                 overlay_top = shake_top - tranquility_small_gap - tranquility_small_gap
             else:
                 overlay_top = shake_top + tranquility_small_gap + tranquility_small_gap
             self.fish_overlay.resize(shake_left, overlay_top, shake_width, tranquility_small_gap)
+        # Tracking state (inspired by DeepFish Tq*/Mania*)
+        ring_ys = [[] for _ in range(4)]  # static target y positions per lane
+        notes = [[] for _ in range(4)]    # tracked notes: dicts with y, t, fired, track_n, eta
+        vel_samples = []
+        current_v = 0.45 * shake_height   # initial velocity estimate (px/s), similar spirit to AHK 0.645*H
+        last_live_t = time.perf_counter()
+        started = False
+        init_frames = 0
         time.sleep(0.5)
         while self.macro_running:
-            # Check If Dxcam Is Available
+            # Capture
             if dxcam is not None:
                 self.capture_frame = self.camera.get_latest_frame()
                 self.capture_id = last_capture_id + 1
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
                 continue
-
             elif self.capture_frame is None:
                 time.sleep(self.scan_delay)
                 continue
-
             else:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
             friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+            now = time.perf_counter()
             self.fish_overlay.clear()
-            if restart_method == "friends":
+            # Restart check
+            if restart_method == "friend_area" or restart_method == "friends":
                 if friend_x is not None:
-                    # For lanes (same as notes): use ever tracking if set, else default to perfect if ended clean
+                    # Classify based on ever_out / note tracking
                     if self.ever_note_out_high or self.ever_out:
                         self.fish_caught = 0
                         self.perfect_catch = 1
                     else:
                         self.fish_caught = 0
                         self.perfect_catch = 0
-                    time.sleep(restart_delay)
+                    self.interruptible_sleep(restart_delay)
                     return
-
-            # Everything is in this loop
+            # Process each lane
+            any_moving = False
             for box in range(4):
                 scan_img = self.capture_frame[shake_top:shake_bottom, fish_left[box] + shake_left:fish_right[box] + shake_left]
                 circles = self._find_all_circles(scan_img)
-                circle_y = sorted(y for (x, y) in circles)
-                # Fish Overlay
-                try:
-                    color = self.vars[f"bar_color_{box + 1}"]
-                except:
-                    color = self.vars["bar_color"]
-                hit = False
-                # Capture initial static positions on the first frame
-                if is_initial_run:
-                    initial_positions.append(list(circle_y))
-                    display_y = circle_y
+                ys = sorted([y for (x, y) in circles])
+                # Collect possible rings on early frames
+                if init_frames < 8:
+                    for y in ys:
+                        if not any(abs(y - ry) < 12 for ry in ring_ys[box]):
+                            ring_ys[box].append(y)
+                    if ring_ys[box]:
+                        ring_ys[box] = sorted(set(ring_ys[box]))  # unique
+                # Separate notes from known rings
+                note_ys = []
+                for y in ys:
+                    is_ring = any(abs(y - ry) < 15 for ry in ring_ys[box])
+                    if not is_ring:
+                        note_ys.append(y)
+                # Match note_ys to existing tracked notes
+                used = [False] * len(notes[box])
+                new_notes = []
+                for ny in note_ys:
+                    best_i = -1
+                    best_dist = 999
+                    for i, nt in enumerate(notes[box]):
+                        if used[i]:
+                            continue
+                        dist = abs(ny - nt["y"])
+                        if dist < best_dist and dist < 60:
+                            best_dist = dist
+                            best_i = i
+                    if best_i >= 0:
+                        nt = notes[box][best_i]
+                        used[best_i] = True
+                        dt = now - nt["t"]
+                        if dt > 0.004:
+                            disp = ny - nt["y"]
+                            if 0.3 * current_v * dt < disp < 1.8 * current_v * dt + 10:
+                                vs = disp / dt
+                                if 0.15 * shake_height < vs < 1.8 * shake_height:
+                                    vel_samples.append(vs)
+                                    if len(vel_samples) > 20:
+                                        vel_samples.pop(0)
+                                    if len(vel_samples) >= 3:
+                                        current_v = float(np.median(vel_samples))
+                                nt["track_n"] = nt.get("track_n", 0) + 1
+                                any_moving = True
+                        nt["y"] = ny
+                        nt["t"] = now
+                        # Update eta to nearest ring below or the lowest ring
+                        target = min((ry for ry in ring_ys[box] if ry > ny - 5), default=max(ring_ys[box] or [shake_height * 0.85]))
+                        if current_v > 10:
+                            nt["eta"] = now + max(0.0, (target - ny) / current_v)
+                        new_notes.append(nt)
+                    else:
+                        # New note
+                        target = min((ry for ry in ring_ys[box] if ry > ny - 5), default=max(ring_ys[box] or [shake_height * 0.85]))
+                        eta = now + max(0.0, (target - ny) / max(current_v, 50))
+                        new_notes.append({"y": ny, "t": now, "fired": False, "track_n": 0, "eta": eta})
+                # Keep un-matched only if recent and not passed
+                for i, nt in enumerate(notes[box]):
+                    if not used[i] and (now - nt["t"]) < 0.25 and nt["y"] < (max(ring_ys[box] or [999]) + 20):
+                        new_notes.append(nt)
+                notes[box] = new_notes
+                # Fire logic (DeepFish style: lead + confirmed moving)
+                for nt in notes[box]:
+                    if not nt["fired"] and nt.get("track_n", 0) >= 2 and (now + lead) >= nt.get("eta", 1e9):
+                        key = str(self.vars.get(f"tranquility_key_{box + 1}", "D"))
+                        self._send_key(key, self.scan_delay)
+                        nt["fired"] = True
+                        any_moving = True
+                        # Overlay flash
+                        if fish_overlay:
+                            try:
+                                color = self.vars.get(f"tranquility_color_{box + 1}", "#FFFFFF")
+                            except:
+                                color = "#FFFFFF"
+                            self.fish_overlay.draw_box(fish_left[box], 0, fish_right[box], tranquility_small_gap, color)
+                # Check for misses (note passed target without fire)
+                for nt in notes[box]:
+                    if not nt["fired"]:
+                        target = min((ry for ry in ring_ys[box] if ry > nt["y"] - 10), default=999)
+                        if nt["y"] > target + 25:
+                            self.ever_out = True
+                            self.ever_note_out_high = True
+                            nt["fired"] = True  # mark so not rechecked
+                # Status
+                if notes[box]:
+                    self.status_overlay.set_line(box + 1, f"Lane {box + 1}: ", f"V={current_v:.0f} N={len(notes[box])}")
                 else:
-                    # Remove exact initial positions first
-                    if box < len(initial_positions):
-                        init_ys = set(initial_positions[box])
-                        circle_y = [y for y in circle_y if y not in init_ys]
-                    display_y = circle_y
-                    # If nothing remains after removal, treat the note as being at y=0 (shake_top)
-                    check_y = circle_y if circle_y else [0]
-                    # Hit if any remaining note is within 100px of any initial position in this lane
-                    if box < len(initial_positions) and initial_positions[box]:
-                        for current_y in check_y:
-                            for init_y in initial_positions[box]:
-                                # Status Overlay
-                                try:
-                                    mania_velocity = current_y - last_y[box]
-                                    if mania_velocity <= 0:
-                                        pass
-
-                                    else:
-                                        self.status_overlay.set_line((box + 1), f"Lane {box + 1}: ", f"Velocity: {mania_velocity}")
-                                except KeyError as e:
-                                    mania_velocity = 0
-                                    self.status_overlay.set_line((box + 1), f"Lane {box + 1}: ", f"Error: {e}")
-                                if abs(current_y - init_y) <= 50 + mania_velocity:
-                                    hit = True
-                                    break
-
-                            if hit:
-                                break
-
-                        if hit:
-                            key = str(self.vars[f"tranquility_key_{box + 1}"])
-                            self._send_key(key, self.scan_delay)
-                    # Remember last known y (first remaining, or 0) for this lane
-                    last_y[box] = check_y[0] if check_y else 0
-                # Coordinates relative to overlay (0..width, 0..height)
-                if fish_overlay == True:
-                    if hit:
-                        self.fish_overlay.draw_box(fish_left[box], 0, fish_right[box], tranquility_small_gap, color)
-                # self.status_overlay.set_line((box + 1), fish_left[box], fish_right[box])
-            # Divide Lanes Into 4
-            is_initial_run = False
+                    self.status_overlay.set_line(box + 1, f"Lane {box + 1}: ", "idle")
+            if any_moving:
+                last_live_t = now
+                started = True
+            init_frames += 1
+            # Expire if no activity for a while after start
+            if started and (now - last_live_t) > 1.5:
+                # End classification
+                if self.ever_note_out_high or self.ever_out:
+                    self.fish_caught = 0
+                    self.perfect_catch = 1
+                else:
+                    self.fish_caught = 0
+                    self.perfect_catch = 0
+                self.interruptible_sleep(restart_delay)
+                return
             time.sleep(self.scan_delay)
     def _enter_minigame_dreambreaker(self):
         # Helper Functions
@@ -7555,7 +7926,7 @@ class Api:
         shake_left, shake_top, shake_right, shake_bottom, _, shake_height = self.get_areas("shake")
         fish_left, fish_top, fish_right, fish_bottom, fish_width, fish_height = self.get_areas("fish")
         friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
-        noiseform_left, noiseform_top, noiseform_right, noiseform_bottom, _, _ = self.get_areas("noiseform")
+        Noiseform_left, Noiseform_top, Noiseform_right, Noiseform_bottom, _, _ = self.get_areas("Noiseform")
         # Area Calculations
         note_height = fish_bottom - shake_top
         shake_x = int((shake_left + shake_right) / 2)
@@ -7634,11 +8005,11 @@ class Api:
         bag_spam_cycle = 0
         color_check_bar_velocity = 0.0
         color_check_target_velocity = 0.0
-        noiseform_start_timer = time.perf_counter()
-        noiseform_current_timer = time.perf_counter()
-        noiseform_color, noiseform_position = None, None
-        noiseform_timer = 0.5
-        last_valid_noiseform_color = None
+        Noiseform_start_timer = time.perf_counter()
+        Noiseform_current_timer = time.perf_counter()
+        Noiseform_color, Noiseform_position = None, None
+        Noiseform_timer = 0.5
+        last_valid_Noiseform_color = None
         zone_x = None
         time.sleep(0.1)
         # Loop
@@ -7661,7 +8032,7 @@ class Api:
                 shake_img = self.capture_frame[shake_top:fish_bottom, fish_left:fish_right]
                 fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-                noiseform_img = self.capture_frame[noiseform_top:noiseform_bottom, noiseform_left:noiseform_right]
+                Noiseform_img = self.capture_frame[Noiseform_top:Noiseform_bottom, Noiseform_left:Noiseform_right]
             # Reset Per-Frame Detection So A Failed Line Scan Cannot
             # Reuse Stale Coordinates From The Previous Iteration.
             left_x = None
@@ -7675,7 +8046,23 @@ class Api:
             else:
                 fish_detected = False
             # Bar Detection (Color Or Line)
-            if fishing_mode == "color":
+            if fishing_profile == "shapes":
+                # Noiseform: find the bar by shape (see-through) and the fish by its
+                # dark-green core + bright green glow. Feeds the SAME fish_img the
+                # colour/line paths use, so nothing downstream changes.
+                nf = self.noiseform_detector.detect(
+                    fish_img,
+                    fish_colors=[self._hex_to_bgr(self.vars.get("Noiseform_fish_color", "#0C4125"))],
+                    fish_tol=int(self._get_var_number("Noiseform_fish_tolerance", 5, float)),
+                    now=time.perf_counter(),
+                )
+                fish_x = nf["target_middle_x"]
+                left_x = nf["bar_left_x"]
+                right_x = nf["bar_right_x"]
+                fish_detected = fish_x is not None
+                bar_detected = left_x is not None and right_x is not None
+                # Skip the colour/line code below for Noiseform.
+            elif fishing_mode == "color":
                 left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
                 # Only scan the bar size once every 10 times the scan delay
                 right_bar_cycle += time_delta
@@ -8040,29 +8427,29 @@ class Api:
             # Shapes Detection (Noiseform warn flash + bar-zone target)
             # Optimization 1: Scan only 1 second if bar was not seen
             if fishing_profile == "shapes":
-                noiseform_current_timer = time.perf_counter()
-                if noiseform_current_timer - noiseform_start_timer >= noiseform_timer:
-                    noiseform_color, noiseform_position = self.detect_noiseform_color(noiseform_img)
-                    noiseform_start_timer = noiseform_current_timer
-                if noiseform_color is None:
-                    zone_scan = self.scan_noiseform_zones(fish_img)
+                Noiseform_current_timer = time.perf_counter()
+                if Noiseform_current_timer - Noiseform_start_timer >= Noiseform_timer:
+                    Noiseform_color, Noiseform_position = self.detect_Noiseform_color(Noiseform_img)
+                    Noiseform_start_timer = Noiseform_current_timer
+                if Noiseform_color is None:
+                    zone_scan = self.scan_Noiseform_zones(fish_img)
                     if isinstance(zone_scan, tuple) and len(zone_scan) == 3:
                         white_x, green_x, black_x = zone_scan
                     else:
                         white_x, green_x, black_x = None, None, None
-                    if last_valid_noiseform_color == "white":
+                    if last_valid_Noiseform_color == "white":
                         zone_x = white_x
-                    elif last_valid_noiseform_color == "green":
+                    elif last_valid_Noiseform_color == "green":
                         zone_x = green_x
-                    elif last_valid_noiseform_color == "black":
+                    elif last_valid_Noiseform_color == "black":
                         zone_x = black_x
                     else:
                         zone_x = None
-                self.status_overlay.set_line(3, "Color: ", f"{noiseform_color} ({zone_x})")
-                if noiseform_color is not None:
-                    noiseform_timer = 0.1
+                self.status_overlay.set_line(3, "Color: ", f"{Noiseform_color} ({zone_x})")
+                if Noiseform_color is not None:
+                    Noiseform_timer = 0.1
                 else:
-                    noiseform_timer = 0.5
+                    Noiseform_timer = 0.5
             # Note Detection
             if fishing_profile == "notes":
                 note_x, note_y = self.pixel_search_matrix(shake_img, "pinion_notes_color", "pinion_notes_tolerance")
@@ -8293,8 +8680,8 @@ class Api:
                 hold_mouse()
             else:
                 release_mouse()
-            if noiseform_color is not None:
-                last_valid_noiseform_color = noiseform_color
+            if Noiseform_color is not None:
+                last_valid_Noiseform_color = Noiseform_color
             if bar_detected == True:
                 last_left_x = left_x
                 last_right_x = right_x
@@ -8340,6 +8727,18 @@ class Api:
                     pass
 
                 self.camera = None
+        except Exception:
+            pass
+
+        # Add this right after:
+        try:
+            capture = getattr(self, "_region_capture", None)
+            if capture is not None:
+                try:
+                    capture.__exit__(None, None, None)
+                except Exception:
+                    pass
+                self._region_capture = None
         except Exception:
             pass
 

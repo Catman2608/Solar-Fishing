@@ -1,13 +1,11 @@
-const APP_VERSION = "5.2";
+const APP_VERSION = "2026.11.1";
 const BETA_VERSION = "0";
 const DEVELOPER = "Catman2608";
-const VERSION_ID = "1";
 
 // Expose for Python version check via evaluate_js
 window.APP_VERSION = APP_VERSION;
 window.BETA_VERSION = BETA_VERSION;
 window.DEVELOPER = DEVELOPER;
-window.VERSION_ID = VERSION_ID;
 
 const validHexColor = /^#([0-9A-F]{3}|[0-9A-F]{6})$/i;
 
@@ -37,9 +35,9 @@ function _pyApi() {
 }
 
 /**
- * Get the Python backend's app version, beta version, developer name, and VERSION_ID.
+ * Get the Python backend's app version, beta version, and developer name.
  * Calls the Api.get_python_version_info method exposed by pywebview.
- * @returns {Promise<{app_version: any, beta_version: any, developer: string|null, version_id: string|null, error?: string}>}
+ * @returns {Promise<{app_version: any, beta_version: any, developer: string|null, error?: string}>}
  */
 async function getPythonVersionInfo() {
     const api = _pyApi();
@@ -48,7 +46,6 @@ async function getPythonVersionInfo() {
             app_version: null,
             beta_version: null,
             developer: null,
-            version_id: null,
             error: "Python API not available"
         };
     }
@@ -58,15 +55,13 @@ async function getPythonVersionInfo() {
             return {
                 app_version: info.app_version ?? null,
                 beta_version: info.beta_version ?? null,
-                developer: info.developer ?? null,
-                version_id: info.version_id ?? null
+                developer: info.developer ?? null
             };
         }
         return {
             app_version: null,
             beta_version: null,
             developer: null,
-            version_id: null,
             error: "Unexpected response from Python"
         };
     } catch (e) {
@@ -74,7 +69,6 @@ async function getPythonVersionInfo() {
             app_version: null,
             beta_version: null,
             developer: null,
-            version_id: null,
             error: String(e)
         };
     }
@@ -360,7 +354,13 @@ async function saveSettings(configName) {
     }
 
     const name = configName || currentConfig || selectedConfigName();
-    await api.save_settings(name);
+    const settingsData = collectSettingsData();
+    let result = null;
+    try {
+        result = await api.save_settings(name, settingsData);
+    } catch (e) {
+        result = await api.save_settings(name);
+    }
 
     // If Global Settings is on, also persist non-local settings
     if (isGlobalEnabled()) {
@@ -376,9 +376,8 @@ async function saveSettings(configName) {
         await saveGlobalSettings(globalPart);
     }
 
-    if (!configName || configName === currentConfig || configName === selectedConfigName()) {
-        currentConfig = name;
-    }
+    currentConfig = (result && result.config_name) || name;
+    return result;
 }
 
 function resetFieldsToDefaults() {
@@ -735,11 +734,17 @@ function updateFishingVisibility() {
     const arrow = document.getElementById("arrow-colors-container");
     const fish = document.getElementById("fish-colors-container");
     const pinion = document.getElementById("pinion_notes-colors-container");
+    const tranquilityColors = document.getElementById("tranquility-color-options");
+
+    document.querySelectorAll(".tranquility-profile-setting").forEach((el) => {
+        el.hidden = profile !== "tranquility";
+    });
 
     if (bar) bar.hidden = isLine;
     if (arrow) arrow.hidden = isLine;
     if (fish) fish.hidden = isLine;
     if (pinion) pinion.hidden = !isPinion;
+    if (tranquilityColors) tranquilityColors.hidden = profile !== "tranquility";
 }
 
 function updateSpecialRods() {
@@ -1012,7 +1017,7 @@ function createColorOption(group, index) {
         <p>${group.label}</p>
         <input id="${colorId}" class="color-stripe" type="text" placeholder="${group.defaultColor}" spellcheck="false">
         <p>Tolerance</p>
-        <input id="${tolId}" class="tolerance-input" type="number" placeholder="${group.defaultTolerance}">
+        <input id="${tolId}" class="tolerance-input" type="text" placeholder="${group.defaultTolerance}">
         <button class="color-icon-btn" type="button" onclick="pickColor('${colorId}')" title="Pick color" aria-label="Pick color">
             <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
         </button>
@@ -1591,15 +1596,19 @@ async function addRod() {
 
             // Create by saving current settings under the new name
             try {
-                await saveSettings(name);
-                await refreshConfigs(name);
                 currentConfig = name;
+                const result = await saveSettings(name);
+                if (result && result.success === false) {
+                    throw new Error(result.error || "Failed to save configuration.");
+                }
+                await refreshConfigs(name);
+                await loadSettings(name);
                 setStatus("Added rod: " + name);
             } catch (error) {
                 console.error(error);
                 showUpdateBanner({
                     title: "Error",
-                    notice: "Failed to create the new rod configuration.",
+                    notice: (error && error.message) || "Failed to create the new rod configuration.",
                     buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
                 });
             }

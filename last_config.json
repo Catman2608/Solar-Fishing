@@ -1,12 +1,7 @@
 {
-    "use_local_gui": true,
+    "last_config": "Noiseform",
     "bar_areas": {
-        "shake": {
-            "x": 0.1041,
-            "y": 0.0592,
-            "width": 0.7916999999999998,
-            "height": 0.7402
-        },
+        "shake": null,
         "fish": {
             "x": 0.2844,
             "y": 0.8377,
@@ -20,28 +15,22 @@
             "x": 0.004600000000000001,
             "y": 0.9031,
             "width": 0.0355,
-            "height": 0.08500000000000002
+            "height": 0.085
         },
         "totem": null,
         "sovereign": null,
-        "noiseform": null,
+        "Noiseform": null,
         "lullaby": null,
         "chat": null,
         "treasure_appraisal": null,
-        "appraisal_hotbar": {
-            "x": 0.6362333333333333,
-            "y": 0.7048459915611814,
-            "width": 0.35872857142857145,
-            "height": 0.030254430379746833
-        },
+        "appraisal_hotbar": null,
         "enchantment": null,
         "angler_quest": null
     },
-    "start_key": "F5",
-    "area_selector_key": "F6",
-    "stop_key": "F7",
+    "start_key": "f5",
+    "area_selector_key": "f6",
+    "stop_key": "f7",
     "tos_accepted": true,
-    "last_config": "Evil Pitchfork",
     "roblox_bounds_cache": {
         "left": 0.0,
         "top": 0.0,

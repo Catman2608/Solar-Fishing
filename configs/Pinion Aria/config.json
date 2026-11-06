@@ -93,7 +93,7 @@
     "logging_mode": "Screenshot",
     "logging_url": "https://discord.com/api/webhooks/1558335982884098100/a-T8zx9WWWOLcwdvUUoRc1haStPIL4Fge5Qr3vbcCaVGf5cgJeMcKTaKk3d7VYRDbcgR",
     "user_id": "None",
-    "logging_name": "ALware",
+    "logging_name": "DeepFish",
     "logging_cycle": "10",
     "auto_totem": false,
     "second_totem": false,
@@ -149,5 +149,15 @@
     "angler_click_position2": "0.5, 0.5",
     "angler_cooldown": "130",
     "banner-input": "Test",
-    "sovereign_recharge_color_count": "1"
+    "sovereign_recharge_color_count": "1",
+    "tranquility_key_1": "D",
+    "tranquility_key_2": "F",
+    "tranquility_key_3": "J",
+    "tranquility_key_4": "K",
+    "tranquility_color_1": "#00FF99",
+    "tranquility_color_2": "#6600FF",
+    "tranquility_color_3": "#FFFF00",
+    "tranquility_color_4": "#FF00CC",
+    "tranquility_lead": "45",
+    "fish_line_min_density": "0.8"
 }

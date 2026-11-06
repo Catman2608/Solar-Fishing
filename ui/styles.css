@@ -7,6 +7,10 @@
     scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
+.hidden {
+    display: none !important;
+}
+
 :root {
     /* Accent */
     --accent-color: #fa6b35;
@@ -437,7 +441,8 @@ input {
 #arrow-colors-container[hidden],
 #fish-colors-container[hidden],
 #pinion_notes-colors-container[hidden],
-.special-rod-setting[hidden] {
+.special-rod-setting[hidden],
+.tranquility-profile-setting[hidden] {
     display: none !important;
 }
 

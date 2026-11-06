@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Fishing V5.2</title>
+    <title>Solar Fishing V2026.11.1</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -124,8 +124,8 @@
                 <button class="window-control window-close" aria-label="Close" title="Close" onclick="closeWindow()"></button>
                 <button class="window-control window-minimize" aria-label="Minimize" title="Minimize" onclick="minimizeWindow()"></button>
             </div>
-            <div class="logo pywebview-drag-region">Solar Fishing V5.2</div>
-            <div class="status pywebview-drag-region">Beta 2</div>
+            <div class="logo pywebview-drag-region">Solar Fishing V2026.11.1</div>
+            <div class="status pywebview-drag-region hidden">Beta 2</div>
         </div>
         <div id="status_label" class="status-label pywebview-drag-region">Preview Mode</div>
     </div>
@@ -330,7 +330,7 @@
                                 <p>Green Cast</p>
                                 <input id="green_cast_color" class="color-stripe" type="text" placeholder="#64a04c" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="green_cast_tolerance" class="tolerance-input" type="number" placeholder="16">
+                                <input id="green_cast_tolerance" class="tolerance-input" type="text" placeholder="16">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('green_cast_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -352,7 +352,7 @@
                                 <p>White Cast</p>
                                 <input id="white_cast_color" class="color-stripe" type="text" placeholder="#d4d3ca" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="white_cast_tolerance" class="tolerance-input" type="number" placeholder="20">
+                                <input id="white_cast_tolerance" class="tolerance-input" type="text" placeholder="20">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('white_cast_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -378,24 +378,24 @@
                     <div class="panel-body">
                         <div class="slider-row">
                             <label for="select_rod_duration">Select Rod Duration</label>
-                            <input class="range-input" id="select_rod_duration_slider" type="range" min="0" max="5" step="0.05" value="0.2" data-target="select_rod_duration">
+                            <input class="range-input" id="select_rod_duration_slider" type="range" min="0.1" max="1" step="0.1" value="0.2" data-target="select_rod_duration">
                             <input class="slider-value" id="select_rod_duration" type="text" inputmode="decimal" value="0.2" data-slider="select_rod_duration_slider">
                         </div>
                         <div class="slider-row">
                             <label for="delay_before_casting">Delay</label>
-                            <input class="range-input" id="delay_before_casting_slider" type="range" min="0" max="5" step="0.05" value="0.2" data-target="delay_before_casting">
+                            <input class="range-input" id="delay_before_casting_slider" type="range" min="0.1" max="1" step="0.1" value="0.2" data-target="delay_before_casting">
                             <input class="slider-value" id="delay_before_casting" type="text" inputmode="decimal" value="0.2" data-slider="delay_before_casting_slider">
                         </div>
                         <div class="arrow">&darr;</div>
                         <div class="slider-row">
                             <label for="cast_duration">Duration</label>
-                            <input class="range-input" id="cast_duration_slider" type="range" min="0" max="5" step="0.05" value="0.5" data-target="cast_duration">
+                            <input class="range-input" id="cast_duration_slider" type="range" min="0.1" max="1" step="0.1" value="0.5" data-target="cast_duration">
                             <input class="slider-value" id="cast_duration" type="text" inputmode="decimal" value="0.5" data-slider="cast_duration_slider">
                         </div>
                         <div class="arrow">&darr;</div>
                         <div class="slider-row">
                             <label for="delay_after_casting">Delay</label>
-                            <input class="range-input" id="delay_after_casting_slider" type="range" min="0" max="5" step="0.05" value="0.5" data-target="delay_after_casting">
+                            <input class="range-input" id="delay_after_casting_slider" type="range" min="0.1" max="1" step="0.1" value="0.5" data-target="delay_after_casting">
                             <input class="slider-value" id="delay_after_casting" type="text" inputmode="decimal" value="0.5" data-slider="delay_after_casting_slider">
                         </div>
                     </div>
@@ -434,58 +434,58 @@
                         <!-- Perfect Cast Sliders -->
                         <div class="slider-row">
                             <label for="perfect_cast_timing_700">Under 700px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_700_slider" type="range" min="-0.5" max="1" step="0.01" value="0.1" data-target="perfect_cast_timing_700">
-                            <input class="slider-value" id="perfect_cast_timing_700" type="text" inputmode="decimal" value="0.1" placeholder="0.1" data-slider="perfect_cast_timing_700_slider">
+                            <input class="range-input" id="perfect_cast_timing_700_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_700">
+                            <input class="slider-value" id="perfect_cast_timing_700" type="text" inputmode="decimal" value="0" placeholder="0" data-slider="perfect_cast_timing_700_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_800">700-800 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_800_slider" type="range" min="-0.5" max="1" step="0.01" value="0.08" data-target="perfect_cast_timing_800">
-                            <input class="slider-value" id="perfect_cast_timing_800" type="text" inputmode="decimal" value="0.08" data-slider="perfect_cast_timing_800_slider">
+                            <input class="range-input" id="perfect_cast_timing_800_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_800">
+                            <input class="slider-value" id="perfect_cast_timing_800" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_800_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_900">800-900 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_900_slider" type="range" min="-0.5" max="1" step="0.01" value="0.06" data-target="perfect_cast_timing_900">
-                            <input class="slider-value" id="perfect_cast_timing_900" type="text" inputmode="decimal" value="0.06" data-slider="perfect_cast_timing_900_slider">
+                            <input class="range-input" id="perfect_cast_timing_900_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_900">
+                            <input class="slider-value" id="perfect_cast_timing_900" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_900_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_1000">900-1000 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_1000_slider" type="range" min="-0.5" max="1" step="0.01" value="0.04" data-target="perfect_cast_timing_1000">
-                            <input class="slider-value" id="perfect_cast_timing_1000" type="text" inputmode="decimal" value="0.04" data-slider="perfect_cast_timing_1000_slider">
+                            <input class="range-input" id="perfect_cast_timing_1000_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_1000">
+                            <input class="slider-value" id="perfect_cast_timing_1000" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1000_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_1100">1000-1100 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_1100_slider" type="range" min="-0.5" max="1" step="0.01" value="0.02" data-target="perfect_cast_timing_1100">
-                            <input class="slider-value" id="perfect_cast_timing_1100" type="text" inputmode="decimal" value="0.02" data-slider="perfect_cast_timing_1100_slider">
+                            <input class="range-input" id="perfect_cast_timing_1100_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_1100">
+                            <input class="slider-value" id="perfect_cast_timing_1100" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1100_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_1200">1100-1200 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_1200_slider" type="range" min="-0.5" max="1" step="0.01" value="0" data-target="perfect_cast_timing_1200">
+                            <input class="range-input" id="perfect_cast_timing_1200_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_1200">
                             <input class="slider-value" id="perfect_cast_timing_1200" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1200_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_1300">1200-1300 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_1300_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.02" data-target="perfect_cast_timing_1300">
-                            <input class="slider-value" id="perfect_cast_timing_1300" type="text" inputmode="decimal" value="-0.02" data-slider="perfect_cast_timing_1300_slider">
+                            <input class="range-input" id="perfect_cast_timing_1300_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_1300">
+                            <input class="slider-value" id="perfect_cast_timing_1300" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1300_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_1400">1300-1400 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_1400_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.04" data-target="perfect_cast_timing_1400">
-                            <input class="slider-value" id="perfect_cast_timing_1400" type="text" inputmode="decimal" value="-0.04" data-slider="perfect_cast_timing_1400_slider">
+                            <input class="range-input" id="perfect_cast_timing_1400_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_1400">
+                            <input class="slider-value" id="perfect_cast_timing_1400" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1400_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_1500">1400-1500 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_1500_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.06" data-target="perfect_cast_timing_1500">
-                            <input class="slider-value" id="perfect_cast_timing_1500" type="text" inputmode="decimal" value="-0.06" data-slider="perfect_cast_timing_1500_slider">
+                            <input class="range-input" id="perfect_cast_timing_1500_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_1500">
+                            <input class="slider-value" id="perfect_cast_timing_1500" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1500_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_1600">1500-1600 px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_1600_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.08" data-target="perfect_cast_timing_1600">
-                            <input class="slider-value" id="perfect_cast_timing_1600" type="text" inputmode="decimal" value="-0.08" data-slider="perfect_cast_timing_1600_slider">
+                            <input class="range-input" id="perfect_cast_timing_1600_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_1600">
+                            <input class="slider-value" id="perfect_cast_timing_1600" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1600_slider">
                         </div>
                         <div class="slider-row">
                             <label for="perfect_cast_timing_1600_plus">1600+ px/s</label>
-                            <input class="range-input" id="perfect_cast_timing_1600_plus_slider" type="range" min="-0.5" max="1" step="0.01" value="-0.1" data-target="perfect_cast_timing_1600_plus">
-                            <input class="slider-value" id="perfect_cast_timing_1600_plus" type="text" inputmode="decimal" value="-0.1" data-slider="perfect_cast_timing_1600_plus_slider">
+                            <input class="range-input" id="perfect_cast_timing_1600_plus_slider" type="range" min="-200" max="200" step="1" value="0" data-target="perfect_cast_timing_1600_plus">
+                            <input class="slider-value" id="perfect_cast_timing_1600_plus" type="text" inputmode="decimal" value="0" data-slider="perfect_cast_timing_1600_plus_slider">
                         </div>
                     </div>
                 </section>
@@ -513,7 +513,7 @@
                                 <p>Shake</p>
                                 <input id="shake_color" class="color-stripe" type="text" placeholder="#FFFFFF" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="shake_tolerance" class="tolerance-input" type="number" placeholder="5">
+                                <input id="shake_tolerance" class="tolerance-input" type="text" placeholder="5">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('shake_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -538,18 +538,18 @@
                     </div>
                     <div class="panel-body">
                         <div class="slider-row">
-                            <label for="shake_scan_delay">Shake Delay</label>
-                            <input class="range-input" id="shake_scan_delay_slider" type="range" min="0" max="5" step="0.01" value="0.12" data-target="shake_scan_delay">
+                            <label for="shake_scan_delay">Shake Scan Delay</label>
+                            <input class="range-input" id="shake_scan_delay_slider" type="range" min="0.02" max="1" step="0.02" value="0.12" data-target="shake_scan_delay">
                             <input class="slider-value" id="shake_scan_delay" type="text" inputmode="decimal" value="0.12" data-slider="shake_scan_delay_slider">
                         </div>
                         <div class="slider-row">
                             <label for="shake_failsafe">Shake Failsafe (attempts)</label>
-                            <input class="range-input" id="shake_failsafe_slider" type="range" min="0" max="500" step="1" value="120" data-target="shake_failsafe">
+                            <input class="range-input" id="shake_failsafe_slider" type="range" min="40" max="300" step="2" value="120" data-target="shake_failsafe">
                             <input class="slider-value" id="shake_failsafe" type="text" inputmode="numeric" value="120" placeholder="120" data-slider="shake_failsafe_slider">
                         </div>
                         <div class="slider-row">
                             <label for="animation_delay">Animation Delay (seconds)</label>
-                            <input class="range-input" id="animation_delay_slider" type="range" min="0" max="5" step="0.01" value="0.3" data-target="animation_delay">
+                            <input class="range-input" id="animation_delay_slider" type="range" min="0.1" max="1" step="0.1" value="0.3" data-target="animation_delay">
                             <input class="slider-value" id="animation_delay" type="text" inputmode="decimal" value="0.3" placeholder="0.3" data-slider="animation_delay_slider">
                         </div>
                     </div>
@@ -588,6 +588,22 @@
                             <label>Equipment Bag Slot</label>
                             <input id=equipment_bag_slot type="text" placeholder="2">
                         </div>
+                        <div class="text tranquility-profile-setting" data-profile="tranquility">
+                            <label>Tranquility Lane 1 Slot</label>
+                            <input id="tranquility_key_1" type="text" value="D" placeholder="D">
+                        </div>
+                        <div class="text tranquility-profile-setting" data-profile="tranquility">
+                            <label>Tranquility Lane 2 Slot</label>
+                            <input id="tranquility_key_2" type="text" value="F" placeholder="F">
+                        </div>
+                        <div class="text tranquility-profile-setting" data-profile="tranquility">
+                            <label>Tranquility Lane 3 Slot</label>
+                            <input id="tranquility_key_3" type="text" value="J" placeholder="J">
+                        </div>
+                        <div class="text tranquility-profile-setting" data-profile="tranquility">
+                            <label>Tranquility Lane 4 Slot</label>
+                            <input id="tranquility_key_4" type="text" value="K" placeholder="K">
+                        </div>
                     </div>
                 </section>
                 <section class="panel open" id="fish-color-options">
@@ -603,7 +619,7 @@
                                 <p>Bar</p>
                                 <input id="bar_color" class="color-stripe" type="text" placeholder="#F1F1F1" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="bar_tolerance" class="tolerance-input" type="number" placeholder="8">
+                                <input id="bar_tolerance" class="tolerance-input" type="text" placeholder="8">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('bar_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -625,7 +641,7 @@
                                 <p>Arrow</p>
                                 <input id="arrow_color" class="color-stripe" type="text" placeholder="#848587" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="arrow_tolerance" class="tolerance-input" type="number" placeholder="8">
+                                <input id="arrow_tolerance" class="tolerance-input" type="text" placeholder="8">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('arrow_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -647,7 +663,7 @@
                                 <p>Fish</p>
                                 <input id="fish_color" class="color-stripe" type="text" placeholder="#434B5B" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="fish_tolerance" class="tolerance-input" type="number" placeholder="4">
+                                <input id="fish_tolerance" class="tolerance-input" type="text" placeholder="4">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('fish_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -669,7 +685,7 @@
                                 <p>Pinion Note</p>
                                 <input id="pinion_notes_color" class="color-stripe" type="text" placeholder="#149604" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="pinion_notes_tolerance" class="tolerance-input" type="number" placeholder="4">
+                                <input id="pinion_notes_tolerance" class="tolerance-input" type="text" placeholder="4">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('pinion_notes_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -691,7 +707,7 @@
                                 <p>Friend Area</p>
                                 <input id="friends_color" class="color-stripe" type="text" placeholder="#9BFF9B" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="friends_tolerance" class="tolerance-input" type="number" placeholder="4">
+                                <input id="friends_tolerance" class="tolerance-input" type="text" placeholder="4">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('friends_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -720,16 +736,9 @@
                             <input class="range-input" id="pinion_note_ratio_slider" type="range" min="0" max="1" step="0.1" value="0.3" data-target="pinion_note_ratio">
                             <input class="slider-value" id="pinion_note_ratio" type="text" inputmode="decimal" value="0.3" placeholder="0.3" data-slider="pinion_note_ratio_slider">
                         </div>
-                        <div class="dropdown special-rod-setting" data-profile="tranquility">
-                            <label for="tranquility_mode">Tranquility Mode:</label>
-                            <select name="tranquility_mode" id="tranquility_mode">
-                            <option value="rapid">Rapid</option>
-                            <option value="steady">Steady</option>
-                            </select>
-                        </div>
                         <div class="text special-rod-setting" data-profile="tranquility">
-                            <label>Note Target Distance (Tranquility)</label>
-                            <input id="tranquility_hit_ratio" type="text" placeholder="50">
+                            <label>Tranquility Lead (ms)</label>
+                            <input id="tranquility_lead" type="text" placeholder="45" value="45">
                         </div>
                         <div class="text special-rod-setting" data-profile="metronome">
                             <label>Metronome Padding (Lullaby)</label>
@@ -766,13 +775,18 @@
                         </div>
                         <div class="slider-row">
                             <label for="restart_delay">Restart Delay (seconds)</label>
-                            <input class="range-input" id="restart_delay_slider" type="range" min="0" max="10" step="0.05" value="1.5" data-target="restart_delay">
+                            <input class="range-input" id="restart_delay_slider" type="range" min="0.5" max="5" step="0.5" value="1.5" data-target="restart_delay">
                             <input class="slider-value" id="restart_delay" type="text" inputmode="decimal" value="1.5" placeholder="1.5" data-slider="restart_delay_slider">
                         </div>
                         <div class="slider-row">
                             <label for="bar_ratio_from_side">Bar Ratio From Side</label>
                             <input class="range-input" id="bar_ratio_from_side_slider" type="range" min="0" max="1" step="0.01" value="0.5" data-target="bar_ratio_from_side">
                             <input class="slider-value" id="bar_ratio_from_side" type="text" inputmode="decimal" value="0.5" placeholder="0.5" data-slider="bar_ratio_from_side_slider">
+                        </div>
+                        <div class="slider-row line-only-setting">
+                            <label for="fish_line_min_density">Minimum Line Density</label>
+                            <input class="range-input" id="fish_line_min_density_slider" type="range" min="0.01" max="1" step="0.01" value="0.8" data-target="fish_line_min_density">
+                            <input class="slider-value" id="fish_line_min_density" type="text" inputmode="decimal" value="0.8" placeholder="0.8" data-slider="fish_line_min_density_slider">
                         </div>
                         <div class="text">
                             <label>KP (Proportional)</label>
@@ -846,7 +860,7 @@
                                 <p>Sovereign Recharge</p>
                                 <input id="sovereign_recharge_color" class="color-stripe" type="text" placeholder="#d994ff" spellcheck="false">
                                 <p>Tolerance</p>
-                                <input id="sovereign_recharge_tolerance" class="tolerance-input" type="number" placeholder="5">
+                                <input id="sovereign_recharge_tolerance" class="tolerance-input" type="text" placeholder="5">
                                 <button class="color-icon-btn" type="button" onclick="pickColor('sovereign_recharge_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
@@ -1141,6 +1155,7 @@
                             <label>Backpack Slot</label>
                             <input id=backpack_slot type="text" placeholder="6">
                         </div>
+                    </div>
                 </section>
                 <section class="panel open">
                     <div class="panel-header">
@@ -1453,8 +1468,7 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
                         </div>
                         <div class="faq-item">
                             <p class="faq-problem"><strong>Tranquility Rod tuning guide</strong></p>
-                            <p class="faq-solution">Set Tranquility Mode to Steady if it keeps spamming, and Rapid if it doesn't hit the notes. 
-                                Note Target Distance is the threshold so the Tranquility Rod can hit. If it hit too early, decrease it. If it hit too late, decrease it. (Increase or decrease from 0 to 100 and refer to the distance in the Status Overlay)</p>
+                            <p class="faq-solution">Tranquility Lead (ms) is the predictive timing offset (inspired by DeepFish ManiaLead). Increase if notes are hit too late, decrease if hit too early. Typical range 20-80. Velocity is auto-estimated from note movement.</p>
                         </div>
                         <div class="faq-item">
                             <p class="faq-problem"><strong>Lullaby Rod tuning guide</strong></p>
@@ -1512,7 +1526,14 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
                                 <img src="AsphaltCake.png" alt="Asphalt Cake" class="credit-avatar">
                                 <div class="credit-text">
                                     <div class="credit-name">Asphalt Cake</div>
-                                    <div class="credit-role">Precision/Lines mode control method, adapted from IRUS IDIOTPROOF/IRUS COMET</div>
+                                    <div class="credit-role">Line detection mode, Perfect Cast, Steady and Predictive Controller, Arrow Estimation, adapted from IRUS IDIOTPROOF/IRUS COMET</div>
+                                </div>
+                            </div>
+                            <div class="credit-item">
+                                <img src="Yato.png" alt="Asphalt Cake" class="credit-avatar">
+                                <div class="credit-text">
+                                    <div class="credit-name">Yato</div>
+                                    <div class="credit-role">Tranquility Rod Minigame, adapted from DeepFish</div>
                                 </div>
                             </div>
                         </div>
