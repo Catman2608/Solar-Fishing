@@ -1,12 +1,27 @@
 {
-    "last_config": "Amouria",
+    "last_config": "Ruinous Oath",
     "bar_areas": {
-        "shake": null,
-        "fish": null,
+        "shake": {
+            "x": 0.10409999999999997,
+            "y": 0.0592,
+            "width": 0.7917000000000001,
+            "height": 0.7402
+        },
+        "fish": {
+            "x": 0.2844,
+            "y": 0.8376999999999999,
+            "width": 0.4297000000000001,
+            "height": 0.0376
+        },
         "fish_1_bellona": null,
         "fish_2_bellona": null,
         "fish_tranquility": null,
-        "friend": null,
+        "friend": {
+            "x": 0.0045999999999999375,
+            "y": 0.9030999999999999,
+            "width": 0.035500000000000004,
+            "height": 0.08500000000000002
+        },
         "totem": null,
         "sovereign": null,
         "Noiseform": null,
@@ -20,5 +35,11 @@
     "start_key": "F5",
     "area_selector_key": "F6",
     "stop_key": "F7",
-    "tos_accepted": false
+    "tos_accepted": false,
+    "roblox_bounds_cache": {
+        "left": 0.0,
+        "top": 34.0,
+        "width": 1512.0,
+        "height": 948.0
+    }
 }

@@ -485,7 +485,7 @@ def open_base_folder():
     else:  # Linux
         subprocess.run(["xdg-open", folder])
 # Central Area Definitions.  To Add A New Selectable Area:
-# 1. Add An Entry Below (Key, Color, Label, Default Ratios 0–1).
+# 1. Add An Entry Below (Key, Color, Label, Default Ratios 0-1).
 # 2. That'S It — Selector Ui, Save/Load, Defaults, And The Show/Hide Menu
 #      all pick it up automatically.  Use get_areas("your_key") later if needed.
 AREA_CONFIG = {
@@ -555,7 +555,7 @@ AREA_CONFIG = {
         "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
     },
 }
-# Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
+# Display / Iteration Order (Also Used For Numberkey Toggles 1-9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
 class AreaSelector:
     """
@@ -776,7 +776,7 @@ class AreaSelector:
     def on_point_select(self, name, xr, yr):
         """Called by JS when Select Point mode is on and user clicks.
         Click inside an area → ratios relative to that area box.
-        Click outside any area → full-screen (viewport) ratios 0–1 under the
+        Click outside any area → full-screen (viewport) ratios 0-1 under the
         name "screen". Shows ratios in the status bar and closes the selector
         without the generic 'Area selector closed' message so the ratios remain visible."""
         if not self._open:
@@ -2586,7 +2586,7 @@ class Api:
             time.sleep(min(0.01, remaining))
     # Get Values
     def get_areas(self, area_key):
-        """Apply scale factor.  All area values (saved or default) are ratios 0–1.
+        """Apply scale factor.  All area values (saved or default) are ratios 0-1.
         Returning physical pixels here.  The previous default path returned
         Already pixel coordinates and then multiplied by screen_* again,
         Producing enormous sizes (fullscreen overlay after reset_areas)."""
@@ -3148,7 +3148,7 @@ class Api:
             return ""
 
         # Adaptive dark threshold from rolling mean-luminance baseline.
-        # NoiseWML is mean(vl)*100 (0–25500). dthr = clamp(round(base_ml*45/10000), 6, 60).
+        # NoiseWML is mean(vl)*100 (0-25500). dthr = clamp(round(base_ml*45/10000), 6, 60).
         base_ml = int(getattr(self, "_noise_w_base_ml", 0) or 0)
         if base_ml >= 200:
             dthr = int(round((base_ml * 45) / 10000.0))

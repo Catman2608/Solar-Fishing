@@ -41,7 +41,9 @@ let ratioX = 0;
 let ratioY = 0;
 let screenshotImg = null;
 let screenshotReady = false;
-let geo = { menu_offset: 0, screen_w: 1, screen_h: 1 };
+let geo = { menu_offset: 0, screen_w: 1, screen_h: 1, screen_left: 0, screen_top: 0, roblox: {left:0, top:0, width:0, height:0} };
+let displayRatioX = 0;
+let displayRatioY = 0;
 
 function resize() {
     const dpr = window.devicePixelRatio || 1;
@@ -87,24 +89,40 @@ function loadGeometry() {
             geo.menu_offset = Number(g.menu_offset) || 0;
             geo.screen_w = Math.max(1, Number(g.screen_w) || 1);
             geo.screen_h = Math.max(1, Number(g.screen_h) || 1);
+            geo.screen_left = Number(g.screen_left) || 0;
+            geo.screen_top = Number(g.screen_top) || 0;
+            if (g.roblox && typeof g.roblox === "object") {
+                geo.roblox = {
+                    left: Number(g.roblox.left) || 0,
+                    top: Number(g.roblox.top) || 0,
+                    width: Number(g.roblox.width) || 0,
+                    height: Number(g.roblox.height) || 0,
+                };
+            }
         }
         updateRatio();
         draw();
     }).catch(() => {});
 }
 
-// Called from Python after window_ready as a secondary trigger
-window.__applyScreenshot = function () {
-    loadScreenshot();
-};
-
 function updateRatio() {
-    // Use the actual overlay viewport so the ratio always matches what
-    // the user sees, independent of DPI / logical-vs-physical mismatch.
     const w = Math.max(1, window.innerWidth || canvas.clientWidth || 1);
     const h = Math.max(1, window.innerHeight || canvas.clientHeight || 1);
     ratioX = Math.max(0, Math.min(1, mouseX / w));
     ratioY = Math.max(0, Math.min(1, mouseY / h));
+
+    // Convert to screen logical coords
+    const screenX = geo.screen_left + ratioX * w;
+    const screenY = geo.screen_top + geo.menu_offset + ratioY * h;
+
+    // Default: viewport-relative
+    displayRatioX = ratioX;
+    displayRatioY = ratioY;
+
+    if (geo.roblox.width > 0 && geo.roblox.height > 0) {
+        displayRatioX = (screenX - geo.roblox.left) / geo.roblox.width;
+        displayRatioY = (screenY - geo.roblox.top) / geo.roblox.height;
+    }
 }
 
 function formatRatio(v) {
@@ -128,6 +146,26 @@ function draw() {
     ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
     ctx.fillRect(0, 0, w, h);
 
+    // 3) Cyan outline of the detected Roblox window (logical screen coords → viewport)
+    if (geo.roblox && geo.roblox.width > 10 && geo.roblox.height > 10) {
+        const viewX = geo.roblox.left - geo.screen_left;
+        const viewY = geo.roblox.top - (geo.screen_top + geo.menu_offset);
+        const viewW = geo.roblox.width;
+        const viewH = geo.roblox.height;
+
+        ctx.strokeStyle = "#00FFFF";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(viewX, viewY, viewW, viewH);
+
+        // Label above the box (clamped so it stays visible)
+        ctx.font = "bold 13px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#00FFFF";
+        const labelY = Math.max(4, viewY - 16);
+        ctx.fillText("Roblox", viewX + viewW / 2, labelY);
+    }
+
     const mx = mouseX;
     const my = mouseY;
 
@@ -148,9 +186,9 @@ function draw() {
     ctx.lineTo(mx, my + 28);
     ctx.stroke();
 
-    // Ratio label box
-    const label = formatRatio(ratioX) + ", " + formatRatio(ratioY);
-    const boxW = 110;
+    // Ratio label box — shows Roblox-relative coordinates when available
+    const label = formatRatio(displayRatioX) + ", " + formatRatio(displayRatioY);
+    const boxW = 140;
     const boxH = 28;
     const gap = 26;
 
@@ -197,7 +235,7 @@ canvas.addEventListener("click", e => {
     mouseY = e.clientY;
     updateRatio();
     try {
-        // Send the already-normalized ratios (0–1 of the visible overlay).
+        // Send the already-normalized ratios (0-1 of the visible overlay).
         pywebview.api.pick_point(ratioX, ratioY);
     } catch (err) {}
 });

@@ -1534,7 +1534,7 @@ def open_base_folder(folder=EDITABLE_PATH):
     else:  # Linux
         subprocess.run(["xdg-open", folder])
 # Central Area Definitions.  To Add A New Selectable Area:
-# 1. Add An Entry Below (Key, Color, Label, Default Ratios 0–1).
+# 1. Add An Entry Below (Key, Color, Label, Default Ratios 0-1).
 # 2. That'S It — Selector Ui, Save/Load, Defaults, And The Show/Hide Menu
 #      all pick it up automatically.  Use get_areas("your_key") later if needed.
 AREA_CONFIG = {
@@ -1614,7 +1614,7 @@ AREA_CONFIG = {
         "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
     },
 }
-# Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
+# Display / Iteration Order (Also Used For Numberkey Toggles 1-9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
 class AreaSelector:
     # Do not expose to JS API — holds pywebview Window (native.AccessibilityObject recursion / WebView2 COM).
@@ -2648,6 +2648,7 @@ class PointSelect:
         self._scale = 1.0
         self._screen_capture = None
         self._screenshot_b64 = None
+        self.roblox_bounds = {}
         self.left = 0
         self.top = 0
         self.width = 0
@@ -2691,13 +2692,17 @@ class PointSelect:
         except Exception:
             return None
 
-    def show(self, field_id=None):
+    def show(self, field_id=None, roblox_bounds={}):
         """Open the point selector overlay. Optional field_id is the settings
         field that should receive the picked ratios (e.g. 'mirror_ratio').
         Thin js_api object — only exposes the methods the HTML page calls.
         Do NOT pass `self` (or any object that holds a reference to the pywebview Window): on macOS Cocoa that triggers infinite recursion
         via AccessibilityObject.Bounds.
         """
+        try:
+            self.roblox_bounds = roblox_bounds
+        except:
+            self.roblox_bounds = {}
         if self._open and self.overlay_window:
             return
 
@@ -2775,18 +2780,33 @@ class PointSelect:
         """Return logical screen geometry so JS can compute full-screen ratios.
         menu_offset is the height of the cropped menu bar (logical pixels).
         screen_w / screen_h are the full logical screen dimensions.
-        """
+        roblox_bounds (if any) are in logical screen coordinates."""
         menu_offset = get_macos_menu_offset()
-        return {
+        bounds = self.roblox_bounds or {}
+        try:
+            rb = {
+                "left": float(bounds.get("left", 0)),
+                "top": float(bounds.get("top", 0)),
+                "width": float(bounds.get("width", 0)),
+                "height": float(bounds.get("height", 0)),
+            }
+        except (TypeError, ValueError):
+            rb = {"left": 0, "top": 0, "width": 0, "height": 0}
 
+        return {
             "menu_offset": float(menu_offset),
             "screen_w": float(SCREEN_WIDTH),
             "screen_h": float(SCREEN_HEIGHT),
+            "screen_left": float(SCREEN_LEFT),
+            "screen_top": float(SCREEN_TOP),
+            "roblox": rb,
         }
     def pick_point(self, ratio_x, ratio_y):
         """Called by JS when the user clicks.
-        ratio_x / ratio_y are already normalized 0–1 relative to the overlay
-        viewport (computed in JS from clientX/Y ÷ innerWidth/Height)."""
+        ratio_x / ratio_y are already normalized 0-1 relative to the overlay
+        viewport (computed in JS from clientX/Y ÷ innerWidth/Height).
+        If roblox_bounds were provided, convert to be relative to the Roblox
+        window (0,0 = Roblox top-left, 1,1 = Roblox bottom-right)."""
         if not self.is_open():
             return None
 
@@ -2795,6 +2815,26 @@ class PointSelect:
             ry = max(0.0, min(1.0, float(ratio_y)))
         except (TypeError, ValueError):
             return None
+
+        # Convert viewport ratio → screen logical pixel
+        menu_offset = get_macos_menu_offset()
+        screen_x = SCREEN_LEFT + rx * self.width
+        screen_y = SCREEN_TOP + menu_offset + ry * self.height
+
+        # If Roblox bounds are available, re-normalize against them
+        bounds = self.roblox_bounds or {}
+        try:
+            r_left = float(bounds.get("left", 0))
+            r_top = float(bounds.get("top", 0))
+            r_w = float(bounds.get("width", 0))
+            r_h = float(bounds.get("height", 0))
+        except (TypeError, ValueError):
+            r_w = r_h = 0
+
+        if r_w > 0 and r_h > 0:
+            rx = (screen_x - r_left) / r_w
+            ry = (screen_y - r_top) / r_h
+        # else: leave as viewport-relative ratios
 
         self.last_picked = (rx, ry)
         self._cancelled = False
@@ -4231,12 +4271,14 @@ class Api:
         """
         if not hasattr(self, "point_select") or self.point_select is None:
             self.point_select = PointSelect(self)
+        # Detect Roblox
+        self.roblox_bounds = self.detect_roblox()
         # Toggle off if already open
         if self.point_select.is_open():
             self.point_select.hide()
             return None
 
-        self.point_select.show(field_id=field_id)
+        self.point_select.show(field_id, self.roblox_bounds)
         return None
 
     def start_eyedropper(self, color_key=None):
@@ -4520,8 +4562,8 @@ class Api:
             time.sleep(min(0.01, remaining))
     # Get Values
     def _map_relative_area_to_screen(self, area):
-        """Convert one Roblox-relative area (0–1 within the Roblox window) into
-        absolute screen ratios (0–1 of SCREEN_WIDTH/HEIGHT).
+        """Convert one Roblox-relative area (0-1 within the Roblox window) into
+        absolute screen ratios (0-1 of SCREEN_WIDTH/HEIGHT).
         Uses the currently detected Roblox window; falls back to full-screen
         coordinates when Roblox is not found.
         """
@@ -4781,8 +4823,6 @@ class Api:
             return
 
         scale = get_scale_factor() or 1.0
-        # region is in Quartz points (SCREEN_WIDTH/HEIGHT are points on macOS);
-        # pixel_scale makes SCK emit physical pixels to match get_areas().
         region = {"left": 0, "top": 0,
                 "width": int(SCREEN_WIDTH), "height": int(SCREEN_HEIGHT)}
 
@@ -8625,6 +8665,13 @@ class Api:
             pass
 
 # Main Window
+def _on_loaded():
+    # load_settings returns a dict (used by the JS API). Event handlers' return
+    # values are collected in a set; dicts are unhashable and crash pywebview.
+    try:
+        api.load_settings()
+    except Exception:
+        pass
 def on_closed():
     # Tear down child overlays so webview.start() can return. Overlay hide()
     # methods must not block the GUI thread (eyedropper schedules destroy).
@@ -8635,14 +8682,10 @@ def on_closed():
         except Exception:
             pass
 
-misc_settings = load_misc_settings(os.path.join(EDITABLE_PATH, "last_config.json"))
-using_local = misc_settings.get("use_local_gui", False) == True
-html_path = os.path.join(UI_PATH, "index.html") if using_local else "https://catman2608.github.io/PyWare-Backend/SolarFishingV5/index.html"
 api = Api()
-api.this_launch_local = using_local
 window = webview.create_window(
     f"Solar Fishing V{APP_VERSION}",
-    html_path,
+    os.path.join(UI_PATH, "index.html"),
     js_api=api,
     width=880,
     height=660,
@@ -8653,5 +8696,5 @@ window = webview.create_window(
 )
 api._window = window
 window.events.closed += on_closed
-window.events.loaded += api.load_settings
+window.events.loaded += _on_loaded
 webview.start()

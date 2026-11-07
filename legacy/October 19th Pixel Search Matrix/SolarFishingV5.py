@@ -1031,7 +1031,7 @@ def open_base_folder(folder=EDITABLE_PATH):
     else:  # Linux
         subprocess.run(["xdg-open", folder])
 # Central Area Definitions.  To Add A New Selectable Area:
-# 1. Add An Entry Below (Key, Color, Label, Default Ratios 0–1).
+# 1. Add An Entry Below (Key, Color, Label, Default Ratios 0-1).
 # 2. That'S It — Selector Ui, Save/Load, Defaults, And The Show/Hide Menu
 #      all pick it up automatically.  Use get_areas("your_key") later if needed.
 AREA_CONFIG = {
@@ -1096,7 +1096,7 @@ AREA_CONFIG = {
         "default": {"x": 0.0139, "y": 0.5006, "width": 0.2316, "height": 0.1276},
     },
 }
-# Display / Iteration Order (Also Used For Numberkey Toggles 1–9 In The Selector)
+# Display / Iteration Order (Also Used For Numberkey Toggles 1-9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
 class AreaSelector:
     HTML_FILE = os.path.join(UI_PATH, "area_selector.html")
@@ -3291,7 +3291,7 @@ class Api:
             time.sleep(min(0.01, remaining))
     # Get Values
     def get_areas(self, area_key):
-        """Apply scale factor.  All area values (saved or default) are ratios 0–1.
+        """Apply scale factor.  All area values (saved or default) are ratios 0-1.
         Returning physical pixels here.  The previous default path returned
         Already pixel coordinates and then multiplied by screen_* again,
         Producing enormous sizes (fullscreen overlay after reset_areas)."""

@@ -414,7 +414,7 @@ def open_base_folder():
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Central area definitions.  To add a new selectable area:
-#   1. Add an entry below (key, color, label, default ratios 0–1).
+#   1. Add an entry below (key, color, label, default ratios 0-1).
 #   2. That's it — selector UI, save/load, defaults, and the show/hide menu
 #      all pick it up automatically.  Use get_areas("your_key") later if needed.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -440,7 +440,7 @@ AREA_CONFIG = {
         "default": {"x": 0.9531, "y": 0.8333, "width": 0.0208, "height": 0.0463},
     }
 }
-# Display / iteration order (also used for number-key toggles 1–9 in the selector)
+# Display / iteration order (also used for number-key toggles 1-9 in the selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
 
 class AreaSelector:

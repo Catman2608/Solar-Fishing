@@ -197,7 +197,7 @@ canvas.addEventListener("click", e => {
     mouseY = e.clientY;
     updateRatio();
     try {
-        // Send the already-normalized ratios (0–1 of the visible overlay).
+        // Send the already-normalized ratios (0-1 of the visible overlay).
         pywebview.api.pick_point(ratioX, ratioY);
     } catch (err) {}
 });

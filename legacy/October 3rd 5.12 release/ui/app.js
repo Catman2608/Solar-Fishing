@@ -698,7 +698,7 @@ function updateAccentColor() {
     document.documentElement.style.setProperty("--right-gradient", rightGradient);
     document.documentElement.style.setProperty("--accent-color", accentColor);
     
-    // Glow version – use left color if gradient, otherwise the static color
+    // Glow version - use left color if gradient, otherwise the static color
     const glowBase = isGradient ? normalizedLeft : accentColor;
     const r = parseInt(glowBase.substr(1,2), 16);
     const g = parseInt(glowBase.substr(3,2), 16);

@@ -413,7 +413,7 @@ def open_base_folder():
         subprocess.run(["xdg-open", folder])
 # ─────────────────────────────────────────────────────────────────────────────
 # Central area definitions.  To add a new selectable area:
-#   1. Add an entry below (key, color, label, default ratios 0–1).
+#   1. Add an entry below (key, color, label, default ratios 0-1).
 #   2. That's it — selector UI, save/load, defaults, and the show/hide menu
 #      all pick it up automatically.  Use get_areas("your_key") later if needed.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -494,7 +494,7 @@ AREA_CONFIG = {
         "default": {"x": 0.3983, "y": 0.8581, "width": 0.0426, "height": 0.0712},
     },
 }
-# Display / iteration order (also used for number-key toggles 1–9 in the selector)
+# Display / iteration order (also used for number-key toggles 1-9 in the selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
 class AreaSelector:
     """
@@ -2161,7 +2161,7 @@ class Api:
             time.sleep(min(0.01, remaining))
     # Get values
     def get_areas(self, area_key):
-        # Apply Scale Factor.  All area values (saved or default) are ratios 0–1.
+        # Apply Scale Factor.  All area values (saved or default) are ratios 0-1.
         # Returning physical pixels here.  The previous default path returned
         # already-pixel coordinates and then multiplied by SCREEN_* again,
         # producing enormous sizes (full-screen overlay after reset_areas).
@@ -2187,7 +2187,7 @@ class Api:
         return left2, top2, right2, bottom2, width2, height2
 
     def _get_default_areas(self, area):
-        """Return (left, top, right, bottom) as ratios 0–1 from AREA_CONFIG defaults.
+        """Return (left, top, right, bottom) as ratios 0-1 from AREA_CONFIG defaults.
         Must stay in ratio space so get_areas can apply scale * SCREEN_* once."""
         cfg = AREA_CONFIG.get(area)
         if cfg:

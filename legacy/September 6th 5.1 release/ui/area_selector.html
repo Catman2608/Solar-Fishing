@@ -262,7 +262,7 @@ function reportPoint(name, x, y) {
         xr = Math.max(0, Math.min(1, (x - b.x) / b.w));
         yr = Math.max(0, Math.min(1, (y - b.y) / b.h));
     } else {
-        // No area under the click → full-screen (viewport) ratios 0–1
+        // No area under the click → full-screen (viewport) ratios 0-1
         reportName = "screen";
         const w = window.innerWidth || 1;
         const h = window.innerHeight || 1;
