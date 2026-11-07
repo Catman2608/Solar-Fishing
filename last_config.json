@@ -1,22 +1,12 @@
 {
-    "last_config": "Noiseform",
+    "last_config": "Amouria",
     "bar_areas": {
         "shake": null,
-        "fish": {
-            "x": 0.2844,
-            "y": 0.8377,
-            "width": 0.4297,
-            "height": 0.0376
-        },
+        "fish": null,
         "fish_1_bellona": null,
         "fish_2_bellona": null,
         "fish_tranquility": null,
-        "friend": {
-            "x": 0.004600000000000001,
-            "y": 0.9031,
-            "width": 0.0355,
-            "height": 0.085
-        },
+        "friend": null,
         "totem": null,
         "sovereign": null,
         "Noiseform": null,
@@ -27,14 +17,8 @@
         "enchantment": null,
         "angler_quest": null
     },
-    "start_key": "f5",
-    "area_selector_key": "f6",
-    "stop_key": "f7",
-    "tos_accepted": true,
-    "roblox_bounds_cache": {
-        "left": 0.0,
-        "top": 0.0,
-        "width": 1920.0,
-        "height": 1080.0
-    }
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7",
+    "tos_accepted": false
 }

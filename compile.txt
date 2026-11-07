@@ -13,7 +13,10 @@ pyinstaller --onedir --windowed \
 Windows command:
 pyinstaller --onefile --windowed --icon="icon.ico" "SolarFishingV5.py"
 
-Step 3: Run this code to create setup instructions (if macOS) and if Windows compress to ZIP
+Step 3: Sign the bundle (not required but I don’t know if it will interfere with the unauthorized build warning or not)
+codesign --force --deep --sign - /Users/YourName/directory/SolarFishing/dist/SolarFishing
+
+Step 4: Run this code to create setup instructions (if macOS) and if Windows compress to ZIP
 
 hdiutil create -volname "VolumeName" -srcfolder cd /Users/YourName/directory/SolarFishing
  -ov -format UDZO name.dmg
@@ -21,4 +24,6 @@ hdiutil create -volname "VolumeName" -srcfolder cd /Users/YourName/directory/Sol
 For me, the first line of code in the terminal looks like this:
 cd "/Users/hoangphuc/Documents/Apps/Macros/Solar Fishing V5"
 Third line:
+codesign --force --deep --sign - /Users/hoangphuc/Documents/Apps/Macros/Solar\ Fishing\ V5/dist/SolarFishing.app 
+Fourth line:
 hdiutil create -volname "macOS.dmg" -srcfolder "/Users/hoangphuc/Documents/Apps/Macros/Solar Fishing V5/dist" -ov -format UDZO macOS.dmg

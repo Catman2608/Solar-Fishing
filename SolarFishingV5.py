@@ -298,6 +298,7 @@ elif sys.platform == "darwin":
     # ScreenCaptureKit (preferred capture backend on macOS 12.3+)
     try:
         import ScreenCaptureKit as _SCK
+        from collections import OrderedDict
         try:
             from Foundation import NSRunLoop
         except:
@@ -1079,7 +1080,7 @@ class _RegionCapture:
 # minigame loop, controllers, overlay and profiles are untouched.
 # ---------------------------------------------------------------------------
 
-def _Noiseform_runs(flags):
+def _noiseform_runs(flags):
     padded = np.concatenate(([False], flags, [False])).astype(np.int8)
     step = np.diff(padded)
     return zip(np.flatnonzero(step == 1), np.flatnonzero(step == -1))
@@ -1142,7 +1143,7 @@ class NoiseformDetector:
         fill = self._dark(frame).mean(axis=0)
         thin = max(3, round(width * 0.008) + 2)
         runs = []
-        for start, end in _Noiseform_runs(fill >= 0.25):
+        for start, end in _noiseform_runs(fill >= 0.25):
             if start == 0 or end == width:
                 continue
             if runs and start - runs[-1][1] <= 3:
@@ -1312,7 +1313,7 @@ class NoiseformDetector:
             cap = np.zeros(width)
             keep = share >= 0.3
         found = []
-        for start, end in _Noiseform_runs(keep):
+        for start, end in _noiseform_runs(keep):
             if narrowest <= end - start <= widest and start > 0 and end < width:
                 found.append((start, end - 1, float(share[start:end].max() + cap[start:end].max())))
         return found
@@ -3022,11 +3023,6 @@ class Api:
     def __init__(self):
         self.vars = {} # Save Entry Variables Here
         self.current_config = self.get_last_config()
-        # Load last_config.json into vars before hotkeys or the macro run.
-        try:
-            self.load_settings(self.current_config or None)
-        except Exception:
-            pass
 
         # Start Hotkey Listener
         self.hotkey_state = 0
@@ -3786,36 +3782,15 @@ class Api:
             self.vars["start_key"] = "F5"
             self.vars["area_selector_key"] = "F6"
             self.vars["stop_key"] = "F7"
-        # Terms Of Service Check
-        try:
-            if data.get("tos_accepted") != True:
-                tos_accepted = False
-                self.tos_accepted = False
-                if getattr(self, "_window", None):
-                    self._window.hide()
-            else:
-                tos_accepted = True
-                self.tos_accepted = True
-                if getattr(self, "_window", None):
-                    self._window.show()
-        except Exception:
-            tos_accepted = False
-            self.tos_accepted = False
-            if getattr(self, "_window", None):
-                self._window.hide()
-        if tos_accepted == False:
-            scale = get_scale_factor() or 1.0
-            logical_w = SCREEN_WIDTH / scale
-            logical_h = SCREEN_HEIGHT / scale
-            self.tos_dialogue.show((logical_w - 800) / 2, (logical_h - 600) / 2, 800, 600, already_logical=True)
-        else:
-            self.tos_dialogue.hide()
         # Images
-        try:
-            sun = cv2.imread(os.path.join(IMAGES_PATH, "sun.png"))
-            moon = cv2.imread(os.path.join(IMAGES_PATH, "moon.png"))
-        except:
+        sun_path = os.path.join(IMAGES_PATH, "sun.png")
+        moon_path = os.path.join(IMAGES_PATH, "moon.png")
+
+        if not os.path.exists(sun_path) or not os.path.exists(moon_path):
             self.message_box_javascript("Missing required image files:\nsun.png, moon.png\nAuto Totem will be disabled")
+        else:
+            sun = cv2.imread(sun_path)
+            moon = cv2.imread(moon_path)
     def save_misc_settings(self):
         """Save miscellaneous settings using self.misc_settings."""
         path = os.path.join(EDITABLE_PATH, "last_config.json")
@@ -3929,39 +3904,7 @@ class Api:
                 "developer": None,
                 "error": str(e)
             }
-    def check_setup_guide(self):
-        try:
-            output = self.get_js_version_info()
-            app_version = output["app_version"]
-            beta_version = int(output["beta_version"])
-            developer = output["developer"]
-            result = None
-            local_gui = False
-            version_comparison = _compare_versions(app_version, APP_VERSION)
-            if version_comparison > 0:
-                result = self.message_box_javascript(f"A new version of Solar Fishing is available: {app_version}.\nYou have {APP_VERSION}, do you want to update?", "askyesno")
-            elif version_comparison < 0:
-                local_gui = True
-            if float(BETA_VERSION) != 0:
-                local_gui = True
-            if developer != DEVELOPER:
-                result = self.message_box_javascript(f"""You tried to download an unauthorized version of Solar Fishing. Please take actions against {developer} and download the official version. Do you want to download the official version?""", "askyesno")
-            if result != None:
-                if result == True:
-                    _ = self.open_link("https://drive.google.com/drive/folders/1cVzOE6zW7JTzFbjXMVK8wklH1-ExhCUo")
-            this_launch_local = getattr(self, "this_launch_local", False)
-            if local_gui and not this_launch_local:
-                # Website (remote) is outdated: fall back to local GUI for this launch
-                self.misc_settings["use_local_gui"] = True
-                self.save_misc_settings()
-                reload_page(self.misc_settings["tos_accepted"])
-            elif this_launch_local:
-                # We already fell back to local this launch. Reset so the next launch tries the website again.
-                if self.misc_settings.get("use_local_gui"):
-                    self.misc_settings["use_local_gui"] = False
-                    self.save_misc_settings()
-        except Exception as e:
-            self.message_box_javascript(f"An error occured during initial check: {e}")
+
     def set_status(self, message):
         """Push a status message to the main webview window's JS."""
         if IS_COMPILED == False:
@@ -4825,74 +4768,6 @@ class Api:
             self.capture_frame = self._normalize_capture_size(frame)
             self.capture_id += 1
             time.sleep(self.scan_delay)
-    def _build_sck_stream(self, display, excluded_windows=None):
-        """Create an SCStream.
-
-        Optimizations ported from someone else's pull request using Claude Code:
-        - colorSpaceName = kCGColorSpaceSRGB (SCK does P3→sRGB)
-        - minimumFrameInterval capped to the display's real refresh rate
-        - queueDepth = 3
-        - optional exclusion of own-process windows
-        """
-        if sys.platform == "darwin":
-            if excluded_windows is None:
-                excluded_windows = []
-            content_filter = SCContentFilter.alloc().initWithDisplay_excludingWindows_(
-                display, excluded_windows
-            )
-            config = SCStreamConfiguration.alloc().init()
-            try:
-                width = int(display.width())
-                height = int(display.height())
-            except Exception:
-                width = 0
-                height = 0
-            if width <= 0 or height <= 0:
-                width = int(self.SCREEN_WIDTH * get_scale_factor())
-                height = int(self.SCREEN_HEIGHT * get_scale_factor())
-            config.setWidth_(width)
-            config.setHeight_(height)
-            # kCVPixelFormatType_32BGRA
-            config.setPixelFormat_(0x42475241)
-            config.setShowsCursor_(False)
-            try:
-                config.setQueueDepth_(3)
-            except Exception:
-                pass
-            # Cap FPS to the display's real refresh rate (ProMotion / VRR aware).
-            try:
-                display_id = display.displayID()
-                refresh = _sck_display_refresh_rate(display_id, fallback=60.0)
-                fps = max(1, min(360, int(round(refresh)) or 60))
-                config.setMinimumFrameInterval_(_cm_time_make(1, fps))
-            except Exception:
-                try:
-                    config.setMinimumFrameInterval_(_cm_time_make(1, 60))
-                except Exception:
-                    pass
-            # Ask SCK to deliver sRGB. This makes the CVPixelBuffer carry an
-            # sRGB-tagged color space, and SCK does the P3 -> sRGB transform
-            # internally, so the bytes we receive are already sRGB (matching MSS/Quartz).
-            # If we leave this unset, the buffer is untagged and a later ColorSync
-            # P3->sRGB pass would double-convert.
-            try:
-                from Foundation import NSString
-                config.setColorSpaceName_("kCGColorSpaceSRGB")
-            except Exception:
-                try:
-                    config.setColorSpaceName_(Quartz.kCGColorSpaceSRGB)
-                except Exception:
-                    pass
-
-            self._sck_filter = content_filter
-            self._sck_config = config
-            stream = SCStream.alloc().initWithFilter_configuration_delegate_(
-                content_filter, config, None
-            )
-            return stream
-        else:
-            print("ScreenCaptureKit activated on windows, stopping.")
-            raise RuntimeError("ScreenCaptureKit is not supported on Windows")
 
     def capture_loop_screencapturekit(self):
         """Continuous capture via _RegionCapture (ScreenCaptureKit + MSS fallback).
@@ -8778,5 +8653,5 @@ window = webview.create_window(
 )
 api._window = window
 window.events.closed += on_closed
-window.events.loaded += api.check_setup_guide
+window.events.loaded += api.load_settings
 webview.start()
