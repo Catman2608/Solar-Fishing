@@ -1313,7 +1313,7 @@ class AreaSelector:
                 visible_areas.append("chat")
             if data["sovereign_recharge"] == True:
                 visible_areas.append("sovereign")
-            if fishing_profile == "shapes":
+            if fishing_profile == "noiseform":
                 visible_areas.append("noiseform")
             elif fishing_profile == "metronome":
                 visible_areas.append("lullaby")
@@ -7897,7 +7897,7 @@ class Api:
                 self.status_overlay.set_line(2, "", "")
             # Shapes Detection (Noiseform warn flash + bar-zone target)
             # Optimization 1: Scan only 1 second if bar was not seen
-            if fishing_profile == "shapes":
+            if fishing_profile == "noiseform":
                 noiseform_current_timer = time.perf_counter()
                 if noiseform_current_timer - noiseform_start_timer >= noiseform_timer:
                     noiseform_color, noiseform_position = self.detect_noiseform_color(noiseform_img)
@@ -7939,7 +7939,7 @@ class Api:
             # Shapes uses the same target-override rule as notes:
             # when the special position is valid this hold, fish_x follows it
             # and last_fish_x stays on the real fish (updated later).
-            if fishing_profile == "shapes":
+            if fishing_profile == "noiseform":
                 if zone_x is not None:
                     fish_x = zone_x
                     fish_detected = True
@@ -7953,7 +7953,7 @@ class Api:
             if not currently_inside:
                 self.ever_out = True
             # For notes and shapes: high note ratio while out -> normal catch (not perfect)
-            if fishing_profile in ("notes", "shapes"):
+            if fishing_profile in ("notes", "noiseform"):
                 if note_y_ratio > 0.9 and not currently_inside:
                     self.ever_note_out_high = True
             else:

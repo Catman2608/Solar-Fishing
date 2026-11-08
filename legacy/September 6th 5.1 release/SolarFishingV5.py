@@ -6264,7 +6264,7 @@ class Api:
             # Set Status
             self.status_overlay.set_line(2, "Bar Size: ", round(bar_size))
             # Shapes Detection (Noiseform warn flash + bar-zone target)
-            if fishing_profile == "shapes":
+            if fishing_profile == "noiseform":
                 noiseform_color, zone_x = self.detect_noiseform_target(noiseform_img, fish_img)
                 if zone_x is not None:
                     fish_x = zone_x
@@ -6356,7 +6356,7 @@ class Api:
                 if fish_x == note_x:
                     if last_fish_x != note_x:
                         last_error = 0
-            elif fishing_profile == "shapes":
+            elif fishing_profile == "noiseform":
                 if fish_x == zone_x:
                     if last_fish_x != zone_x:
                         last_error = 0

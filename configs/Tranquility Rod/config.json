@@ -154,8 +154,10 @@
     "tranquility_key_2": "F",
     "tranquility_key_3": "J",
     "tranquility_key_4": "K",
-    "tranquility_color_1": "#00ff99",
-    "tranquility_color_2": "#6600ff",
-    "tranquility_color_3": "#ffff00",
-    "tranquility_color_4": "#ff00cc"
+    "tranquility_color_1": "#00FF99",
+    "tranquility_color_2": "#6600FF",
+    "tranquility_color_3": "#FFFF00",
+    "tranquility_color_4": "#FF00CC",
+    "tranquility_lead": "45",
+    "fish_line_min_density": "0.8"
 }

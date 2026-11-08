@@ -226,7 +226,7 @@
                         <option value="bellona">Dual (Bellona)</option>
                         <option value="tranquility">4 Lanes (Tranquility)</option>
                         <option value="metronome">Metronome (Lullaby)</option>
-                        <option value="shapes">Shapes (Noiseform)</option>
+                        <option value="noiseform">Shapes (Noiseform)</option>
                     </select>
                 </div>
                 <button class="secondary-button" type="button" id="detect_roblox_btn" onclick="detectRoblox()">Detect Roblox</button>
@@ -563,6 +563,7 @@
                     <select name="fishing_mode" id="fishing_mode" onchange="updateFishingVisibility()">
                         <option value="color">Color</option>
                         <option value="line">Line</option>
+                        <option value="geometry">Geometry</option>
                     </select>
                 </div>
                 <div class="dropdown">
@@ -749,12 +750,12 @@
                             <input class="range-input" id="lullaby_mask_lost_ratio_slider" type="range" min="0" max="1" step="0.1" value="0.2" data-target="lullaby_mask_lost_ratio">
                             <input class="slider-value" id="lullaby_mask_lost_ratio" type="text" inputmode="decimal" value="0.2" placeholder="0.2" data-slider="lullaby_mask_lost_ratio_slider">
                         </div>
-                        <div class="slider-row special-rod-setting" data-profile="shapes">
+                        <div class="slider-row special-rod-setting" data-profile="noiseform">
                             <label for="noiseform_white_color">White Threshold (Noiseform)</label>
                             <input class="range-input" id="noiseform_white_color_slider" type="range" min="0" max="255" step="1" value="200" data-target="noiseform_white_color">
                             <input class="slider-value" id="noiseform_white_color" type="text" inputmode="numeric" value="200" data-slider="noiseform_white_color_slider">
                         </div>
-                        <div class="slider-row special-rod-setting" data-profile="shapes">
+                        <div class="slider-row special-rod-setting" data-profile="noiseform">
                             <label for="noiseform_black_color">Black Threshold (Noiseform)</label>
                             <input class="range-input" id="noiseform_black_color_slider" type="range" min="0" max="255" step="1" value="30" data-target="noiseform_black_color">
                             <input class="slider-value" id="noiseform_black_color" type="text" inputmode="numeric" value="30" data-slider="noiseform_black_color_slider">

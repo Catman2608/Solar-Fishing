@@ -149,5 +149,15 @@
     "angler_click_position2": "0.5, 0.5",
     "angler_cooldown": "130",
     "banner-input": "Polaris Serenade",
-    "sovereign_recharge_color_count": "1"
+    "sovereign_recharge_color_count": "1",
+    "tranquility_key_1": "D",
+    "tranquility_key_2": "F",
+    "tranquility_key_3": "J",
+    "tranquility_key_4": "K",
+    "tranquility_color_1": "#00FF99",
+    "tranquility_color_2": "#6600FF",
+    "tranquility_color_3": "#FFFF00",
+    "tranquility_color_4": "#FF00CC",
+    "tranquility_lead": "45",
+    "fish_line_min_density": "0.8"
 }

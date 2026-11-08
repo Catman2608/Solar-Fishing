@@ -1,11 +1,11 @@
 {
-    "last_config": "Ruinous Oath",
+    "last_config": "Default",
     "bar_areas": {
         "shake": {
-            "x": 0.10409999999999997,
-            "y": 0.0592,
+            "x": 0.10409999999999998,
+            "y": 0.09351839847473783,
             "width": 0.7917000000000001,
-            "height": 0.7402
+            "height": 0.7220875119161105
         },
         "fish": {
             "x": 0.2844,
@@ -32,14 +32,14 @@
         "enchantment": null,
         "angler_quest": null
     },
-    "start_key": "F5",
-    "area_selector_key": "F6",
-    "stop_key": "F7",
+    "start_key": "f5",
+    "area_selector_key": "f6",
+    "stop_key": "f7",
     "tos_accepted": false,
     "roblox_bounds_cache": {
         "left": 0.0,
-        "top": 34.0,
-        "width": 1512.0,
-        "height": 948.0
+        "top": 31.0,
+        "width": 1920.0,
+        "height": 1049.0
     }
 }
