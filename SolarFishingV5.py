@@ -7685,7 +7685,7 @@ class Api:
             self.fish_overlay.show(fish_left, fish_top_overlay, overlay_width, overlay_height)
         # Minigame Settings
         scale = get_scale_factor()
-        bag_slot = str(self.vars["bag_slot"])
+        equipment_bag_slot = str(self.vars["equipment_bag_slot"])
         bag_spam = self.vars["bag_spam"]
         lock_cursor = self.vars["lock_cursor"]
         restart_method = self.vars["restart_method"]
@@ -7862,7 +7862,7 @@ class Api:
             if bag_spam_cycle == 5:
                 bag_spam_cycle = 0
                 if bag_spam == True:
-                    self._send_key(bag_slot)
+                    self._send_key(equipment_bag_slot)
                 if lock_cursor == True:
                     mouse_controller.position = (int(shake_x / scale), int(shake_y / scale))
             # Restore From Cache
@@ -8210,7 +8210,7 @@ class Api:
             self.fish_overlay.resize(fish_left, fish_top_overlay, overlay_width, overlay_height)
         # Minigame Settings
         scale = get_scale_factor()
-        bag_slot = str(self.vars["equipment_bag_slot"])
+        equipment_bag_slot = str(self.vars["equipment_bag_slot"])
         bag_spam = self.vars["bag_spam"]
         lock_cursor = self.vars["lock_cursor"]
         fishing_mode = self.vars["fishing_mode"].lower()
@@ -8681,7 +8681,7 @@ class Api:
             if bag_spam_cycle == 5:
                 bag_spam_cycle = 0
                 if bag_spam == True:
-                    self._send_key(bag_slot, float(self.scan_delay / 3))
+                    self._send_key(equipment_bag_slot, float(self.scan_delay / 3))
                 if lock_cursor == True:
                     mouse_controller.position = (int(shake_x / scale), int(shake_y / scale))
             # Restore From Cache

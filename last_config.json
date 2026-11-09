@@ -1,5 +1,5 @@
 {
-    "last_config": "Default",
+    "last_config": "Hammyshork",
     "bar_areas": {
         "shake": {
             "x": 0.10409999999999998,
@@ -38,8 +38,8 @@
     "tos_accepted": false,
     "roblox_bounds_cache": {
         "left": 0.0,
-        "top": 31.0,
+        "top": 0.0,
         "width": 1920.0,
-        "height": 1049.0
+        "height": 1080.0
     }
 }

@@ -2519,7 +2519,7 @@ class Api:
         logging_cycle = int(self.vars["logging_cycle"])
         
         # 2. Hotkey & Inventory Slots
-        bag_slot = str(self.vars["bag_slot"])
+        equipment_bag_slot = str(self.vars["equipment_bag_slot"])
         rod_slot = str(self.vars["rod_slot"])
         sundial_slot = str(self.vars["sundial_slot"])
         target_slot = str(self.vars["target_slot"])
@@ -2587,7 +2587,7 @@ class Api:
                 self.capture_id = 0
                 if auto_refresh == "on":
                     time.sleep(delay_before_casting)
-                    self._send_key(bag_slot)
+                    self._send_key(equipment_bag_slot)
                     self.interruptible_sleep(select_rod_duration)
                     self._send_key(rod_slot)
                     self.interruptible_sleep(delay_after_casting / 2)
@@ -2991,7 +2991,7 @@ class Api:
             friends_tolerance = 5
         # Minigame Settings
         scale = get_scale_factor()
-        bag_slot = str(self.vars["bag_slot"])
+        equipment_bag_slot = str(self.vars["equipment_bag_slot"])
         bag_spam = self.vars["bag_spam"]
         lock_cursor = self.vars["lock_cursor"]
         fishing_mode = self.vars["fishing_mode"].lower()
@@ -3130,7 +3130,7 @@ class Api:
             if bag_spam_cycle == 5:
                 bag_spam_cycle = 0
                 if bag_spam == "on":
-                    self._send_key(bag_slot)
+                    self._send_key(equipment_bag_slot)
                 if lock_cursor == "on":
                     mouse_controller.position = (int(shake_x / scale), int(shake_y / scale))
             # Restore from Cache
