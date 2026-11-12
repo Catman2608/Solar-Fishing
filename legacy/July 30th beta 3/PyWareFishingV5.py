@@ -2995,7 +2995,7 @@ class Api:
         bag_spam = self.vars["bag_spam"]
         lock_cursor = self.vars["lock_cursor"]
         fishing_mode = self.vars["fishing_mode"].lower()
-        fishing_profile = self.vars["fishing_profile"].lower()
+        special_rod = self.vars["special_rod"].lower()
         bar_ratio_from_side = float(self.vars["bar_ratio_from_side"])
         restart_delay = float(self.vars["restart_delay"])
         self.scan_delay = float(self.vars["minigame_scan_delay"])
@@ -3143,7 +3143,7 @@ class Api:
             if fish_detected == False:
                 fish_x = last_fish_x
             # Note Detection
-            if fishing_profile == "notes":
+            if special_rod == "notes":
                 note_x, note_y = self.pixel_search(shake_img, pinion_notes_color, pinion_notes_tolerance)
                 if note_x is not None and note_y is not None:
                     note_y_ratio = float(note_y / note_height)
@@ -3156,7 +3156,7 @@ class Api:
             else:
                 # print("Note Tracking Disabled")
                 note_y_ratio = 0.0
-                if fishing_profile == "notes":
+                if special_rod == "notes":
                     # Catch fails if the note ratio becomes 1 and the bar can't catch it; stays success only if note ratio is less than 0.9
                     if note_y_ratio > 0.9:
                         self.catch_success = 1

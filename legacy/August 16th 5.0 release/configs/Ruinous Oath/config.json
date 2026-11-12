@@ -1,6 +1,6 @@
 {
     "automation_mode": "fishing",
-    "fishing_profile": "normal",
+    "special_rod": "normal",
     "start_stop": "F5",
     "change_areas": "F6",
     "force_stop": "F7",

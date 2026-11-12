@@ -1,30 +1,35 @@
 {
-    "last_config": "Hammyshork",
+    "last_config": "Noiseform",
     "bar_areas": {
         "shake": {
-            "x": 0.10409999999999998,
-            "y": 0.09351839847473783,
-            "width": 0.7917000000000001,
-            "height": 0.7220875119161105
+            "x": 0.05462083333333331,
+            "y": 0.6254606362320375,
+            "width": 0.1614916666666667,
+            "height": 0.31792305193658854
         },
         "fish": {
-            "x": 0.2844,
-            "y": 0.8376999999999999,
-            "width": 0.4297000000000001,
-            "height": 0.0376
+            "x": 0.28544166666666665,
+            "y": 0.8033860148995515,
+            "width": 0.43074166666666674,
+            "height": 0.03223598488860643
         },
         "fish_1_bellona": null,
         "fish_2_bellona": null,
         "fish_tranquility": null,
         "friend": {
-            "x": 0.0045999999999999375,
-            "y": 0.9030999999999999,
+            "x": 0.006683333333333271,
+            "y": 0.8651370370370369,
             "width": 0.035500000000000004,
             "height": 0.08500000000000002
         },
         "totem": null,
         "sovereign": null,
-        "Noiseform": null,
+        "Noiseform": {
+            "x": 0.4222,
+            "y": 0.3686,
+            "width": 0.2056,
+            "height": 0.2873
+        },
         "lullaby": null,
         "chat": null,
         "treasure_appraisal": null,
@@ -32,9 +37,9 @@
         "enchantment": null,
         "angler_quest": null
     },
-    "start_key": "f5",
-    "area_selector_key": "f6",
-    "stop_key": "f7",
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7",
     "tos_accepted": false,
     "roblox_bounds_cache": {
         "left": 0.0,

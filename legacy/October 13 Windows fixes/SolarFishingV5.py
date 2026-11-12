@@ -1282,7 +1282,7 @@ class AreaSelector:
         self._visible_areas = {}
         visible_areas = []
         automation_mode = data["automation_mode"]
-        fishing_profile = data["fishing_profile"]
+        special_rod = data["special_rod"]
         if automation_mode == "fishing":
             visible_areas.append("fish")
             if data["shake_mode"] != "navigation":
@@ -1295,9 +1295,9 @@ class AreaSelector:
                 visible_areas.append("chat")
             if data["sovereign_recharge"] == True:
                 visible_areas.append("sovereign")
-            if fishing_profile == "noiseform":
+            if special_rod == "noiseform":
                 visible_areas.append("noiseform")
-            elif fishing_profile == "metronome":
+            elif special_rod == "metronome":
                 visible_areas.append("lullaby")
         elif automation_mode == "appraisal":
             visible_areas.append("appraisal_hotbar")
@@ -4964,7 +4964,7 @@ class Api:
             casting_mode = self.vars["casting_mode"].lower()
             shake_mode = self.vars["shake_mode"].lower()
             logging_mode = self.vars["logging_mode"].lower()
-            fishing_profile = self.vars["fishing_profile"].lower()
+            special_rod = self.vars["special_rod"].lower()
             sovereign_recharge = self.vars["sovereign_recharge"]
             click_after_minigame = self.vars["click_after_minigame"]
             target_time = self.vars["target_time"].lower()
@@ -5249,14 +5249,14 @@ class Api:
                 time.sleep(animation_delay)
                 if self.macro_running == True:
                     self.set_status("Playing Bar Minigame")
-                    self.status_overlay.set_main_status(f"Playing Bar Minigame ({fishing_profile})")
-                    if fishing_profile == "reverse":
+                    self.status_overlay.set_main_status(f"Playing Bar Minigame ({special_rod})")
+                    if special_rod == "reverse":
                         self._enter_minigame_dreambreaker()
-                    elif fishing_profile == "dual":
+                    elif special_rod == "dual":
                         self._enter_minigame_bellona()
-                    elif fishing_profile == "lanes":
+                    elif special_rod == "lanes":
                         self._enter_minigame_tranquility()
-                    elif fishing_profile == "metronome":
+                    elif special_rod == "metronome":
                         self.enter_minigame_lullaby()
                     else:
                         self._enter_minigame()
@@ -6775,7 +6775,7 @@ class Api:
         bag_spam = self.vars["bag_spam"]
         lock_cursor = self.vars["lock_cursor"]
         fishing_mode = self.vars["fishing_mode"].lower()
-        fishing_profile = self.vars["fishing_profile"].lower()
+        special_rod = self.vars["special_rod"].lower()
         restart_method = self.vars["restart_method"]
         bar_ratio_from_side = float(self.vars["bar_ratio_from_side"])
         restart_delay = float(self.vars["restart_delay"])
@@ -7320,7 +7320,7 @@ class Api:
                 self.status_overlay.set_line(2, "", "")
             # Shapes Detection (Noiseform warn flash + bar-zone target)
             # Optimization 1: Scan only 1 second if bar was not seen
-            if fishing_profile == "noiseform":
+            if special_rod == "noiseform":
                 noiseform_current_timer = time.perf_counter()
                 if noiseform_current_timer - noiseform_start_timer >= noiseform_timer:
                     noiseform_color, noiseform_position = self.detect_noiseform_color(noiseform_img)
@@ -7347,7 +7347,7 @@ class Api:
             # Note Detection + DeepFish-style PinionPlan decision.  The scan
             # retains two note candidates so the hand-off is made before the
             # current one reaches the landing line.
-            if fishing_profile == "notes":
+            if special_rod == "notes":
                 pinion_notes = find_pinion_notes(shake_img)
                 note_x = note_y = None
                 if pinion_notes:
@@ -7492,7 +7492,7 @@ class Api:
             # Shapes uses the same target-override rule as notes:
             # when the special position is valid this hold, fish_x follows it
             # and last_fish_x stays on the real fish (updated later).
-            if fishing_profile == "noiseform":
+            if special_rod == "noiseform":
                 if zone_x is not None:
                     fish_x = zone_x
                     fish_detected = True

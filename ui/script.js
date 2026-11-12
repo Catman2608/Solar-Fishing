@@ -726,7 +726,7 @@ function updateShakeMode() {
 
 function updateFishingVisibility() {
     const fishingMode = (document.getElementById("fishing_mode") || {}).value || "color";
-    const profile = (document.getElementById("fishing_profile") || {}).value || "normal";
+    const profile = (document.getElementById("special_rod") || {}).value || "normal";
     const isLine = fishingMode === "line";
     const isPinion = profile === "notes";
 
@@ -748,7 +748,7 @@ function updateFishingVisibility() {
 }
 
 function updateSpecialRods() {
-    const profile = (document.getElementById("fishing_profile") || {}).value || "normal";
+    const profile = (document.getElementById("special_rod") || {}).value || "normal";
     const panel = document.getElementById("special-rods-panel");
     const settings = document.querySelectorAll(".special-rod-setting");
     let anyVisible = false;

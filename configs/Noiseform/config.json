@@ -1,7 +1,7 @@
 {
     "global_settings": false,
     "automation_mode": "fishing",
-    "fishing_profile": "noiseform",
+    "special_rod": "noiseform",
     "start_key": "F5",
     "area_selector_key": "F6",
     "stop_key": "F7",
@@ -45,7 +45,7 @@
     "shake_scan_delay": "0.12",
     "shake_failsafe": "120",
     "animation_delay": "0.3",
-    "fishing_mode": "color",
+    "fishing_mode": "geometry",
     "controller_mode": "normal",
     "fishing_rod_slot": "1",
     "equipment_bag_slot": "2",
