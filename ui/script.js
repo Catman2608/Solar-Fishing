@@ -133,7 +133,7 @@ function applyHotkey(key, value) {
 window.applyHotkey = applyHotkey;
 
 function syncHotkeyButtons() {
-    ["start_key", "area_selector_key", "stop_key"].forEach((key) => {
+    ["start_key", "area_selector_key", "stop_key", "screenshot_key"].forEach((key) => {
         const input = document.getElementById(key);
         if (input) {
             applyHotkey(key, input.value);
@@ -1491,18 +1491,17 @@ function isColorSetting(key) {
     return k.includes("color") || k.includes("tolerance");
 }
 
-// Settings that survive a Reset Settings action
-const SURVIVE_RESET_KEYS = [
-    "minigame_scan_delay"
-];
-
+// Settings that survive a Reset Settings action:
+// any color, tolerance (including color counts), or scan delay
 function survivesReset(key) {
     if (!key) return false;
     const k = String(key).toLowerCase();
-    // Explicit list
-    if (SURVIVE_RESET_KEYS.includes(k)) return true;
-    // All bar color / tolerance / count entries
-    if (k.startsWith("bar_color") || k.startsWith("bar_tolerance") || k === "bar_color_count") {
+    // All color / tolerance / count entries (bar, arrow, fish, cast, shake, friends, etc.)
+    if (k.includes("color") || k.includes("tolerance")) {
+        return true;
+    }
+    // All scan delay settings (cast, shake, minigame, etc.)
+    if (k.includes("scan_delay")) {
         return true;
     }
     return false;
@@ -1675,7 +1674,7 @@ async function resetSettings() {
     const name = selectedConfigName();
     showUpdateBanner({
         title: "Reset Settings",
-        notice: `Reset all settings for "${name}" to defaults? Bar colors and minigame scan delay will be kept.`,
+        notice: `Reset all settings for "${name}" to defaults? Colors, tolerances, and scan delays will be kept.`,
         buttons: [
             { label: "Cancel", class: "btn-ghost", onClick: () => {} },
             {
@@ -1683,7 +1682,9 @@ async function resetSettings() {
                 class: "btn-primary",
                 onClick: async () => {
                     try {
-                        // Preserve settings that survive a reset (bar colors + minigame scan delay)
+                        // 1. Capture preserved settings BEFORE resetting.
+                        //    collectSettings() reads live DOM (including dynamically
+                        //    added bar_color_2, bar_color_3 ... entries).
                         const current = collectSettings();
                         const preserved = {};
                         Object.entries(current).forEach(([key, value]) => {
@@ -1692,18 +1693,22 @@ async function resetSettings() {
                             }
                         });
 
-                        // Reset everything to HTML defaults
+                        // 2. Reset everything to HTML defaults.
                         resetFieldsToDefaults();
 
-                        // Re-apply preserved settings
+                        // 3. Rebuild color groups from the PRESERVED counts so the
+                        //    dynamic inputs (bar_color_2 etc.) exist again BEFORE
+                        //    applySettings tries to populate them.
+                        if (typeof ensureAllColorGroups === "function") {
+                            ensureAllColorGroups(preserved);
+                        }
+
+                        // 4. Apply preserved values onto the freshly built inputs.
                         if (Object.keys(preserved).length) {
                             applySettings(preserved, false);
                         }
 
-                        // Make sure color groups rebuild correctly
-                        if (typeof ensureAllColorGroups === "function") {
-                            ensureAllColorGroups(collectSettings());
-                        }
+                        // 5. Refresh previews and accent color.
                         if (typeof updateColorPreviews === "function") {
                             updateColorPreviews();
                         }
@@ -1712,7 +1717,7 @@ async function resetSettings() {
                         }
 
                         await saveSettings(name);
-                        setStatus("Settings reset (bar colors + scan delay kept): " + name);
+                        setStatus("Settings reset (colors, tolerances + scan delays kept): " + name);
                     } catch (error) {
                         console.error(error);
                         showUpdateBanner({

@@ -159,5 +159,6 @@
     "tranquility_color_3": "#FFFF00",
     "tranquility_color_4": "#FF00CC",
     "tranquility_lead": "45",
-    "fish_line_min_density": "0.8"
+    "fish_line_min_density": "0.8",
+    "screenshot_key": "f8"
 }

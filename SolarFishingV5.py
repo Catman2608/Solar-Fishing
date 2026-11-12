@@ -3573,6 +3573,7 @@ class Api:
         defaults.setdefault("start_key", "f5")
         defaults.setdefault("area_selector_key", "f6")
         defaults.setdefault("stop_key", "f7")
+        defaults.setdefault("screenshot_key", "f8")
         _PROMPT_DEFAULTS = defaults
         return dict(defaults)
 
@@ -3693,6 +3694,7 @@ class Api:
         "start_key": "Start Key",
         "area_selector_key": "Area Selector Key",
         "stop_key": "Stop Key",
+        "screenshot_key": "Screenshot Key",
     }
     def rebind_hotkeys(self, hotkey):
         """Arm rebind. on_key_press sees hotkey_state == 1 and ignores start/stop/area."""
@@ -4184,7 +4186,7 @@ class Api:
         except Exception:
             self.roblox_bounds_cache = None
         # Hotkeys
-        if "start_key" in self.vars and "area_selector_key" in self.vars and "stop_key" in self.vars:
+        if "start_key" in self.vars and "area_selector_key" in self.vars and "stop_key" in self.vars and "screenshot_key" in self.vars:
             # Case 1: Hotkeys Are In self.vars
             pass
 
@@ -4193,11 +4195,13 @@ class Api:
             self.vars["start_key"] = data["start_key"]
             self.vars["area_selector_key"] = data["area_selector_key"]
             self.vars["stop_key"] = data["stop_key"]
+            self.vars["screenshot_key"] = data.get("screenshot_key", "F8")
         else:
             # Case 3: Hotkeys Are Not In self.vars And Data
             self.vars["start_key"] = "F5"
             self.vars["area_selector_key"] = "F6"
             self.vars["stop_key"] = "F7"
+            self.vars["screenshot_key"] = "F8"
         # Images
         sun_path = os.path.join(IMAGES_PATH, "sun.png")
         moon_path = os.path.join(IMAGES_PATH, "moon.png")
@@ -4243,6 +4247,7 @@ class Api:
         self.misc_settings["start_key"] = self.vars.get("start_key", "F5")
         self.misc_settings["area_selector_key"] = self.vars.get("area_selector_key", "F6")
         self.misc_settings["stop_key"] = self.vars.get("stop_key", "F7")
+        self.misc_settings["screenshot_key"] = self.vars.get("screenshot_key", "F8")
         # Terms of Service
         self.misc_settings["tos_accepted"] = bool(getattr(self, "tos_accepted", self.misc_settings.get("tos_accepted", False)))
         # Keep last_config synchronized
@@ -4690,12 +4695,14 @@ class Api:
             start_key = self.normalize_key(str(self.vars["start_key"]))
             areas_key = self.normalize_key(str(self.vars["area_selector_key"]))
             stop_key = self.normalize_key(str(self.vars["stop_key"]))
+            screenshot_key = self.normalize_key(str(self.vars.get("screenshot_key", "f8")))
         except Exception as e:
             self.set_status(f"Get hotkeys failed: {e}")
             start_key = "f5"
             areas_key = "f6"
             stop_key = "f7"
-        return start_key, areas_key, stop_key
+            screenshot_key = "f8"
+        return start_key, areas_key, stop_key, screenshot_key
 
     def normalize_key(self, key):
         try:
@@ -4712,7 +4719,7 @@ class Api:
             return
 
         self.save_settings()
-        start_key, area_selector_key, stop_key = self._get_hotkeys()
+        start_key, area_selector_key, stop_key, screenshot_key = self._get_hotkeys()
         automation_mode = self.vars["automation_mode"]
         if key == start_key:
             window.hide()
@@ -4764,6 +4771,9 @@ class Api:
         elif key == stop_key:
             window.show()
             self.stop_macro()
+        elif key == screenshot_key:
+            # Debug screenshots — works whether or not the macro is running.
+            self.take_debug_screenshot()
     def _string_to_key(self, key_string):
         key_string = key_string.strip().lower()
         # Try Special Keys

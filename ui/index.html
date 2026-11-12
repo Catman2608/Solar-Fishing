@@ -209,12 +209,11 @@
                     <label for="automation_mode">Automation Mode:</label>
                     <select name="automation_mode" id="automation_mode" onchange="syncModeTabs(activeSidebarTab()); updateOtherAutomation()">
                         <option value="fishing">Fishing</option>
-                        <option value="harpoon_gun">Harpoon Gun (Shake Only)</option>
+                        <option value="harpoon_gun">Harpoon Gun</option>
                         <option value="appraisal">Appraisal</option>
                         <option value="treasure_appraisal">Treasure Appraisal</option>
                         <option value="enchant">Enchant</option>
                         <option value="angler">Angler</option>
-                        <option value="disabled">Disabled</option>
                     </select>
                 </div>
                 <div class="dropdown">
@@ -224,9 +223,10 @@
                         <option value="notes">Notes (Pinion)</option>
                         <option value="reverse">Reverse (Dreambreaker)</option>
                         <option value="bellona">Dual (Bellona)</option>
-                        <option value="tranquility">4 Lanes (Tranquility)</option>
+                        <option value="tranquility">Mania (Tranquility)</option>
                         <option value="metronome">Metronome (Lullaby)</option>
                         <option value="noiseform">Shapes (Noiseform)</option>
+                        <option value="stellarwave">Signs (Stellarwave Melody)</option>
                     </select>
                 </div>
                 <button class="secondary-button" type="button" id="detect_roblox_btn" onclick="detectRoblox()">Detect Roblox</button>
@@ -234,7 +234,7 @@
                 <section class="panel open">
                     <div class="panel-header">
                         <h2>Hotkeys</h2>
-                        <p class="description">Configure keyboard shortcuts for controlling Solar Fishing and its features.</p>
+                        <p class="description">Configure keyboard shortcuts to control the macro.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
@@ -252,6 +252,11 @@
                             <span>Stop Key</span>
                             <input id="stop_key" type="hidden" value="f7">
                             <button class="key-btn" id="stop_key_btn" onclick="rebindHotkeys('stop_key')" type="button">F7</button>
+                        </div>
+                        <div class="hotkey-row">
+                            <span>Screenshot Key</span>
+                            <input id="screenshot_key" type="hidden" value="f8">
+                            <button class="key-btn" id="screenshot_key_btn" onclick="rebindHotkeys('screenshot_key')" type="button">F8</button>
                         </div>
                     </div>
                 </section>
@@ -320,7 +325,7 @@
                 <section class="panel open" id="cast-color-options">
                     <div class="panel-header">
                         <h2>Color Options</h2>
-                        <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
+                        <p class="description">Adjust colors used for the interface and detection.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
@@ -503,7 +508,7 @@
                 <section class="panel open" id="shake-color-options">
                     <div class="panel-header">
                         <h2>Color Options</h2>
-                        <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
+                        <p class="description">Adjust colors used for the interface and detection.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
@@ -533,7 +538,7 @@
                 <section class="panel open">
                     <div class="panel-header">
                         <h2>Shaking</h2>
-                        <p class="description">Configure shake detection and the behavior used when the game requires shaking.</p>
+                        <p class="description">Customize automatic shake detection and interaction.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
@@ -610,7 +615,7 @@
                 <section class="panel open" id="fish-color-options">
                     <div class="panel-header">
                         <h2>Color Options</h2>
-                        <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
+                        <p class="description">Adjust colors used for the interface and detection.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
@@ -851,7 +856,7 @@
                 <section class="panel open">
                     <div class="panel-header">
                         <h2>Color Options</h2>
-                        <p class="description">Customize the colors used for fish detection, overlays, and other visual elements.</p>
+                        <p class="description">Adjust colors used for the interface and detection.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
@@ -915,7 +920,7 @@
                 <section class="panel open">
                     <div class="panel-header">
                         <h2>Auto Totem</h2>
-                        <p class="description">Configure automatic totem selection and usage.</p>
+                        <p class="description">Automatically equip and activate supported totems.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
@@ -1016,7 +1021,7 @@
                 <section class="panel open">
                     <div class="panel-header">
                         <h2>Auto Sovereign Recharge</h2>
-                        <p class="description">Configure Gamepass Enchant Positions in Other Utilities, ratio in 0-1 as decimals.</p>
+                        <p class="description">Automatically recharge the Sovereign Relic when needed.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
@@ -1221,7 +1226,7 @@
                 <section class="panel open" id="auto-treasure-appraisal-panel">
                     <div class="panel-header">
                         <h2>Auto Treasure Appraisal</h2>
-                        <p class="description">Configure automatic treasure appraisal and related settings.</p>
+                        <p class="description">Automatically appraise caught fish in the Treasure Island.</p>
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">

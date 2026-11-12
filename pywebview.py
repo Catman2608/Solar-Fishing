@@ -108,7 +108,7 @@ class Api:
         try:
             for attrs in re.findall(r"<input\b([^>]*)>", html, flags=re.IGNORECASE):
                 field_id = self._html_attr(attrs, "id")
-                if not field_id or field_id == "config_list" or field_id.startswith("_"):
+                if not field_id or field_id in ("config_list", "global_settings") or field_id.startswith("_"):
                     continue
                 input_type = (self._html_attr(attrs, "type") or "text").lower()
                 if input_type == "checkbox":
@@ -136,7 +136,7 @@ class Api:
             )
             for attrs, body in select_pattern.findall(html):
                 field_id = self._html_attr(attrs, "id")
-                if not field_id or field_id == "config_list" or field_id.startswith("_"):
+                if not field_id or field_id in ("config_list", "global_settings") or field_id.startswith("_"):
                     continue
                 chosen = None
                 first = None

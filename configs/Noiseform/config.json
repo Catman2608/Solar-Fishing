@@ -11,7 +11,7 @@
     "status_overlay": true,
     "bag_spam": true,
     "lock_cursor": true,
-    "casting_mode": "normal",
+    "casting_mode": "perfect",
     "green_cast_color_count": "1",
     "green_cast_color": "#64A04C",
     "green_cast_tolerance": "16",
@@ -159,5 +159,6 @@
     "tranquility_color_3": "#FFFF00",
     "tranquility_color_4": "#FF00CC",
     "tranquility_lead": "45",
-    "fish_line_min_density": "0.8"
+    "fish_line_min_density": "0.8",
+    "screenshot_key": "f8"
 }
