@@ -936,19 +936,19 @@ class Api:
         except Exception as e:
             self.set_status(f"Key Listener error: {e}")
         # Store Screen Width And Height To Use Later
-        self.SCREEN_WIDTH = SCREEN_WIDTH
-        self.SCREEN_HEIGHT = SCREEN_HEIGHT
-        self.SCREEN_LEFT = SCREEN_LEFT
-        self.SCREEN_TOP = SCREEN_TOP
-        self.SCREEN_SCALE = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
+        SCREEN_WIDTH = SCREEN_WIDTH
+        SCREEN_HEIGHT = SCREEN_HEIGHT
+        SCREEN_LEFT = SCREEN_LEFT
+        SCREEN_TOP = SCREEN_TOP
+        self.SCREEN_SCALE = ((SCREEN_WIDTH / 1920) + (SCREEN_HEIGHT / 1080)) / 2
         # Macro State
         self.macro_running = False
         self.macro_thread = None
         # Safe Defaults Before Key Listener Starts (Will Be Overwritten By Load_Misc_Settings)
         self.bar_areas = {"shake": None, "fish": None, "friend": None, "totem": None}
         self.current_rod_name = "Basic Rod"
-        self.scale_x_1440 = self.SCREEN_WIDTH / 2560
-        self.scale_y_1440 = self.SCREEN_HEIGHT / 1440
+        self.scale_x_1440 = SCREEN_WIDTH / 2560
+        self.scale_y_1440 = SCREEN_HEIGHT / 1440
         # Screen Capture
         self.capture_thread = None
         self.mss_frame = None
@@ -971,13 +971,13 @@ class Api:
                 _m = _sct.monitors[1]
             else:
                 _m = _sct.monitors[0]
-        self.SCREEN_WIDTH  = _m["width"]
-        self.SCREEN_HEIGHT = _m["height"]
-        self.SCREEN_LEFT   = _m["left"]
-        self.SCREEN_TOP    = _m["top"]
-        self.SCREEN_SCALE  = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
-        self.scale_x_1440  = self.SCREEN_WIDTH  / 2560
-        self.scale_y_1440  = self.SCREEN_HEIGHT / 1440
+        SCREEN_WIDTH  = _m["width"]
+        SCREEN_HEIGHT = _m["height"]
+        SCREEN_LEFT   = _m["left"]
+        SCREEN_TOP    = _m["top"]
+        self.SCREEN_SCALE  = ((SCREEN_WIDTH / 1920) + (SCREEN_HEIGHT / 1080)) / 2
+        self.scale_x_1440  = SCREEN_WIDTH  / 2560
+        self.scale_y_1440  = SCREEN_HEIGHT / 1440
         # Force _grab_screen_full to rebuild the thread-local monitor dict.
         self._thread_local = threading.local()
     # Save Config
@@ -1722,35 +1722,35 @@ class Api:
             left, top, right, bottom = self._get_default_areas(area_key)
             width  = right - left
             height = bottom - top
-        left2   = int(left * scale * self.SCREEN_WIDTH)
-        top2    = int(top * scale * self.SCREEN_HEIGHT)
-        right2  = int(right * scale * self.SCREEN_WIDTH)
-        bottom2 = int(bottom * scale * self.SCREEN_HEIGHT)
-        width2  = int(width * scale * self.SCREEN_WIDTH)
-        height2 = int(height * scale * self.SCREEN_HEIGHT)
+        left2   = int(left * scale * SCREEN_WIDTH)
+        top2    = int(top * scale * SCREEN_HEIGHT)
+        right2  = int(right * scale * SCREEN_WIDTH)
+        bottom2 = int(bottom * scale * SCREEN_HEIGHT)
+        width2  = int(width * scale * SCREEN_WIDTH)
+        height2 = int(height * scale * SCREEN_HEIGHT)
         return left2, top2, right2, bottom2, width2, height2
 
     def _get_default_areas(self, area):
         if area == "shake":
-            left = int(self.SCREEN_WIDTH * 0.1041)
-            top = int(self.SCREEN_HEIGHT * 0.0925)
-            right = int(self.SCREEN_WIDTH * 0.8958)
-            bottom = int(self.SCREEN_HEIGHT * 0.7888)
+            left = int(SCREEN_WIDTH * 0.1041)
+            top = int(SCREEN_HEIGHT * 0.0925)
+            right = int(SCREEN_WIDTH * 0.8958)
+            bottom = int(SCREEN_HEIGHT * 0.7888)
         elif area == "fish":
-            left   = int(self.SCREEN_WIDTH  * 0.2844)
-            top    = int(self.SCREEN_HEIGHT * 0.7981)
-            right  = int(self.SCREEN_WIDTH  * 0.7141)
-            bottom = int(self.SCREEN_HEIGHT * 0.8370)
+            left   = int(SCREEN_WIDTH  * 0.2844)
+            top    = int(SCREEN_HEIGHT * 0.7981)
+            right  = int(SCREEN_WIDTH  * 0.7141)
+            bottom = int(SCREEN_HEIGHT * 0.8370)
         elif area == "friend":
-            left = int(self.SCREEN_WIDTH * 0.0046)
-            top = int(self.SCREEN_HEIGHT * 0.8583)
-            right = int(self.SCREEN_WIDTH * 0.0401)
-            bottom = int(self.SCREEN_HEIGHT * 0.94)
+            left = int(SCREEN_WIDTH * 0.0046)
+            top = int(SCREEN_HEIGHT * 0.8583)
+            right = int(SCREEN_WIDTH * 0.0401)
+            bottom = int(SCREEN_HEIGHT * 0.94)
         else:
-            left = int(self.SCREEN_WIDTH * 0.9531)
-            top = int(self.SCREEN_HEIGHT * 0.8333)
-            right = int(self.SCREEN_WIDTH * 0.9739)
-            bottom = int(self.SCREEN_HEIGHT * 0.8796)
+            left = int(SCREEN_WIDTH * 0.9531)
+            top = int(SCREEN_HEIGHT * 0.8333)
+            right = int(SCREEN_WIDTH * 0.9739)
+            bottom = int(SCREEN_HEIGHT * 0.8796)
         return left, top, right, bottom
 
     def _get_var_number(self, key, default, cast=float):
@@ -2031,7 +2031,7 @@ class Api:
         target_green = np.array(self._hex_to_bgr(green_color), dtype=np.int32)
         target_white = np.array(self._hex_to_bgr(white_color), dtype=np.int32)
         # Resolution scaling: velocity bands are tuned at 1440p height
-        scaling_factor = self.SCREEN_HEIGHT / 1440.0
+        scaling_factor = SCREEN_HEIGHT / 1440.0
         tracking_mode = False
         green_left_x = None
         green_right_x = None
@@ -2394,7 +2394,7 @@ class Api:
             elif (fish_x > right_boundary):
                 control_signal = 30
             else:
-                if controller_mode == "normal":
+                if controller_mode == "default":
                     if is_initial_run == True:
                         control_signal = 0
                         last_error = error

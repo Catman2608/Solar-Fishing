@@ -1,5 +1,4 @@
 *.exe
 *.dll
 *.bin
-FAQ.txt
-DeepFish.ahk
+other_functions.py

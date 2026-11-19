@@ -1182,7 +1182,7 @@ class FishOverlay:
     def hide(self):
         """Destroys the current window instance completely.
         Clear _open BEFORE destroy so concurrent minigame threads that still
-        call clear()/draw_box()/_eval skip the disposed WebView2 and avoid
+        call clear()/draw()/_eval skip the disposed WebView2 and avoid
         ObjectDisposedException (logged by pywebview as 'Error occurred in script').
         """
         if self.overlay_window and self._open:
@@ -1216,7 +1216,7 @@ class FishOverlay:
     def clear(self):
         """Clears rendering elements inside the web view context."""
         self._eval("window.fishOverlay && window.fishOverlay.clear()")
-    def draw_box(self, x1, y1, x2, y2, color, show_bar_center=False):
+    def draw(self, x1, y1, x2, y2, color, show_bar_center=False):
         """Evaluates JS drawing contexts based on calculations inside the viewport.
         bar_center / box_size / canvas_offset are in physical pixels relative to
         the fish capture region; they are converted to logical CSS pixels for
@@ -1270,19 +1270,19 @@ class Api:
         except Exception as e:
             self.set_status(f"Key Listener error: {e}")
         # Store Screen Width And Height To Use Later
-        self.SCREEN_WIDTH = SCREEN_WIDTH
-        self.SCREEN_HEIGHT = SCREEN_HEIGHT
-        self.SCREEN_LEFT = SCREEN_LEFT
-        self.SCREEN_TOP = SCREEN_TOP
-        self.SCREEN_SCALE = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
+        SCREEN_WIDTH = SCREEN_WIDTH
+        SCREEN_HEIGHT = SCREEN_HEIGHT
+        SCREEN_LEFT = SCREEN_LEFT
+        SCREEN_TOP = SCREEN_TOP
+        self.SCREEN_SCALE = ((SCREEN_WIDTH / 1920) + (SCREEN_HEIGHT / 1080)) / 2
         # Macro State
         self.macro_running = False
         self.macro_thread = None
         # Safe Defaults Before Key Listener Starts (Will Be Overwritten By Load_Misc_Settings)
         self.bar_areas = {name: None for name in AREA_ORDER}
         self.current_rod_name = "Default"
-        self.scale_x_1440 = self.SCREEN_WIDTH / 2560
-        self.scale_y_1440 = self.SCREEN_HEIGHT / 1440
+        self.scale_x_1440 = SCREEN_WIDTH / 2560
+        self.scale_y_1440 = SCREEN_HEIGHT / 1440
         # Screen Capture
         self.capture_thread = None
         self.capture_frame = None
@@ -1308,13 +1308,13 @@ class Api:
                 _m = _sct.monitors[1]
             else:
                 _m = _sct.monitors[0]
-        self.SCREEN_WIDTH  = _m["width"]
-        self.SCREEN_HEIGHT = _m["height"]
-        self.SCREEN_LEFT   = _m["left"]
-        self.SCREEN_TOP    = _m["top"]
-        self.SCREEN_SCALE  = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
-        self.scale_x_1440  = self.SCREEN_WIDTH  / 2560
-        self.scale_y_1440  = self.SCREEN_HEIGHT / 1440
+        SCREEN_WIDTH  = _m["width"]
+        SCREEN_HEIGHT = _m["height"]
+        SCREEN_LEFT   = _m["left"]
+        SCREEN_TOP    = _m["top"]
+        self.SCREEN_SCALE  = ((SCREEN_WIDTH / 1920) + (SCREEN_HEIGHT / 1080)) / 2
+        self.scale_x_1440  = SCREEN_WIDTH  / 2560
+        self.scale_y_1440  = SCREEN_HEIGHT / 1440
         # Force the capture pipelines to rebuild the thread-local monitor dict.
         self._thread_local = threading.local()
     # Save Config
@@ -2178,12 +2178,12 @@ class Api:
             left, top, right, bottom = self._get_default_areas(area_key)
             width  = right - left
             height = bottom - top
-        left2   = int(left * scale * self.SCREEN_WIDTH)
-        top2    = int(top * scale * self.SCREEN_HEIGHT)
-        right2  = int(right * scale * self.SCREEN_WIDTH)
-        bottom2 = int(bottom * scale * self.SCREEN_HEIGHT)
-        width2  = int(width * scale * self.SCREEN_WIDTH)
-        height2 = int(height * scale * self.SCREEN_HEIGHT)
+        left2   = int(left * scale * SCREEN_WIDTH)
+        top2    = int(top * scale * SCREEN_HEIGHT)
+        right2  = int(right * scale * SCREEN_WIDTH)
+        bottom2 = int(bottom * scale * SCREEN_HEIGHT)
+        width2  = int(width * scale * SCREEN_WIDTH)
+        height2 = int(height * scale * SCREEN_HEIGHT)
         return left2, top2, right2, bottom2, width2, height2
 
     def _get_default_areas(self, area):
@@ -2877,7 +2877,7 @@ class Api:
         while self.macro_running:
             attempts = attempts + 1
             # Click
-            if appraisal_mode == "normal":
+            if appraisal_mode == "default":
                 time.sleep(click_delay)
                 self._click_at(appraisal_x, appraisal_y)
             else:
@@ -3348,13 +3348,13 @@ class Api:
                     time.sleep(self.scan_delay)
                 # Minigame — sets self.catch_success = 0 at start; flips to 1 if fish ever leaves the bar
                 self.set_status("Playing Bar Minigame")
-                if special_rod == "reverse":
+                if special_rod == "dreambreaker":
                     self._enter_minigame_dreambreaker()
                 elif special_rod == "dual":
                     self._enter_minigame_bellona()
                 elif special_rod == "lanes":
                     self._enter_minigame_tranquility()
-                elif special_rod == "metronome":
+                elif special_rod == "lullaby":
                     self.enter_minigame_lullaby()
                 else:
                     self._enter_minigame()
@@ -3847,7 +3847,7 @@ class Api:
                         initial_arrow.append(circle_y_ratio)
                     elif 0.75 < circle_x_ratio <= 1.0:
                         initial_fish.append(circle_y_ratio)
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=int(overlay_width * 0.15),
                         y1=circles[circle][1],
                         x2=int(overlay_width * 0.85),
@@ -3884,7 +3884,7 @@ class Api:
                 #     f"x{circles[circle][0]} y{circles[circle][1]} "
                 #     f"xr{circle_x_ratio} yr{circle_y_ratio}"
                 #)
-                self.fish_overlay.draw_box(
+                self.fish_overlay.draw(
                     x1=int(overlay_width * 0.15),
                     y1=circles[circle][1],
                     x2=int(overlay_width * 0.85),
@@ -4299,34 +4299,34 @@ class Api:
             left_boundary2 = fish_left2 + boundary2
             right_boundary2 = fish_right2 - boundary2
             if fish_overlay == "on":
-                self.fish_overlay.draw_box(
+                self.fish_overlay.draw(
                     x1=left_x1, y1=fish_height*0.15, x2=right_x1, y2=fish_height*0.85,
                 )
                 if left_boundary1 is not None:
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=left_boundary1, y1=fish_height*0.15, x2=left_boundary1 + 15, y2=fish_height*0.85,
                     )
                 if right_boundary1 is not None:
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=right_boundary1 - 15, y1=fish_height*0.15, x2=right_boundary1, y2=fish_height*0.85,
                     )
                 if fish_x1 is not None:
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=fish_x1, y1=fish_height*0.15, x2=fish_x1 + 15, y2=fish_height*0.85,
                     )
-                self.fish_overlay.draw_box(
+                self.fish_overlay.draw(
                     x1=left_x2, y1=fish_height*0.15, x2=right_x2, y2=fish_height*0.85,
                 )
                 if left_boundary2 is not None:
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=left_boundary2, y1=fish_height*0.15, x2=left_boundary2 + 15, y2=fish_height*0.85,
                     )
                 if right_boundary2 is not None:
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=right_boundary2 - 15, y1=fish_height*0.15, x2=right_boundary2, y2=fish_height*0.85,
                     )
                 if fish_x2 is not None:
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=fish_x2, y1=fish_height*0.15, x2=fish_x2 + 15, y2=fish_height*0.85,
                     )
             current_time = time.perf_counter()
@@ -5032,7 +5032,7 @@ class Api:
             if fish_detected == False:
                 fish_x = last_fish_x
             # Note Detection
-            if special_rod == "notes":
+            if special_rod == "pinion":
                 note_x, note_y = self.pixel_search(shake_img, pinion_notes_color, pinion_notes_tolerance)
                 if note_x is not None and note_y is not None:
                     note_y_ratio = float(note_y / note_height)
@@ -5045,7 +5045,7 @@ class Api:
             else:
                 # print("Note Tracking Disabled")
                 note_y_ratio = 0.0
-                if special_rod == "notes":
+                if special_rod == "pinion":
                     # Catch fails if the note ratio becomes 1 and the bar can't catch it; stays success only if note ratio is less than 0.9
                     if note_y_ratio > 0.9:
                         self.catch_success = 1
@@ -5071,34 +5071,34 @@ class Api:
             # Fish Overlay
             if fish_overlay == "on":
                 if fishing_mode == "color":
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=left_x, y1=fish_height*0.15, x2=right_x, y2=fish_height*0.85, color="green",
                         show_bar_center=True
                     )
                     if left_boundary is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=left_boundary, y1=fish_height*0.15, x2=left_boundary + 15, y2=fish_height*0.85, color="lightblue"
                         )
                     if right_boundary is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=right_boundary - 15, y1=fish_height*0.15, x2=right_boundary, y2=fish_height*0.85, color="lightblue"
                         )
                     if fish_x is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=fish_x, y1=fish_height*0.15, x2=fish_x + 15, y2=fish_height*0.85, color="red"
                         )
                 else:
                     if bar_center > 0 and bar_size > 0 and fish_x > 0:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=left_x, y1=fish_height*0.15, x2=right_x, y2=fish_height*0.85, color="green",
                             show_bar_center=True
                         )
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=fish_x, y1=fish_height*0.15, x2=fish_x + 15, y2=fish_height*0.85, color="red",
                         )
                     else:
                         for pos in range(len(line_coords)):
-                            self.fish_overlay.draw_box(x1=line_coords[pos], y1=fish_height*0.15, x2=line_coords[pos], y2=fish_height*0.85, color="green")
+                            self.fish_overlay.draw(x1=line_coords[pos], y1=fish_height*0.15, x2=line_coords[pos], y2=fish_height*0.85, color="green")
             # Controller Mode Selection
             current_controller_mode = controller_mode
             # Time delta is measured only between real captured frames.
@@ -5131,7 +5131,7 @@ class Api:
             elif (fish_x > right_boundary):
                 control_signal = 30
             else:
-                if current_controller_mode == "normal":
+                if current_controller_mode == "default":
                     # Normal: Traditional PD controller
                     if is_initial_run == True:
                         control_signal = 0

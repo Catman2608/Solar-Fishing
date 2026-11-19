@@ -698,7 +698,7 @@ async function loadSettings(configName) {
 }
 
 function updateCastingMode() {
-    const mode = (document.getElementById("casting_mode") || {}).value || "normal";
+    const mode = (document.getElementById("casting_mode") || {}).value || "default";
     const isPerfect = mode === "perfect";
     const colorPanel = document.getElementById("cast-color-options");
     const normalPanel = document.getElementById("normal-cast-card");
@@ -726,9 +726,9 @@ function updateShakeMode() {
 
 function updateFishingVisibility() {
     const fishingMode = (document.getElementById("fishing_mode") || {}).value || "color";
-    const profile = (document.getElementById("special_rod") || {}).value || "normal";
+    const profile = (document.getElementById("special_rod") || {}).value || "default";
     const isLine = fishingMode === "line";
-    const isPinion = profile === "notes";
+    const isPinion = profile === "pinion";
 
     const bar = document.getElementById("bar-colors-container");
     const arrow = document.getElementById("arrow-colors-container");
@@ -748,7 +748,7 @@ function updateFishingVisibility() {
 }
 
 function updateSpecialRods() {
-    const profile = (document.getElementById("special_rod") || {}).value || "normal";
+    const profile = (document.getElementById("special_rod") || {}).value || "default";
     const panel = document.getElementById("special-rods-panel");
     const settings = document.querySelectorAll(".special-rod-setting");
     let anyVisible = false;

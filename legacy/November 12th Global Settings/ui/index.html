@@ -220,12 +220,12 @@
                 <div class="dropdown">
                     <label for="special_rod">Special Rod:</label>
                     <select name="special_rod" id="special_rod" onchange="updateFishingVisibility(); updateSpecialRods()">
-                        <option value="normal">Normal</option>
-                        <option value="notes">Notes (Pinion)</option>
-                        <option value="reverse">Reverse (Dreambreaker)</option>
+                        <option value="default">Normal</option>
+                        <option value="pinion">Notes (Pinion)</option>
+                        <option value="dreambreaker">Reverse (Dreambreaker)</option>
                         <option value="bellona">Dual (Bellona)</option>
                         <option value="tranquility">4 Lanes (Tranquility)</option>
-                        <option value="metronome">Metronome (Lullaby)</option>
+                        <option value="lullaby">Metronome (Lullaby)</option>
                         <option value="noiseform">Shapes (Noiseform)</option>
                     </select>
                 </div>
@@ -313,7 +313,7 @@
                 <div class="dropdown">
                     <label for="casting_mode">Casting Mode:</label>
                     <select name="casting_mode" id="casting_mode" onchange="updateCastingMode()">
-                        <option value="normal">Normal</option>
+                        <option value="default">Normal</option>
                         <option value="perfect">Perfect</option>
                     </select>
                 </div>
@@ -569,7 +569,7 @@
                 <div class="dropdown">
                     <label for="controller_mode">Controller Mode:</label>
                     <select name="controller_mode" id="controller_mode">
-                    <option value="normal">Normal</option>
+                    <option value="default">Normal</option>
                     <option value="steady">Steady</option>
                     <option value="predictive">Predictive</option>
                     </select>
@@ -732,7 +732,7 @@
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
-                        <div class="slider-row special-rod-setting" data-profile="notes">
+                        <div class="slider-row special-rod-setting" data-profile="pinion">
                             <label for="pinion_note_ratio">Note Tracking Ratio (Pinion)</label>
                             <input class="range-input" id="pinion_note_ratio_slider" type="range" min="0" max="1" step="0.1" value="0.3" data-target="pinion_note_ratio">
                             <input class="slider-value" id="pinion_note_ratio" type="text" inputmode="decimal" value="0.3" placeholder="0.3" data-slider="pinion_note_ratio_slider">
@@ -741,11 +741,11 @@
                             <label>Tranquility Lead (ms)</label>
                             <input id="tranquility_lead" type="text" placeholder="45" value="45">
                         </div>
-                        <div class="text special-rod-setting" data-profile="metronome">
+                        <div class="text special-rod-setting" data-profile="lullaby">
                             <label>Metronome Padding (Lullaby)</label>
                             <input id="lullaby_metronome_padding" type="text" placeholder="20">
                         </div>
-                        <div class="slider-row special-rod-setting" data-profile="metronome">
+                        <div class="slider-row special-rod-setting" data-profile="lullaby">
                             <label for="lullaby_mask_lost_ratio">Mask Lost Ratio (Lullaby)</label>
                             <input class="range-input" id="lullaby_mask_lost_ratio_slider" type="range" min="0" max="1" step="0.1" value="0.2" data-target="lullaby_mask_lost_ratio">
                             <input class="slider-value" id="lullaby_mask_lost_ratio" type="text" inputmode="decimal" value="0.2" placeholder="0.2" data-slider="lullaby_mask_lost_ratio_slider">
@@ -1181,7 +1181,7 @@
                         <div class="dropdown">
                             <label for="appraisal_mode">Appraisal Mode:</label>
                             <select name="appraisal_mode" id="appraisal_mode">
-                                <option value="normal">Normal</option>
+                                <option value="default">Normal</option>
                                 <option value="gamepass">Gamepass</option>
                             </select>
                         </div>
@@ -1255,7 +1255,7 @@
                         <div class="dropdown">
                             <label for="enchantment_mode">Enchantment Mode:</label>
                             <select name="enchantment_mode" id="enchantment_mode">
-                                <option value="normal">Normal</option>
+                                <option value="default">Normal</option>
                                 <option value="gamepass">Gamepass</option>
                                 <option value="disabled">Disabled</option>
                             </select>

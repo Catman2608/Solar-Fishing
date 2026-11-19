@@ -1417,7 +1417,7 @@ class AreaSelector:
     def hide(self):
         """Destroys the current window instance completely.
         Clear _open BEFORE destroy so concurrent minigame threads that still
-        call clear()/draw_box()/_eval skip the disposed WebView2 and avoid
+        call clear()/draw()/_eval skip the disposed WebView2 and avoid
         ObjectDisposedException (logged by pywebview as 'Error occurred in script').
         Destroy is scheduled off the JS-API thread to avoid pywebview deadlock.
         """
@@ -1491,7 +1491,7 @@ class AreaSelector:
                 visible_areas.append("sovereign")
             if special_rod == "noiseform":
                 visible_areas.append("Noiseform")
-            elif special_rod == "metronome":
+            elif special_rod == "lullaby":
                 visible_areas.append("lullaby")
         elif automation_mode == "appraisal":
             visible_areas.append("appraisal_hotbar")
@@ -1667,7 +1667,7 @@ class AreaSelector:
             return
 
         self.overlay_window.evaluate_js("window.fishOverlay && window.fishOverlay.saveAndClose()")
-    def draw_box(self, x1, y1, x2, y2, color, show_bar_center=False, label=""):
+    def draw(self, x1, y1, x2, y2, color, show_bar_center=False, label=""):
         """Evaluates JS drawing contexts based on calculations inside the viewport.
         bar_center / box_size / canvas_offset are in physical pixels relative to
         the fish capture region; they are converted to logical CSS pixels for
@@ -2091,7 +2091,7 @@ class FishOverlay:
     def hide(self):
         """Destroys the current window instance completely.
         Clear _open BEFORE destroy so concurrent minigame threads that still
-        call clear()/draw_box()/_eval skip the disposed WebView2 and avoid
+        call clear()/draw()/_eval skip the disposed WebView2 and avoid
         ObjectDisposedException (logged by pywebview as 'Error occurred in script').
         Destroy is scheduled off the caller thread so a stop/hotkey/shutdown
         path cannot deadlock pywebview the way Eyedropper/AreaSelector did.
@@ -2128,7 +2128,7 @@ class FishOverlay:
     def clear(self):
         """Clears rendering elements inside the web view context."""
         self._eval("window.fishOverlay && window.fishOverlay.clear()")
-    def draw_box(self, x1, y1, x2, y2, color, show_bar_center=False):
+    def draw(self, x1, y1, x2, y2, color, show_bar_center=False):
         """Evaluates JS drawing contexts based on calculations inside the viewport.
         bar_center / box_size / canvas_offset are in physical pixels relative to
         the fish capture region; they are converted to logical CSS pixels for
@@ -2672,7 +2672,7 @@ class TermsOfServiceDialogue:
     def hide(self):
         """Destroys the current window instance completely.
         Clear _open BEFORE destroy so concurrent minigame threads that still
-        call clear()/draw_box()/_eval skip the disposed WebView2 and avoid
+        call clear()/draw()/_eval skip the disposed WebView2 and avoid
         ObjectDisposedException (logged by pywebview as 'Error occurred in script').
         Destroy is scheduled off the caller thread so a stop/hotkey/shutdown
         path cannot deadlock pywebview the way Eyedropper/AreaSelector did.
@@ -3449,11 +3449,11 @@ class Api:
         except Exception as e:
             self.set_status(f"Key Listener error: {e}")
         # Store Screen Width And Height To Use Later
-        self.SCREEN_WIDTH = SCREEN_WIDTH
-        self.SCREEN_HEIGHT = SCREEN_HEIGHT
-        self.SCREEN_LEFT = SCREEN_LEFT
-        self.SCREEN_TOP = SCREEN_TOP
-        self.SCREEN_SCALE = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
+        SCREEN_WIDTH = SCREEN_WIDTH
+        SCREEN_HEIGHT = SCREEN_HEIGHT
+        SCREEN_LEFT = SCREEN_LEFT
+        SCREEN_TOP = SCREEN_TOP
+        self.SCREEN_SCALE = ((SCREEN_WIDTH / 1920) + (SCREEN_HEIGHT / 1080)) / 2
         # Macro State
         self.macro_running = False
         self.macro_thread = None
@@ -5011,12 +5011,12 @@ class Api:
             height = float(mapped["height"])
             right  = left + width
             bottom = top + height
-        left2   = int(left * scale * self.SCREEN_WIDTH)
-        top2    = int(top * scale * self.SCREEN_HEIGHT)
-        right2  = int(right * scale * self.SCREEN_WIDTH)
-        bottom2 = int(bottom * scale * self.SCREEN_HEIGHT)
-        width2  = int(width * scale * self.SCREEN_WIDTH)
-        height2 = int(height * scale * self.SCREEN_HEIGHT)
+        left2   = int(left * scale * SCREEN_WIDTH)
+        top2    = int(top * scale * SCREEN_HEIGHT)
+        right2  = int(right * scale * SCREEN_WIDTH)
+        bottom2 = int(bottom * scale * SCREEN_HEIGHT)
+        width2  = int(width * scale * SCREEN_WIDTH)
+        height2 = int(height * scale * SCREEN_HEIGHT)
         return left2, top2, right2, bottom2, width2, height2
 
     def _get_default_areas(self, area):
@@ -5940,7 +5940,7 @@ class Api:
         appraisal_y_ratio = 0.5
         appraisal_x_ratio2 = 0.5
         appraisal_y_ratio2 = 0.5
-        if appraisal_mode == "normal":
+        if appraisal_mode == "default":
             # Normal Appraisal
             raw_normal_appraisal_ratio = self.vars["normal_appraisal_click"]
             normal_appraisal_ratio = raw_normal_appraisal_ratio.replace(" ", "").split(",")
@@ -5976,13 +5976,13 @@ class Api:
         attempts = 0.0
         # Main Loop
         time.sleep(0.1)
-        if appraisal_mode == "normal":
+        if appraisal_mode == "default":
             self._send_key("e", 0.05)
         try:
             while self.macro_running:
                 attempts = attempts + 1
                 # Click
-                if appraisal_mode == "normal":
+                if appraisal_mode == "default":
                     time.sleep(appraisal_delay)
                     self._click_at(appraisal_x, appraisal_y)
                 else:
@@ -6194,7 +6194,7 @@ class Api:
         try:
             while self.macro_running:
                 time.sleep(0.1)
-                if enchantment_mode == "normal":
+                if enchantment_mode == "default":
                     self._send_key("e")
                     time.sleep(enchantment_e_delay)
                     self._click_at(enchantment_click_position_x, enchantment_click_position_y)
@@ -6759,13 +6759,13 @@ class Api:
                 if self.macro_running == True:
                     self.set_status("Playing Bar Minigame")
                     self.status_overlay.set_main_status(f"Playing Bar Minigame ({special_rod})")
-                    if special_rod == "reverse":
+                    if special_rod == "dreambreaker":
                         self._enter_minigame_dreambreaker()
                     elif special_rod == "bellona":
                         self._enter_minigame_bellona()
                     elif special_rod == "tranquility":
                         self._enter_minigame_tranquility()
-                    elif special_rod == "metronome":
+                    elif special_rod == "lullaby":
                         self.enter_minigame_lullaby()
                     else:
                         self._enter_minigame()
@@ -7480,7 +7480,7 @@ class Api:
                                 color = self.vars.get(f"tranquility_color_{box + 1}", "#FFFFFF")
                             except:
                                 color = "#FFFFFF"
-                            self.fish_overlay.draw_box(fish_left[box], 0, fish_right[box], tranquility_small_gap, color)
+                            self.fish_overlay.draw(fish_left[box], 0, fish_right[box], tranquility_small_gap, color)
                 # Check for misses (note passed target without fire)
                 for nt in notes[box]:
                     if not nt["fired"]:
@@ -7690,9 +7690,9 @@ class Api:
             # Draw
             if fish_overlay == True:
                 if left_x is not None:
-                    self.fish_overlay.draw_box(x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green")
+                    self.fish_overlay.draw(x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green")
                 if fish_x is not None:
-                    self.fish_overlay.draw_box(x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 10, y2=overlay_height*0.85, color="red")
+                    self.fish_overlay.draw(x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 10, y2=overlay_height*0.85, color="red")
             # Controller Output
             self.status_overlay.set_line(1, f"Detection Source: ", detection_source)
             self.status_overlay.set_line(2, f"Last Source: ", last_detection_source)
@@ -7954,21 +7954,21 @@ class Api:
             right_boundary2 = fish_width2 - boundary2
             if fish_overlay == True:
                 # Bar 1 (relative coords already match overlay origin)
-                self.fish_overlay.draw_box(x1=left_x1, y1=overlay_height*0.15, x2=right_x1, y2=overlay_height*0.85, color="green", show_bar_center=True)
+                self.fish_overlay.draw(x1=left_x1, y1=overlay_height*0.15, x2=right_x1, y2=overlay_height*0.85, color="green", show_bar_center=True)
                 if left_boundary1 is not None:
-                    self.fish_overlay.draw_box(x1=left_boundary1, y1=overlay_height*0.15, x2=left_boundary1 + 15, y2=overlay_height*0.85, color="lightblue")
+                    self.fish_overlay.draw(x1=left_boundary1, y1=overlay_height*0.15, x2=left_boundary1 + 15, y2=overlay_height*0.85, color="lightblue")
                 if right_boundary1 is not None:
-                    self.fish_overlay.draw_box(x1=right_boundary1 - 15, y1=overlay_height*0.15, x2=right_boundary1, y2=overlay_height*0.85, color="lightblue")
+                    self.fish_overlay.draw(x1=right_boundary1 - 15, y1=overlay_height*0.15, x2=right_boundary1, y2=overlay_height*0.85, color="lightblue")
                 if fish_x1 is not None:
-                    self.fish_overlay.draw_box(x1=fish_x1, y1=overlay_height*0.15, x2=fish_x1 + 15, y2=overlay_height*0.85, color="red")
+                    self.fish_overlay.draw(x1=fish_x1, y1=overlay_height*0.15, x2=fish_x1 + 15, y2=overlay_height*0.85, color="red")
                 # Bar 2 — shift by right_bar_offset so it lines up on the shared overlay
-                self.fish_overlay.draw_box(x1=left_x2 + right_bar_offset, y1=overlay_height*0.15, x2=right_x2 + right_bar_offset, y2=overlay_height*0.85, color="green", show_bar_center=True)
+                self.fish_overlay.draw(x1=left_x2 + right_bar_offset, y1=overlay_height*0.15, x2=right_x2 + right_bar_offset, y2=overlay_height*0.85, color="green", show_bar_center=True)
                 if left_boundary2 is not None:
-                    self.fish_overlay.draw_box(x1=left_boundary2 + right_bar_offset, y1=overlay_height*0.15, x2=left_boundary2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="lightblue")
+                    self.fish_overlay.draw(x1=left_boundary2 + right_bar_offset, y1=overlay_height*0.15, x2=left_boundary2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="lightblue")
                 if right_boundary2 is not None:
-                    self.fish_overlay.draw_box(x1=right_boundary2 - 15 + right_bar_offset, y1=overlay_height*0.15, x2=right_boundary2 + right_bar_offset, y2=overlay_height*0.85, color="lightblue")
+                    self.fish_overlay.draw(x1=right_boundary2 - 15 + right_bar_offset, y1=overlay_height*0.15, x2=right_boundary2 + right_bar_offset, y2=overlay_height*0.85, color="lightblue")
                 if fish_x2 is not None:
-                    self.fish_overlay.draw_box(x1=fish_x2 + right_bar_offset, y1=overlay_height*0.15, x2=fish_x2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="red")
+                    self.fish_overlay.draw(x1=fish_x2 + right_bar_offset, y1=overlay_height*0.15, x2=fish_x2 + 15 + right_bar_offset, y2=overlay_height*0.85, color="red")
             current_time = time.perf_counter()
             time_delta = current_time - last_time
             if time_delta < 0.001:
@@ -8748,7 +8748,7 @@ class Api:
                 bar_velocity2 = 0
                 self.status_overlay.set_line(2, "", "")
             # Note Detection
-            if special_rod == "notes":
+            if special_rod == "pinion":
                 note_x, note_y = self.pixel_search_matrix(shake_img, "pinion_notes_color", "pinion_notes_tolerance")
                 if note_x is not None and note_y is not None:
                     note_y_ratio = round(float(note_y / note_height), 2)
@@ -8774,7 +8774,7 @@ class Api:
             if not currently_inside:
                 self.ever_out = True
             # For notes and shapes: high note ratio while out -> normal catch (not perfect)
-            if special_rod in "notes":
+            if special_rod in "pinion":
                 if note_y_ratio > 0.9 and not currently_inside:
                     self.ever_note_out_high = True
             else:
@@ -8807,34 +8807,34 @@ class Api:
             # Fish Overlay
             if fish_overlay == True:
                 if fishing_mode == "color":
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green",
                         show_bar_center=True
                     )
                     if left_boundary is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=left_boundary, y1=overlay_height*0.15, x2=left_boundary + 15, y2=overlay_height*0.85, color="lightblue"
                         )
                     if right_boundary is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=right_boundary - 15, y1=overlay_height*0.15, x2=right_boundary, y2=overlay_height*0.85, color="lightblue"
                         )
                     if fish_x is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 10, y2=overlay_height*0.85, color="red"
                         )
                 else:
                     if bar_center > 0 and bar_size > 0 and fish_x > 0:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=left_x, y1=overlay_height*0.15, x2=right_x, y2=overlay_height*0.85, color="green",
                             show_bar_center=True
                         )
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             x1=fish_x, y1=overlay_height*0.15, x2=fish_x + 10, y2=overlay_height*0.85, color="red",
                         )
                     else:
                         for pos in range(len(line_coords)):
-                            self.fish_overlay.draw_box(x1=line_coords[pos], y1=overlay_height*0.15, x2=line_coords[pos], y2=overlay_height*0.85, color="green")
+                            self.fish_overlay.draw(x1=line_coords[pos], y1=overlay_height*0.15, x2=line_coords[pos], y2=overlay_height*0.85, color="green")
             # Time Delta Is Measured Between Captured Frames.
             time_delta = current_time - last_time
             if time_delta < 0.001:
@@ -8909,7 +8909,7 @@ class Api:
             elif (fish_x > right_boundary):
                 control_signal = 30
             else:
-                if controller_mode == "normal":
+                if controller_mode == "default":
                     # Normal: Traditional Pd Controller
                     if is_initial_run == True:
                         control_signal = 0
@@ -8920,7 +8920,7 @@ class Api:
                         d_term = ((error - last_error) / time_delta) * kd
                         control_signal = p_term + d_term
                         # Tracking Override: If notes are detected use simple tracking
-                        if special_rod == "notes" and not left_x <= fish_x <= right_x:
+                        if special_rod == "pinion" and not left_x <= fish_x <= right_x:
                             control_signal = error
                         last_error = error
                 elif controller_mode == "steady":
@@ -8944,7 +8944,7 @@ class Api:
                             steady_kd_multiplier = 0.2
                         # Tracking Override: If notes are detected the KD multiplier 
                         # is calculated based on error
-                        if special_rod == "notes":
+                        if special_rod == "pinion":
                             pinion_error = min(300, abs(error))
                             pinion_error_ratio = abs(pinion_error - 300) / 60
                             if pinion_error_ratio < 0.5:

@@ -1073,7 +1073,7 @@ class FishOverlay:
         """Clears rendering elements inside the web view context."""
         self._eval("window.fishOverlay && window.fishOverlay.clear()")
 
-    def draw_box(self, bar_center, box_size, color, canvas_offset,
+    def draw(self, bar_center, box_size, color, canvas_offset,
              show_bar_center=False, bar_y1=0.15, bar_y2=0.85):
         """Evaluates JS drawing contexts based on calculations inside the viewport.
 
@@ -1132,19 +1132,19 @@ class Api:
         except Exception as e:
             self.set_status(f"Key Listener error: {e}")
         # Store Screen Width And Height To Use Later
-        self.SCREEN_WIDTH = SCREEN_WIDTH
-        self.SCREEN_HEIGHT = SCREEN_HEIGHT
-        self.SCREEN_LEFT = SCREEN_LEFT
-        self.SCREEN_TOP = SCREEN_TOP
-        self.SCREEN_SCALE = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
+        SCREEN_WIDTH = SCREEN_WIDTH
+        SCREEN_HEIGHT = SCREEN_HEIGHT
+        SCREEN_LEFT = SCREEN_LEFT
+        SCREEN_TOP = SCREEN_TOP
+        self.SCREEN_SCALE = ((SCREEN_WIDTH / 1920) + (SCREEN_HEIGHT / 1080)) / 2
         # Macro State
         self.macro_running = False
         self.macro_thread = None
         # Safe Defaults Before Key Listener Starts (Will Be Overwritten By Load_Misc_Settings)
         self.bar_areas = {name: None for name in AREA_ORDER}
         self.current_rod_name = "Basic Rod"
-        self.scale_x_1440 = self.SCREEN_WIDTH / 2560
-        self.scale_y_1440 = self.SCREEN_HEIGHT / 1440
+        self.scale_x_1440 = SCREEN_WIDTH / 2560
+        self.scale_y_1440 = SCREEN_HEIGHT / 1440
         # Screen Capture
         self.capture_thread = None
         self.capture_frame = None
@@ -1170,13 +1170,13 @@ class Api:
                 _m = _sct.monitors[1]
             else:
                 _m = _sct.monitors[0]
-        self.SCREEN_WIDTH  = _m["width"]
-        self.SCREEN_HEIGHT = _m["height"]
-        self.SCREEN_LEFT   = _m["left"]
-        self.SCREEN_TOP    = _m["top"]
-        self.SCREEN_SCALE  = ((self.SCREEN_WIDTH / 1920) + (self.SCREEN_HEIGHT / 1080)) / 2
-        self.scale_x_1440  = self.SCREEN_WIDTH  / 2560
-        self.scale_y_1440  = self.SCREEN_HEIGHT / 1440
+        SCREEN_WIDTH  = _m["width"]
+        SCREEN_HEIGHT = _m["height"]
+        SCREEN_LEFT   = _m["left"]
+        SCREEN_TOP    = _m["top"]
+        self.SCREEN_SCALE  = ((SCREEN_WIDTH / 1920) + (SCREEN_HEIGHT / 1080)) / 2
+        self.scale_x_1440  = SCREEN_WIDTH  / 2560
+        self.scale_y_1440  = SCREEN_HEIGHT / 1440
         # Force the capture pipelines to rebuild the thread-local monitor dict.
         self._thread_local = threading.local()
     # Save Config
@@ -1919,12 +1919,12 @@ class Api:
             left, top, right, bottom = self._get_default_areas(area_key)
             width  = right - left
             height = bottom - top
-        left2   = int(left * scale * self.SCREEN_WIDTH)
-        top2    = int(top * scale * self.SCREEN_HEIGHT)
-        right2  = int(right * scale * self.SCREEN_WIDTH)
-        bottom2 = int(bottom * scale * self.SCREEN_HEIGHT)
-        width2  = int(width * scale * self.SCREEN_WIDTH)
-        height2 = int(height * scale * self.SCREEN_HEIGHT)
+        left2   = int(left * scale * SCREEN_WIDTH)
+        top2    = int(top * scale * SCREEN_HEIGHT)
+        right2  = int(right * scale * SCREEN_WIDTH)
+        bottom2 = int(bottom * scale * SCREEN_HEIGHT)
+        width2  = int(width * scale * SCREEN_WIDTH)
+        height2 = int(height * scale * SCREEN_HEIGHT)
         return left2, top2, right2, bottom2, width2, height2
 
     def _get_default_areas(self, area):
@@ -1932,12 +1932,12 @@ class Api:
         cfg = AREA_CONFIG.get(area)
         if cfg:
             d = cfg["default"]
-            left   = int(self.SCREEN_WIDTH  * d["x"])
-            top    = int(self.SCREEN_HEIGHT * d["y"])
-            right  = int(self.SCREEN_WIDTH  * (d["x"] + d["width"]))
-            bottom = int(self.SCREEN_HEIGHT * (d["y"] + d["height"]))
+            left   = int(SCREEN_WIDTH  * d["x"])
+            top    = int(SCREEN_HEIGHT * d["y"])
+            right  = int(SCREEN_WIDTH  * (d["x"] + d["width"]))
+            bottom = int(SCREEN_HEIGHT * (d["y"] + d["height"]))
         else:
-            left, top, right, bottom = 0, 0, self.SCREEN_WIDTH, self.SCREEN_HEIGHT
+            left, top, right, bottom = 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
         return left, top, right, bottom
 
     def _get_var_number(self, key, default, cast=float):
@@ -2697,7 +2697,7 @@ class Api:
         target_green = np.array(self._hex_to_bgr(green_color), dtype=np.int32)
         target_white = np.array(self._hex_to_bgr(white_color), dtype=np.int32)
         # Resolution scaling: velocity bands are tuned at 1440p height
-        scaling_factor = self.SCREEN_HEIGHT / 1440.0
+        scaling_factor = SCREEN_HEIGHT / 1440.0
         tracking_mode = False
         green_left_x = None
         green_right_x = None
@@ -3143,7 +3143,7 @@ class Api:
             if fish_detected == False:
                 fish_x = last_fish_x
             # Note Detection
-            if special_rod == "notes":
+            if special_rod == "pinion":
                 note_x, note_y = self.pixel_search(shake_img, pinion_notes_color, pinion_notes_tolerance)
                 if note_x is not None and note_y is not None:
                     note_y_ratio = float(note_y / note_height)
@@ -3156,7 +3156,7 @@ class Api:
             else:
                 # print("Note Tracking Disabled")
                 note_y_ratio = 0.0
-                if special_rod == "notes":
+                if special_rod == "pinion":
                     # Catch fails if the note ratio becomes 1 and the bar can't catch it; stays success only if note ratio is less than 0.9
                     if note_y_ratio > 0.9:
                         self.catch_success = 1
@@ -3178,34 +3178,34 @@ class Api:
             # Fish Overlay
             if fish_overlay == "on":
                 if fishing_mode == "color":
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         bar_center=bar_center, box_size=bar_size,
                         color="green", canvas_offset=0,
                         show_bar_center=True
                     )
                     if left_boundary is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             bar_center=left_boundary, box_size=15,
                             color="lightblue", canvas_offset=0
                         )
                     if right_boundary is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             bar_center=right_boundary, box_size=15,
                             color="lightblue", canvas_offset=0
                         )
                     if fish_x is not None:
-                        self.fish_overlay.draw_box(
+                        self.fish_overlay.draw(
                             bar_center=fish_x, box_size=fish_size,
                             color="red", canvas_offset=0
                         )
                 else:
-                    self.fish_overlay.draw_box(
+                    self.fish_overlay.draw(
                         bar_center=bar_center, box_size=bar_size,
                         color="cyan", canvas_offset=0,
                         show_bar_center=True, bar_y1=0.2, bar_y2=0.8
                     )
                     for pos in range(len(line_coords)):
-                        self.fish_overlay.draw_box(bar_center=line_coords[pos], box_size=0, color=colors[pos], canvas_offset=0)
+                        self.fish_overlay.draw(bar_center=line_coords[pos], box_size=0, color=colors[pos], canvas_offset=0)
             # Controller Mode Selection
             current_controller_mode = controller_mode
             # PD controller
@@ -3222,7 +3222,7 @@ class Api:
             elif (fish_x > right_boundary):
                 control_signal = 30
             else:
-                if current_controller_mode == "normal":
+                if current_controller_mode == "default":
                     # Normal: Traditional PD controller
                     if is_initial_run == True:
                         control_signal = 0
