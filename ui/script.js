@@ -1,5 +1,5 @@
-const APP_VERSION = "2026.11.1";
-const BETA_VERSION = "0";
+const APP_VERSION = "2026.11.2";
+const BETA_VERSION = "1";
 const DEVELOPER = "Catman2608";
 
 // Expose for Python version check via evaluate_js

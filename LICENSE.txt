@@ -1,28 +1,25 @@
-╔═══════════════════════════════════════════════════════════════════════╗
-║                    IRUS COMET - TERMS OF USE                          ║
-║                         by AsphaltCake                                ║
-╚═══════════════════════════════════════════════════════════════════════╝
+AsphaltCake's Proprietary License
 
-By using IRUS COMET, you agree to the following terms and conditions:
+Copyright (c) 2026 Catman2608 and contributors
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📜 1. USAGE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ✅ YOU ARE ALLOWED TO:
-   • Use IRUS COMET for personal purposes
+   • Use SOLAR FISHING for personal purposes
    • Study and reverse engineer the code for educational purposes
    • Modify the code for your own personal use
    • Share your modifications with proper attribution
 
 ❌ YOU ARE NOT ALLOWED TO:
    • Repackage or redistribute this software as your own
-   • Remove or modify credits to the original author (AsphaltCake)
+   • Remove or modify credits to the original author (Catman2608)
    • Sell or monetize this software or its derivatives
    • Claim ownership of the original codebase
 
 ⚠️ IF YOU SHARE MODIFICATIONS:
-   • You MUST credit AsphaltCake as the original author
+   • You MUST credit Catman2608 as the original author
    • You MUST link to the original source (YOUTUBE CHANNEL)
    • You MUST clearly indicate what changes you made
    • You may NOT claim the entire work as your own creation
@@ -42,11 +39,11 @@ By using IRUS COMET, you agree to the following terms and conditions:
 📺 3. YOUTUBE CHANNEL SUBSCRIPTION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-By using IRUS COMET, you agree that:
+By using SOLAR FISHING, you agree that:
 • This software will automatically subscribe to my YouTube channel
 • This is a form of support for the free software you're receiving
 • You are encouraged (but not required) to subscribe and support the channel
-• YouTube Channel: https://www.youtube.com/@AsphaltCake
+• YouTube Channel: https://www.youtube.com/@HexaTitanGaming
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚖️ 4. LIABILITY DISCLAIMER
@@ -68,25 +65,39 @@ By using IRUS COMET, you agree that:
 🤝 6. CREDITS & ATTRIBUTION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Original Author: AsphaltCake
-YouTube: https://www.youtube.com/@AsphaltCake
-Discord: https://discord.gg/vKVBbyfHTD
+Original Author: Catman2608
+YouTube: https://www.youtube.com/@HexaTitanGaming
+Discord: https://discord.com/invite/aMZY8yrF8r
 
 If you share, modify, or redistribute this software:
-✅ REQUIRED: Credit "AsphaltCake" as the original creator
+✅ REQUIRED: Credit "Catman2608" as the original creator
 ✅ REQUIRED: Link to the original source
 ✅ REQUIRED: Indicate any changes you made
 ❌ FORBIDDEN: Claim the entire work as your own
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 7. TERMS UPDATES
+🤝 7. PORTIONS FROM OTHER PROJECTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Arrow Estimation Code (estimates bar from arrows), Perfect Cast, Line mode, Steady Controller and Predictive Controller is adapted from IRUS COMET and IRUS IDIOTPROOF by AsphaltCake.
+Source: https://www.youtube.com/@AsphaltCake
+Those portions remain subject to AsphaltCake's own terms, which permit sharing modifications with attribution. The restrictions above apply to Catman2608's original work and cannot and do not override AsphaltCake's terms for their part.
+Changes made to that method in this macro: None. The original implementations are used as provided by AsphaltCake.
+
+Tranquility Logic is adapted from DeepFish by Yato.
+Source: https://www.youtube.com/@yatoark
+Those portions remain subject to Yato's own terms, which permit sharing modifications with attribution. The restrictions above apply to Catman2608's original work and cannot and do not override Yato's terms for their part.
+Changes made to that method in this macro: Rewritten in Python, using Circle Detection.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 8. TERMS UPDATES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 • These terms may be updated at any time
 • Continued use of the software constitutes acceptance of updated terms
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✨ 8. ACCEPTANCE
+✨ 9. ACCEPTANCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 By clicking "I Accept" below, you acknowledge that you have read,
@@ -97,4 +108,4 @@ software.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⭐ Thank you for using IRUS COMET! ⭐
+⭐ Thank you for using SOLAR FISHING! ⭐

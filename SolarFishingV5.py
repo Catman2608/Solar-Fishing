@@ -1,6 +1,7 @@
 # Imports
 # GUI (Primary And Fallback)
 import webview
+from tkinter import messagebox
 # Text Parsing
 import json
 import re
@@ -64,8 +65,8 @@ except (ImportError, OSError):
 # All Platforms
 keyboard_controller = KeyboardController()
 mouse_controller = MouseController()
-APP_VERSION = "2026.11.1"
-BETA_VERSION = 0
+APP_VERSION = "2026.11.2"
+BETA_VERSION = 1
 DEVELOPER = "Catman2608"
 
 def _version_components(version):
@@ -4120,6 +4121,11 @@ class Api:
 
         if x is None or y is None:
             return
+        try:
+            x = int(x)
+            y = int(y)
+        except:
+            return
 
         # Convert Coordinates If Needed (Retina Scaling)
         if sys.platform == "darwin":
@@ -7779,6 +7785,19 @@ class Api:
             else:
                 bar_center = 0
                 bar_size = 0
+            # Restart logic like _enter_minigame
+            if restart_method == "friend_area":
+                friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
+                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                if friend_x is not None and friend_y is not None:
+                    self.fish_caught = 1
+                    self.perfect_catch = 1
+                    self.interruptible_sleep(restart_delay)
+                    return
+
+            else:
+                # Fallback: if no metronome detection for a while or similar, but for now use friend or end on lost
+                pass
             self.fish_overlay.clear()
             raw_stellarwave_img = self.process_signs_stellarwave_melody(fish_img)
             # Clamp Fish
@@ -7802,8 +7821,6 @@ class Api:
                 if (fish_x1 is not None and fish_x2 is not None
                         and 0 <= fish_x1 < fish_x2 <= raw_stellarwave_img.shape[1]):
                     stellarwave_img[0:fish_height, (fish_x1 - fish_vel):(fish_x2 + fish_vel)] = 0
-
-                cv2.imwrite("debug_stellarwave.png", stellarwave_img)
 
                 # difference_mask() returns a single-channel binary mask (0 or 255),
                 # not a 3-channel BGR image. Search its white pixels directly.
@@ -8715,6 +8732,64 @@ def on_closed():
             closer()
         except Exception:
             pass
+
+def check_setup_guide():
+    try:
+        with open(os.path.join(UI_PATH, "index.html"), "r", encoding="utf-8-sig") as file:
+            lines = file.readline().strip()
+        with open(os.path.join(UI_PATH, "styles.css"), "r", encoding="utf-8-sig") as file:
+            lines = file.readline().strip()
+        with open(os.path.join(UI_PATH, "script.js"), "r", encoding="utf-8-sig") as file:
+            lines = file.readline().strip()
+    except FileNotFoundError:
+        open_folder = messagebox.askyesno("Missing Files", """Your installation is missing the configs, images and UI folder.
+        Please report this bug in the Discord Server.\n
+        Do you want to open the configs folder?""")
+        if open_folder == True:
+            open_base_folder()
+        return False
+
+    try:
+        with open(os.path.join(UI_PATH, "script.js"), "r", encoding="utf-8-sig") as file:
+            # Read first two lines
+            lines = [file.readline().strip() for _ in range(3)]
+            # Parse first line for APP_VERSION
+            first_line = lines[0]
+            js_app_version = str(first_line.replace("const APP_VERSION = ", "").replace('"', "").replace(";", ""))
+            # Parse second line for BETA_VERSION
+            second_line = lines[1]
+            js_beta_version = float(second_line.replace("const BETA_VERSION = ", "").replace('"', "").replace(";", ""))
+            # Parse third line for DEVELOPER
+            third_line = lines[2]
+            js_developer = third_line.replace("const DEVELOPER = ", "").replace('"', "").replace(";", "")
+        if js_app_version != APP_VERSION:
+            messagebox.showerror("Version Mismatch", f"""
+You are running version {APP_VERSION} but you're supposed to run version {js_app_version}.\nPlease report this bug in the Discord Server.
+""")
+            return False
+
+        if js_beta_version != BETA_VERSION:
+            if not BETA_VERSION == 0 or js_beta_version == 0:
+                messagebox.showerror("Beta Version Mismatch", f"""
+You are running beta {APP_VERSION} but you're supposed to run beta {js_app_version}.\nPlease report this bug in the Discord Server.
+""")
+                return False
+
+        if js_developer != DEVELOPER:
+            messagebox.showerror("Unofficial Build Detected", f"""
+You tried to download an unauthorized version of Solar Fishing.\nPlease take actions against {js_developer} and download the official version.
+""")
+            return False
+
+        return True
+
+    except Exception as e:
+        messagebox.showerror("Unknown Error", f"An unknown error prevented Solar Fishing from starting up:\n{e}")
+    return False
+
+setup_state = check_setup_guide()
+if setup_state == False:
+    sys.exit(0)
 
 api = Api()
 window = webview.create_window(
