@@ -1,0 +1,24 @@
+# Solar Fishing
+# License: AsphaltCake's Proprietary license (see LICENSE.txt)
+
+pywebview
+numpy
+mss
+pytesseract
+pynput
+requests
+opencv-python
+
+# Windows-specific optional dependencies
+dxcam
+pygetwindow
+
+# macOS-specific dependencies (PyObjC)
+pyobjc-framework-Quartz
+pyobjc-framework-Cocoa
+pyobjc-framework-ScreenCaptureKit
+pyobjc-framework-CoreMedia
+pyobjc-framework-CoreVideo
+
+# Linux-specific dependency
+python-xlib

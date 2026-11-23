@@ -1406,3 +1406,83 @@ select option {
     line-height: 1.45;
     color: var(--text-secondary);
 }
+
+/* Session Report */
+.session-report {
+    display: flex;
+    background: #0a0c0e;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.session-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 8px 12px;
+    position: relative;
+    min-height: 72px;
+}
+
+.session-stat:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 18%;
+    bottom: 18%;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.session-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    color: #9a9a9a;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.session-value {
+    font-size: 22px;
+    font-weight: 500;
+    color: #f5f5f5;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+}
+.session-errors {
+    margin: 6px 0 10px;
+    padding: 10px 12px;
+    background: #140e0e;
+    border: 1px solid rgba(255, 80, 80, 0.35);
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #f0c0c0;
+    max-height: 180px;
+    overflow-y: auto;
+}
+.session-errors[hidden] { display: none; }
+.session-errors-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #ff6b6b;
+    margin-bottom: 6px;
+}
+.session-errors ul {
+    margin: 0;
+    padding-left: 16px;
+}
+.session-errors li {
+    margin: 2px 0;
+    word-break: break-word;
+}

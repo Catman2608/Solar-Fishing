@@ -1,8 +1,8 @@
 # License
 
-This project is licensed under the GNU GPL v3.
+This project is licensed under the AsphaltCake's Proprietary license.
 
-You are free to study, modify, and redistribute this software. If you distribute a project containing code from this repository, the resulting project must also be released under the GPL v3, with its source code made available.
+For more details, open the LICENSE.txt file.
 
 # Solar Fishing V5
 

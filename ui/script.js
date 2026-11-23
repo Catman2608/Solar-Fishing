@@ -143,13 +143,43 @@ function syncHotkeyButtons() {
 
 function setStatus(message) {
     const status = document.getElementById("status_label");
-
     if (!status) {
         return;
     }
 
     status.textContent = message;
 }
+
+function updateSessionReport(caught, lost, rate, timeStr) {
+    const c = document.getElementById("session-caught");
+    const l = document.getElementById("session-lost");
+    const r = document.getElementById("session-rate");
+    const t = document.getElementById("session-time");
+    if (c) c.textContent = String(caught);
+    if (l) l.textContent = String(lost);
+    if (r) r.textContent = rate;
+    if (t) t.textContent = timeStr;
+}
+window.updateSessionReport = updateSessionReport;
+
+function showSessionErrors(errors) {
+    const box = document.getElementById("session-errors");
+    if (!box) return;
+    const list = Array.isArray(errors) ? errors.filter(Boolean) : [];
+    if (list.length === 0) {
+        box.hidden = true;
+        box.innerHTML = "";
+        return;
+    }
+    const items = list.map(function (msg) {
+        const div = document.createElement("div");
+        div.textContent = String(msg);
+        return "<li>" + div.innerHTML + "</li>";
+    }).join("");
+    box.innerHTML = '<div class="session-errors-title">Errors (' + list.length + ')</div><ul>' + items + '</ul>';
+    box.hidden = false;
+}
+window.showSessionErrors = showSessionErrors;
 
 function isRangeControl(element) {
     return Boolean(element) && (element.type === "range" || element.classList.contains("range-input"));

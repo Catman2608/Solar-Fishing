@@ -5790,6 +5790,12 @@ class Api:
             scale = get_scale_factor()
             self.macro_running = True
             self.session_start = time.time()
+            # Reset session report UI for the new session
+            try:
+                window.evaluate_js("window.updateSessionReport && window.updateSessionReport(0, 0, '—', '00:00:00')")
+                window.evaluate_js("window.showSessionErrors && window.showSessionErrors([])")
+            except Exception:
+                pass
             casting_mode = self.vars["casting_mode"].lower()
             shake_mode = self.vars["shake_mode"].lower()
             fishing_mode = self.vars["fishing_mode"].lower()
@@ -5890,10 +5896,12 @@ class Api:
             self.fish_caught = 2
             self.perfect_catch = 2
             self.catch_rate = 0.0
-            successful_catches = 0
-            perfect_catches = 0
+            self.successful_catches = 0
+            self.perfect_catches = 0
             logging_cycle2 = 0
             hunt_cycles2 = hunt_cycles
+            self.reported_errors = []
+            self.reported_errors_list = []
             # Fish Overlay
             if fish_overlay == True:
                 # Position The Overlay Just Above Or Below The Fish Bar So It Does
@@ -5915,8 +5923,27 @@ class Api:
                 self.status_overlay.show(self.status_left, self.status_top, self.status_right, self.status_bottom)
             else:
                 self.status_overlay.hide()
-        except KeyError as e:
-            self.stop_macro(f"Config Error: {e}")
+        except Exception as e:
+            full_error = traceback.format_exc()
+            error_line = self.get_error_line(full_error)
+            if "KeyError" in full_error:
+                error_message = e.replace("_", " ").title()
+                key_error_placeholder = "Missing Setting: "
+            else:
+                key_error_placeholder = ""
+                error_message = e
+            result = self.message_box_javascript(f"""An error at line {error_line} occured. 
+Please copy the error and report the bug:\\n{key_error_placeholder}{error_message}\\n Would you like to copy the full crash log to your clipboard?
+            """, "askyesno")
+            if result == True:
+                if self.copy_to_clipboard(full_error):
+                    self.message_box_javascript("Error copied over to clipboard")
+                else:
+                    self.message_box_javascript("Failed to copy error to clipboard")
+            if IS_COMPILED == False:
+                print(full_error)
+            self.send_logging(f"Error at line {error_line}: {e}", 0)
+            self.macro_running = False
             return
 
         # Auto Zoom
@@ -5928,8 +5955,9 @@ class Api:
             self.status_overlay.set_line(1, "Zoom Count (Out)", "1/1")
             self._send_key("o", 0.01)
         # Main Loop (With Bug Reports)
-        try:
-            while self.macro_running:
+        while self.macro_running:
+            cycle_advanced = False
+            try:
                 self.status_overlay.set_main_status("Resetting Statistics")
                 self.set_status("Resetting statistics")
                 self.capture_id = 0
@@ -6036,6 +6064,7 @@ class Api:
                             time.sleep(0.01)
                 # Update Current Cycle
                 self.current_cycle = self.current_cycle + 1
+                cycle_advanced = True
                 # Cast
                 self.set_status(f"Casting ({casting_mode})")
                 self.status_overlay.set_main_status(f"Casting ({casting_mode})")
@@ -6124,35 +6153,46 @@ class Api:
 
                 # Update Catch Rate After The Minigame Finishes
                 if self.perfect_catch == 0:
-                    perfect_catches += 1
+                    self.perfect_catches += 1
                 if self.fish_caught == 0:
-                    successful_catches += 1
-                self.catch_rate = successful_catches / self.current_cycle
-                self.perfect_catch_rate = perfect_catches / self.current_cycle
+                    self.successful_catches += 1
+                self.catch_rate = self.successful_catches / self.current_cycle if self.current_cycle else 0.0
+                self.perfect_catch_rate = self.perfect_catches / self.current_cycle if self.current_cycle else 0.0
                 if logging_mode != "disabled":
                     if self.current_cycle == logging_cycle:
                         self.send_logging("**Cycle Checkpoint**", f"Cycle #{self.current_cycle}")
                         logging_cycle = logging_cycle2 + self.current_cycle
-            self.stop_macro("")
-            return
 
-        except Exception as e:
-            time.sleep(0.2)
-            full_error = traceback.format_exc()
-            error_line = self.get_error_line(full_error)
-            result = self.message_box_javascript(f"""An error at line {error_line} occured. 
-            Please copy the error and report the bug:\\n{e}\\n Would you like to copy the full crash log to your clipboard?""", "askyesno")
-            if result == True:
-                if self.copy_to_clipboard(full_error):
-                    self.message_box_javascript("Error copied over to clipboard")
-                else:
-                    self.message_box_javascript("Failed to copy error to clipboard")
-            if IS_COMPILED == False:
-                print(full_error)
-            else:
-                self.send_logging(f"Error at line {error_line}: {e}", 0)
-            self.macro_running = False
-            self.stop_macro(f"Error at line {error_line}: {e}")
+            except Exception as e:
+                time.sleep(0.2)
+                full_error = traceback.format_exc()
+                error_line = self.get_error_line(full_error)
+                # If the cycle was not yet advanced this iteration, count the failure
+                if not cycle_advanced:
+                    self.current_cycle = getattr(self, "current_cycle", 0) + 1
+                cycle = self.current_cycle
+                short = f"Cycle {cycle}: {type(e).__name__} (line {error_line}): {e}"
+                if not hasattr(self, "reported_errors") or not isinstance(self.reported_errors, list):
+                    self.reported_errors = []
+                self.reported_errors.append(short)
+                try:
+                    self.set_status(f"Error (cycle {cycle}): {type(e).__name__} — continuing")
+                except Exception:
+                    pass
+                if IS_COMPILED == False:
+                    print(full_error)
+                # Discord / file log (no-op when logging is disabled)
+                try:
+                    self.send_logging(
+                        f"**Error**\n{type(e).__name__} at line {error_line}: {e}",
+                        f"Cycle #{cycle}"
+                    )
+                except Exception:
+                    pass
+                # Restart the loop early — do not stop the macro
+                continue
+                
+            self.stop_macro("")
             return
 
     def _auto_reconnect(self, center_x, center_y):
@@ -8694,6 +8734,38 @@ class Api:
 
         if not text == "":
             self.set_status(text)
+        # Update Overview session report labels (visible without Discord webhook)
+        try:
+            if getattr(self, "session_start", 0) and getattr(self, "current_cycle", 0) > 0:
+                caught = int(getattr(self, "successful_catches", 0))
+                lost = max(0, int(self.current_cycle) - caught)
+                rate_pct = int(getattr(self, "catch_rate", 0.0) * 100)
+                duration = time.time() - float(self.session_start)
+                h = int(duration // 3600)
+                m = int((duration % 3600) // 60)
+                s = int(duration % 60)
+                time_str = f"{h:02d}:{m:02d}:{s:02d}"
+                js = (
+                    "window.updateSessionReport && window.updateSessionReport("
+                    + str(caught) + ", "
+                    + str(lost) + ", "
+                    + json.dumps(str(rate_pct) + "%") + ", "
+                    + json.dumps(time_str)
+                    + ")"
+                )
+                window.evaluate_js(js)
+        except Exception:
+            pass
+        # Show any errors collected during the fishing session under the report
+        try:
+            errors = getattr(self, "reported_errors", None)
+            if isinstance(errors, list) and errors:
+                # Cap to last 30 so the UI stays usable
+                to_show = errors[-30:]
+                js_err = "window.showSessionErrors && window.showSessionErrors(" + json.dumps(to_show) + ")"
+                window.evaluate_js(js_err)
+        except Exception:
+            pass
         try:
             window.show()
         except Exception:

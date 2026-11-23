@@ -198,6 +198,26 @@
         <!-- Main GUI -->
         <div class="main-area">
             <div id="overview" class="tab-content active">
+                <div class="session-report">
+                    <div class="session-stat">
+                        <div class="session-label">FISH CAUGHT</div>
+                        <div class="session-value" id="session-caught">0</div>
+                    </div>
+                    <div class="session-stat">
+                        <div class="session-label">FISH LOST</div>
+                        <div class="session-value" id="session-lost">0</div>
+                    </div>
+                    <div class="session-stat">
+                        <div class="session-label">SUCCESS RATE</div>
+                        <div class="session-value" id="session-rate">—</div>
+                    </div>
+                    <div class="session-stat">
+                        <div class="session-label">SESSION TIME</div>
+                        <div class="session-value" id="session-time">00:00:00</div>
+                    </div>
+                </div>
+                <div id="session-errors" class="session-errors" hidden></div>
+                <hr>
                 <div class="switch2">
                     <p>Global Settings</p>
                     <label class="switch">
