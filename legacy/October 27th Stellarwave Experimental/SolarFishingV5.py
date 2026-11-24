@@ -4296,7 +4296,7 @@ class Api:
 
         return None, None
 
-    def pixel_search_matrix(self, frame, color_id, tolerance_id, scan_mode=0, optimize_mode=0):
+    def pixel_search_all(self, frame, color_id, tolerance_id, scan_mode=0, optimize_mode=0):
         searched = set()
         loop_count = 1
         if optimize_mode not in (0, 1, 2):
@@ -5802,7 +5802,7 @@ class Api:
                 if sovereign_recharge == True:
                     self.status_overlay.set_main_status("Sovereign Recharge")
                     sovereign_img = self.capture_frame[sovereign_top:sovereign_bottom, sovereign_left:sovereign_right]
-                    sovereign_right2, _ = self.pixel_search_matrix(sovereign_img, "sovereign_recharge_color", "sovereign_recharge_tolerance")
+                    sovereign_right2, _ = self.pixel_search_all(sovereign_img, "sovereign_recharge_color", "sovereign_recharge_tolerance")
                     if sovereign_right2 is not None:
                         distance = round(abs(sovereign_right2 - sovereign_left) / sovereign_width, 2)
                         while distance < maximum_percentage:
@@ -5843,13 +5843,13 @@ class Api:
 
                     if detection_method == "friend_area":
                         friend_img = self.capture_frame[friend_top_s:friend_bottom_s, friend_left_s:friend_right_s]
-                        friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                        friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                         if friend_x is None or friend_y is None:
                             break
 
                     else:
                         fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
-                        fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
+                        fish_x, fish_y = self.pixel_search_all(fish_img, "fish_color", "fish_tolerance")
                         if fish_x is not None or fish_y is not None:
                             break
 
@@ -6117,8 +6117,8 @@ class Api:
                 green_area_left = max(0, green_abs_left - green_padding)
                 green_area_right = min(shake_img.shape[1], green_abs_right + green_padding)
                 green_area = shake_img[green_area_top:green_area_bottom, green_area_left:green_area_right]
-                g_left, g_top = self.pixel_search_matrix(green_area, "green_cast_color", "green_cast_tolerance")
-                g_right, g_bottom = self.pixel_search_matrix(green_area, "green_cast_color", "green_cast_tolerance", 1)
+                g_left, g_top = self.pixel_search_all(green_area, "green_cast_color", "green_cast_tolerance")
+                g_right, g_bottom = self.pixel_search_all(green_area, "green_cast_color", "green_cast_tolerance", 1)
                 if None not in (g_left, g_top, g_right, g_bottom):
                     # Convert From Green_Area Coordinates To Shake_Img Coordinates
                     green_abs_left = g_left + green_area_left
@@ -6139,8 +6139,8 @@ class Api:
 
             if not is_green_tracking:
                 # Full Scan For Green
-                g_left, g_top = self.pixel_search_matrix(shake_img, "green_cast_color", "green_cast_tolerance")
-                g_right, g_bottom = self.pixel_search_matrix(shake_img, "green_cast_color", "green_cast_tolerance", 1)
+                g_left, g_top = self.pixel_search_all(shake_img, "green_cast_color", "green_cast_tolerance")
+                g_right, g_bottom = self.pixel_search_all(shake_img, "green_cast_color", "green_cast_tolerance", 1)
                 if None not in (g_left, g_top, g_right, g_bottom):
                     green_abs_left = g_left
                     green_abs_top = g_top
@@ -6442,7 +6442,7 @@ class Api:
             self.capture_frame = self.camera.get_latest_frame()
         shake_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
         if shake_mode == "pixel":
-            shake_x, shake_y = self.pixel_search_matrix(shake_img, "shake_color", "shake_tolerance")
+            shake_x, shake_y = self.pixel_search_all(shake_img, "shake_color", "shake_tolerance")
         else:
             shake_x, shake_y = self._find_circles(shake_img)
         try:
@@ -6516,7 +6516,7 @@ class Api:
 
             else:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-            friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+            friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
             self.fish_overlay.clear()
             if restart_method == "friends":
                 if friend_x is not None:
@@ -6657,19 +6657,19 @@ class Api:
                 fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
             self.fish_overlay.clear()
-            fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
+            fish_x, fish_y = self.pixel_search_all(fish_img, "fish_color", "fish_tolerance")
             if fish_x is not None:
                 last_fish_x = fish_x
-            left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
-            right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+            left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 1)
+            right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 2)
             if left_x == None:
-                left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+                left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 2)
             if right_x == None:
-                right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
+                right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 1)
             if left_x is None or right_x is None:
                 detection_source = 1
                 # Bars Not Found - Scan For Arrows
-                arrow_x, arrow_y = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
+                arrow_x, arrow_y = self.pixel_search_all(fish_img, "arrow_color", "arrow_tolerance")
                 # Reconstruct Missing Bar Edge From Previous Geometry Instead Of Mouse State
                 if arrow_x is not None:
                     # Treat 0 As Unknown To Match The Previous None Semantics
@@ -6723,7 +6723,7 @@ class Api:
                 self.ever_out = True
             # Friend And Fish Restart
             if restart_method == "friend_area":
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     ended_inside = False
                     if left_x is not None and right_x is not None and fish_x is not None:
@@ -6875,8 +6875,8 @@ class Api:
                 fish_img2 = self.capture_frame[fish_top:fish_bottom, fish_left2:fish_right2]
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
             # Fish Detection
-            fish_x1, fish_y1 = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
-            fish_x2, fish_y2 = self.pixel_search_matrix(fish_img2, "fish_color", "fish_tolerance")
+            fish_x1, fish_y1 = self.pixel_search_all(fish_img, "fish_color", "fish_tolerance")
+            fish_x2, fish_y2 = self.pixel_search_all(fish_img2, "fish_color", "fish_tolerance")
             fish_detected = True
             fish_detected2 = True
             if fish_x1 is None:
@@ -6885,19 +6885,19 @@ class Api:
                 fish_detected2 = False
             # Left and Right bar detection
             # Bar 1
-            left_x1, left_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
-            right_x1, right_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+            left_x1, left_y1 = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 1)
+            right_x1, right_y1 = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 2)
             if left_x1 == None:
-                left_x1, left_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+                left_x1, left_y1 = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 2)
             if right_x1 == None:
-                right_x1, right_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
+                right_x1, right_y1 = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 1)
             # Bar 2
-            left_x2, left_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 0, 1)
-            right_x2, right_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 1, 2)
+            left_x2, left_y2 = self.pixel_search_all(fish_img2, "bar_color", "bar_tolerance", 0, 1)
+            right_x2, right_y2 = self.pixel_search_all(fish_img2, "bar_color", "bar_tolerance", 1, 2)
             if left_x2 == None:
-                left_x2, left_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 0, 2)
+                left_x2, left_y2 = self.pixel_search_all(fish_img2, "bar_color", "bar_tolerance", 0, 2)
             if right_x2 == None:
-                right_x2, right_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 1, 1)
+                right_x2, right_y2 = self.pixel_search_all(fish_img2, "bar_color", "bar_tolerance", 1, 1)
             bar_detected = True
             bar_detected2 = True
             # Bar 1 — fill missing edge from last known size, then compute center from its own edges
@@ -6910,7 +6910,7 @@ class Api:
                 bar_center1 = left_x1 + int(bar_size1 / 2)
             else:
                 # Try arrow for bar 1
-                arrow_x1, arrow_y1 = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
+                arrow_x1, arrow_y1 = self.pixel_search_all(fish_img, "arrow_color", "arrow_tolerance")
                 if arrow_x1 is not None and last_bar_size1:
                     if arrow_x1 < last_bar_center1:
                         left_x1 = arrow_x1
@@ -6934,7 +6934,7 @@ class Api:
                 bar_center2 = left_x2 + int(bar_size2 / 2)
             else:
                 # Try arrow for bar 2
-                arrow_x2, arrow_y2 = self.pixel_search_matrix(fish_img2, "arrow_color", "arrow_tolerance")
+                arrow_x2, arrow_y2 = self.pixel_search_all(fish_img2, "arrow_color", "arrow_tolerance")
                 if arrow_x2 is not None and last_bar_size2:
                     if arrow_x2 < last_bar_center2:
                         left_x2 = arrow_x2
@@ -6959,7 +6959,7 @@ class Api:
                 self.ever_out = True
             # Friend And Fish Restart
             if restart_method == "friend_area":
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     ended_inside = currently_inside1 and currently_inside2
                     if not ended_inside:
@@ -7369,7 +7369,7 @@ class Api:
             # Restart logic like _enter_minigame
             if restart_method == "friend_area":
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     # Set catch status
                     if not metronome_inside:
@@ -7547,29 +7547,29 @@ class Api:
             fish_x = None
             fish_x2 = None
             # Fish Detection
-            fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
+            fish_x, fish_y = self.pixel_search_all(fish_img, "fish_color", "fish_tolerance")
             if fish_x is not None:
                 fish_detected = True
             else:
                 fish_detected = False
             # Bar Detection (Color Or Line)
             if fishing_mode == "color":
-                left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
+                left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 1)
                 # Only scan the bar size once every 10 times the scan delay
                 right_bar_cycle += time_delta
                 if right_bar_cycle > (self.scan_delay * 10):
                     right_bar_cycle = 0
                 if right_bar_cycle == 0:
-                    right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+                    right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 2)
                 else:
                     try:
                         right_x = left_x + last_bar_size
                     except:
                         right_x = last_right_x
                 if left_x == None:
-                    left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+                    left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 2)
                 if right_x == None:
-                    right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
+                    right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 1)
                 # print(f"Raw coordinates: {left_x}, {right_x}, {fish_x}")
                 # Check If We Should Scan For Arrows
                 if left_x is not None and right_x is not None:
@@ -7594,7 +7594,7 @@ class Api:
                     # Try Arrow
                     bar_detected = False
                     # Bars Not Found - Scan For Arrows
-                    arrow_x, arrow_y = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
+                    arrow_x, arrow_y = self.pixel_search_all(fish_img, "arrow_color", "arrow_tolerance")
                     # Reconstruct Missing Bar Edge From Previous Geometry Instead Of Mouse State
                     if arrow_x is not None:
                         # Treat 0 As Unknown To Match The Previous None Semantics
@@ -7822,7 +7822,7 @@ class Api:
                     fish_detected = True
             # Friend And Fish Restart
             if restart_method == "friend_area":
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     # Classify catch based on tracking
                     ended_inside = False
@@ -7923,7 +7923,7 @@ class Api:
                     noiseform_timer = 0.5
             # Note Detection
             if special_rod == "pinion":
-                note_x, note_y = self.pixel_search_matrix(shake_img, "pinion_notes_color", "pinion_notes_tolerance")
+                note_x, note_y = self.pixel_search_all(shake_img, "pinion_notes_color", "pinion_notes_tolerance")
                 if note_x is not None and note_y is not None:
                     note_y_ratio = round(float(note_y / note_height), 2)
                     if note_y_ratio > pinion_note_ratio:

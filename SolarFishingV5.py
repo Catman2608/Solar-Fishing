@@ -165,6 +165,76 @@ def cgimage_to_srgb_numpy(image):
 
     return image
 
+def get_primary_work_area():
+    """Return the usable primary screen area, excluding system UI."""
+    try:
+        # Windows
+        if sys.platform == "win32":
+            class RECT(ctypes.Structure):
+                _fields_ = [
+                    ("left", ctypes.c_long),
+                    ("top", ctypes.c_long),
+                    ("right", ctypes.c_long),
+                    ("bottom", ctypes.c_long),
+                ]
+
+            rect = RECT()
+            SPI_GETWORKAREA = 0x0030
+
+            ctypes.windll.user32.SystemParametersInfoW(
+                SPI_GETWORKAREA, 0, ctypes.byref(rect), 0
+            )
+
+            return {
+                "left": rect.left,
+                "top": rect.top,
+                "width": rect.right - rect.left,
+                "height": rect.bottom - rect.top,
+            }
+
+        # macOS
+        elif sys.platform == "darwin":
+            screen = NSScreen.mainScreen()
+            frame = screen.frame()
+            visible = screen.visibleFrame()
+
+            # Cocoa uses bottom-left origin; convert to top-left coordinates.
+            return {
+                "left": int(visible.origin.x),
+                "top": int(frame.size.height - (visible.origin.y + visible.size.height)),
+                "width": int(visible.size.width),
+                "height": int(visible.size.height),
+            }
+
+        # Linux (X11)
+        elif sys.platform.startswith("linux"):
+            d = _get_xdisplay()
+            root = d.screen().root
+
+            workarea_atom = d.intern_atom("_NET_WORKAREA")
+            prop = root.get_full_property(workarea_atom, X.AnyPropertyType)
+
+            if prop and prop.value is not None and len(prop.value) >= 4:
+                x, y, width, height = map(int, prop.value[:4])
+
+                return {
+                    "left": x,
+                    "top": y,
+                    "width": width,
+                    "height": height,
+                }
+
+    except Exception:
+        pass
+
+    # Last-resort full-screen fallback
+    return {
+        "left": SCREEN_LEFT,
+        "top": SCREEN_TOP,
+        "width": SCREEN_WIDTH,
+        "height": SCREEN_HEIGHT,
+    }
+
 # Reload
 def reload_page(skip=True):
     if skip == False:
@@ -227,30 +297,6 @@ if sys.platform == "win32":
             # Dpi Awareness Set (Fallback Method)
         except:
             pass  # DPI awareness could not be set - coordinates may be inconsistent
-
-    # Define the RECT structure used by Windows API
-    class RECT(ctypes.Structure):
-        _fields_ = [
-            ("left", ctypes.c_long),
-            ("top", ctypes.c_long),
-            ("right", ctypes.c_long),
-            ("bottom", ctypes.c_long)
-        ]
-    def get_taskbar_height():
-        # Find the window handle for the taskbar
-        hwnd = ctypes.windll.user32.FindWindowW("Shell_TrayWnd", None)
-        if hwnd:
-            rect = RECT()
-            # Get the bounding rectangle coordinates
-            if ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-                taskbar_height = rect.bottom - rect.top
-                return int(taskbar_height)
-
-            else:
-                return "Failed to get taskbar dimensions."
-
-        else:
-            return "Could not find the Windows Taskbar window."
 
     # Windows Api Related Functions
     def get_scale_factor():
@@ -334,8 +380,6 @@ elif sys.platform == "darwin":
         "command": 55, "cmd": 55, "shift": 56, "option": 58, "alt": 58, "control": 59, "ctrl": 59,
     }
     _QUARTZ_KEY_SOURCE = None
-    def get_taskbar_height():
-        return 0
 
     def _get_quartz_key_source():
         # Private Source So Posted Keys Do Not Inherit Hardware Command/Fn/Globe State
@@ -455,8 +499,6 @@ elif sys.platform == "darwin":
 # Linux (Mouse Positions And Xdisplay)
 elif sys.platform.startswith("linux"):
     _xdisplay = None
-    def get_taskbar_height():
-        return 0
 
     def _get_xdisplay():
         global _xdisplay
@@ -529,544 +571,6 @@ elif sys.platform.startswith("linux"):
             time.sleep(delay)
             xtest.fake_input(d, X.KeyRelease, keycode)
             d.sync()
-
-# ---------------------------------------------------------------------------
-# ScreenCaptureKit region capture (inlined from DeepFish macOS v1.1.7)
-#
-# One stream per capture region, lazy pixel copy, blocking condition-based
-# frame handoff, MSS fallback with a format compatibility check, and
-# exclusion of the app's own windows (live preview, HUD).
-#
-# All public geometry is in Quartz screen points. Output is tightly packed
-# BGRA at pixel_scale pixels per point.
-# ---------------------------------------------------------------------------
-
-class NoNewFrame(TimeoutError):
-    '''The stream is alive but has no unconsumed complete frame.'''
-
-
-def _source_rect(region, display):
-    x, y, w, h = (region[k] for k in ('left', 'top', 'width', 'height'))
-    dx, dy, dw, dh = display
-    if w <= 0 or h <= 0 or x < dx or y < dy or x + w > dx + dw or y + h > dy + dh:
-        raise ValueError('Capture region must fit inside one display')
-    return (x - dx, y - dy), (w, h)
-
-
-def _copy_bgra(buffer, width, height, stride):
-    if width <= 0 or height <= 0 or stride < width * 4:
-        raise ValueError('Invalid BGRA frame dimensions')
-    rows = np.frombuffer(buffer, dtype=np.uint8, count=stride * height).reshape(height, stride)
-    return rows[:, :width * 4].reshape(height, width, 4).copy()
-
-
-def _compatible_pixels(native, reference):
-    '''Startup sanity check: native SCK output must match MSS format.
-
-    Own-process windows are excluded from SCK but not from MSS, so a patch
-    where one overlaps the region can differ; that must NOT send the region
-    to MSS (MSS would then show those windows to detection). A real format
-    mismatch (channel swap, wrong stride) makes nearly every coloured pixel
-    wrong, not a patch.
-    '''
-    if native.shape != reference.shape or native.dtype != np.uint8:
-        return False
-    delta = np.abs(native[::2, ::2, :3].astype(np.int16) - reference[::2, ::2, :3]).max(axis=2)
-    if float(np.quantile(delta, 0.75)) <= 12:
-        return True
-    ref = reference[::2, ::2, :3].astype(np.int16)
-    coloured = ref.max(axis=2) - ref.min(axis=2) >= 30
-    if coloured.mean() < 0.05:
-        return False
-    return float((delta[coloured] <= 12).mean()) >= 0.4
-
-
-class _PendingFrame:
-    '''A delivered SCK sample whose pixels are copied lazily, at most once.'''
-
-    def __init__(self, sample, width, height):
-        self.sample, self.width, self.height = sample, width, height
-        self.pixels = None
-        self.lock = threading.Lock()
-
-    def get(self):
-        if sys.platform != "darwin":
-            return 0
-        with self.lock:
-            if self.pixels is None:
-                import Quartz as Q
-                import CoreMedia as CM
-                pixel = CM.CMSampleBufferGetImageBuffer(self.sample)
-                if Q.CVPixelBufferLockBaseAddress(pixel, Q.kCVPixelBufferLock_ReadOnly) != 0:
-                    raise RuntimeError('Could not lock capture pixels')
-                try:
-                    stride = Q.CVPixelBufferGetBytesPerRow(pixel)
-                    base = Q.CVPixelBufferGetBaseAddress(pixel)
-                    self.pixels = _copy_bgra(base.as_buffer(stride * self.height), self.width, self.height, stride)
-                finally:
-                    Q.CVPixelBufferUnlockBaseAddress(pixel, Q.kCVPixelBufferLock_ReadOnly)
-                self.sample = None
-            return self.pixels
-
-
-def _pixels(frame):
-    if isinstance(frame, _PendingFrame):
-        return frame.get()
-    return frame
-
-
-class _LatestFrame:
-    '''Thread-safe single-slot holder for the newest complete frame.'''
-
-    def __init__(self):
-        self.condition = threading.Condition()
-        self.sequence = 0
-        self.frame = None
-        self.timestamp = 0.0
-        self.error = None
-        self.closed = False
-
-    def publish(self, frame, timestamp):
-        with self.condition:
-            if self.closed:
-                return
-            self.frame, self.timestamp = frame, timestamp
-            self.sequence += 1
-            self.condition.notify_all()
-
-    def fail(self, error):
-        with self.condition:
-            self.error = error
-            self.condition.notify_all()
-
-    def read(self, after, timeout):
-        with self.condition:
-            self.condition.wait_for(
-                (lambda: self.sequence > after or self.error or self.closed), timeout)
-            if self.error:
-                raise RuntimeError(str(self.error))
-            if self.closed:
-                raise RuntimeError('Capture closed')
-            if self.sequence <= after:
-                raise NoNewFrame('Waiting for a fresh capture frame')
-            sequence, frame, timestamp = self.sequence, self.frame, self.timestamp
-        return sequence, _pixels(frame), timestamp
-
-    def close(self):
-        with self.condition:
-            self.closed = True
-            self.frame = None
-            self.condition.notify_all()
-
-
-_receiver_class = None
-_receiver_lock = threading.Lock()
-_EXCLUSION_FAST, _EXCLUSION_SLOW = 0.15, 2.0
-_exclusion_burst_until = 0.0
-
-
-def expect_new_windows(seconds=2.5):
-    '''Call after showing a window that capture must leave out.'''
-    global _exclusion_burst_until
-    _exclusion_burst_until = max(_exclusion_burst_until, time.perf_counter() + seconds)
-
-
-def _receiver_class_factory():
-    if sys.platform != "darwin":
-        return
-    global _receiver_class
-    with _receiver_lock:
-        if _receiver_class is not None:
-            return _receiver_class
-        import objc
-        import ScreenCaptureKit as SCK
-        import CoreMedia as CM
-        import Quartz as Q
-        from Foundation import NSObject
-
-        class _CaptureReceiver(NSObject, protocols=[
-                objc.protocolNamed('SCStreamOutput'),
-                objc.protocolNamed('SCStreamDelegate')]):
-            def stream_didOutputSampleBuffer_ofType_(self, stream, sample, kind):
-                if kind != SCK.SCStreamOutputTypeScreen or self.owner is None:
-                    return
-                owner = self.owner
-                try:
-                    attachments = CM.CMSampleBufferGetSampleAttachmentsArray(sample, False)
-                    if not attachments:
-                        return
-                    status = attachments[0].get(SCK.SCStreamFrameInfoStatus)
-                    owner.last_callback = time.perf_counter()
-                    if status == SCK.SCFrameStatusIdle:
-                        owner.last_idle = owner.last_callback
-                        return
-                    if status != SCK.SCFrameStatusComplete:
-                        return
-                    pixel = CM.CMSampleBufferGetImageBuffer(sample)
-                    if pixel is None:
-                        return
-                    if Q.CVPixelBufferGetPixelFormatType(pixel) != Q.kCVPixelFormatType_32BGRA:
-                        raise ValueError('ScreenCaptureKit did not return BGRA')
-                    width, height = Q.CVPixelBufferGetWidth(pixel), Q.CVPixelBufferGetHeight(pixel)
-                    if (width, height) != owner.size:
-                        raise ValueError('ScreenCaptureKit region scale changed')
-                    frame = _PendingFrame(sample, width, height)
-                    now_host = CM.CMTimeGetSeconds(CM.CMClockGetTime(CM.CMClockGetHostTimeClock()))
-                    pts = CM.CMTimeGetSeconds(CM.CMSampleBufferGetPresentationTimeStamp(sample))
-                    age = max(0.0, now_host - pts)
-                    if not np.isfinite(age) or age > 0.25:
-                        return
-                    owner.latest.publish(frame, time.perf_counter() - age)
-                except Exception as exc:
-                    owner.latest.fail(exc)
-
-            def stream_didStopWithError_(self, stream, error):
-                if self.owner is not None:
-                    self.owner.latest.fail(error)
-
-        _receiver_class = _CaptureReceiver
-        return _receiver_class
-
-
-def _display_refresh_rate(display_id, fallback=60.0):
-    if sys.platform != "darwin":
-        return 0
-    import Quartz as Q
-    try:
-        mode = Q.CGDisplayCopyDisplayMode(display_id)
-        rate = Q.CGDisplayModeGetRefreshRate(mode) if mode else 0.0
-        if rate and rate > 1:
-            return float(rate)
-    except Exception:
-        pass
-    try:
-        for screen in AppKit.NSScreen.screens():
-            number = screen.deviceDescription().get('NSScreenNumber')
-            if number is None:
-                continue
-            if int(number) == int(display_id):
-                rate = float(screen.maximumFramesPerSecond())
-                if rate > 1:
-                    return rate
-    except Exception:
-        pass
-    return fallback
-
-
-def _await_completion(operation, timeout=4.0):
-    done = threading.Event()
-    result = []
-
-    def complete(*args):
-        result.extend(args)
-        done.set()
-
-    operation(complete)
-    if not done.wait(timeout):
-        raise TimeoutError('ScreenCaptureKit operation timed out')
-    if result and result[-1] is not None:
-        raise RuntimeError(str(result[-1]))
-    if len(result) > 1:
-        return result[0]
-
-
-_EXCLUDED_WINDOW_TITLES = {'Solar Fishing Live Preview',
-                           'Solar Fishing Live Preview · Bellona 1',
-                           'Solar Fishing Live Preview · Bellona 2'}
-
-
-def _own_process_ids():
-    ids = {os.getpid()}
-    try:
-        import multiprocessing
-        ids.update(child.pid for child in multiprocessing.active_children() if child.pid)
-    except Exception:
-        pass
-    return ids
-
-
-def _excluded_windows(content):
-    own = _own_process_ids()
-    out = []
-    for window in content.windows():
-        app = window.owningApplication()
-        if app is None or int(app.processID()) not in own:
-            if str(window.title() or '') not in _EXCLUDED_WINDOW_TITLES:
-                continue
-        out.append(window)
-    return out
-
-
-class _NativeRegion:
-    '''One SCK stream for one capture region, in Quartz screen points.'''
-
-    def __init__(self, region, fps, pixel_scale=1.0):
-        if sys.platform != "darwin":
-            return
-        import ScreenCaptureKit as SCK
-        import CoreMedia as CM
-        import Quartz as Q
-        self.latest = _LatestFrame()
-        self.sequence = 0
-        self.size = int(region['width'] * pixel_scale), int(region['height'] * pixel_scale)
-        self.last_callback = time.perf_counter()
-        self.last_idle = 0.0
-        self.stream = None
-        self.receiver = None
-        self.filter_generation = 0
-        self._exclusion_inflight = False
-        content = _await_completion(
-            (lambda cb: SCK.SCShareableContent
-                .getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
-                    True, True, cb)))
-        display, crop = None, None
-        for candidate in content.displays():
-            bounds = Q.CGDisplayBounds(candidate.displayID())
-            try:
-                crop = _source_rect(region, (
-                    bounds.origin.x, bounds.origin.y,
-                    bounds.size.width, bounds.size.height))
-                display = candidate
-                break
-            except ValueError:
-                continue
-        if display is None:
-            raise ValueError('Region crosses displays or is outside the desktop')
-        self.refresh_rate = _display_refresh_rate(display.displayID())
-        config = SCK.SCStreamConfiguration.alloc().init()
-        config.setSourceRect_(crop)
-        config.setWidth_(self.size[0])
-        config.setHeight_(self.size[1])
-        config.setPixelFormat_(Q.kCVPixelFormatType_32BGRA)
-        config.setColorSpaceName_(Q.kCGColorSpaceSRGB)
-        config.setShowsCursor_(False)
-        config.setQueueDepth_(3)
-        config.setMinimumFrameInterval_(CM.CMTimeMake(1, self._capture_rate(fps)))
-        self.config, self.fps = config, fps
-        own = _excluded_windows(content)
-        self.display = display
-        self.excluded_ids = {window.windowID() for window in own}
-        self.filter_checked = time.perf_counter()
-        filter_ = SCK.SCContentFilter.alloc().initWithDisplay_excludingWindows_(display, own)
-        self.receiver = _receiver_class_factory().alloc().init()
-        self.receiver.owner = self
-        self.stream = SCK.SCStream.alloc().initWithFilter_configuration_delegate_(
-            filter_, config, self.receiver)
-        try:
-            ok, error = self.stream.addStreamOutput_type_sampleHandlerQueue_error_(
-                self.receiver, SCK.SCStreamOutputTypeScreen, None, None)
-            if not ok:
-                raise RuntimeError(str(error))
-            _await_completion(self.stream.startCaptureWithCompletionHandler_)
-        except Exception:
-            self.close()
-            raise
-
-    def _capture_rate(self, fps):
-        cap = round(self.refresh_rate) or 360
-        return max(1, min(360, int(fps), cap))
-
-    def set_fps(self, fps):
-        if sys.platform != "darwin":
-            return
-        if fps == self.fps:
-            return
-        import CoreMedia as CM
-        self.config.setMinimumFrameInterval_(CM.CMTimeMake(1, self._capture_rate(fps)))
-        _await_completion(
-            (lambda cb: self.stream.updateConfiguration_completionHandler_(self.config, cb)))
-        self.fps = fps
-
-    def refresh_exclusions(self):
-        '''Add windows shown after start (live preview) to the exclusion list.
-        Only one query is in flight at a time so bursts cannot pile up.
-        '''
-        if sys.platform != "darwin":
-            return
-        now = time.perf_counter()
-        interval = _EXCLUSION_FAST if now < _exclusion_burst_until else _EXCLUSION_SLOW
-        if now - getattr(self, 'filter_checked', now) < interval or self.stream is None:
-            return
-        if self._exclusion_inflight:
-            return
-        self._exclusion_inflight = True
-        self.filter_checked = now
-        import ScreenCaptureKit as SCK
-
-        def listed(content, error):
-            self._exclusion_inflight = False
-            if content is None or self.stream is None:
-                return
-            try:
-                windows = _excluded_windows(content)
-            except Exception:
-                return
-            try:
-                ids = {window.windowID() for window in windows}
-                if ids == self.excluded_ids:
-                    return
-                self.excluded_ids = ids
-                filter_ = SCK.SCContentFilter.alloc().initWithDisplay_excludingWindows_(
-                    self.display, windows)
-                self.stream.updateContentFilter_completionHandler_(filter_, None)
-                self.filter_generation += 1
-            except Exception:
-                return
-
-        SCK.SCShareableContent.getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
-            True, True, listed)
-
-    def grab(self, wait=True):
-        self.refresh_exclusions()
-        try:
-            timeout = 3.0 if not self.sequence else 0.1 if wait else 0.0
-            self.sequence, frame, stamp = self.latest.read(self.sequence, timeout)
-        except NoNewFrame:
-            if not self.sequence or time.perf_counter() - self.last_callback > 5:
-                raise RuntimeError('ScreenCaptureKit stopped delivering frames')
-            still = self.latest.frame
-            if still is not None and time.perf_counter() - self.last_idle <= 0.25:
-                return _pixels(still), self.last_idle
-            raise
-        if time.perf_counter() - stamp > 0.25:
-            raise NoNewFrame('Discarded stale frame')
-        return frame, stamp
-
-    def close(self):
-        self.latest.close()
-        if self.stream is not None:
-            try:
-                _await_completion(self.stream.stopCaptureWithCompletionHandler_, timeout=1.0)
-            except Exception:
-                pass
-        if self.receiver is not None:
-            self.receiver.owner = None
-        self.stream = self.receiver = None
-
-
-class _RegionCapture:
-    '''Worker-owned region streams with MSS fallback.'''
-
-    def __init__(self, fps=240, log=print, pixel_scale=1.0):
-        if sys.platform != "darwin":
-            return
-        self.fps = fps
-        self.log = log
-        self.pixel_scale = pixel_scale
-        self.fallback = None
-        self.regions = OrderedDict() if 'OrderedDict' in globals() else {}
-        self.timestamp = 0.0
-        self.backend = None
-        self.preference = 'ScreenCaptureKit'
-
-    def set_backend(self, preference):
-        if preference not in ('ScreenCaptureKit', 'MSS'):
-            raise ValueError('Unknown capture backend')
-        if preference == self.preference:
-            return
-        for native in self.regions.values():
-            if native is not None:
-                native.close()
-        self.regions.clear()
-        self.preference = preference
-        self.log(f'>>> CAPTURE: selected {preference}')
-
-    def _mss(self):
-        if self.fallback is None:
-            self.fallback = MSS()
-        return self.fallback
-
-    def set_fps(self, fps):
-        self.fps = fps
-        for key, native in list(self.regions.items()):
-            if native is not None:
-                try:
-                    native.set_fps(fps)
-                except Exception as exc:
-                    native.close()
-                    self.regions[key] = None
-                    self.log(f'>>> CAPTURE: rate update failed; using MSS ({exc})')
-                    continue
-
-    def grab(self, region, wait=True):
-        if self.preference == 'MSS':
-            frame = np.asarray(self._mss().grab(region))
-            self.timestamp, self.backend = time.perf_counter(), 'MSS'
-            return frame
-        key = tuple(int(region[k]) for k in ('left', 'top', 'width', 'height'))
-        if key not in self.regions:
-            if len(self.regions) >= 2:
-                _, old = self.regions.popitem(last=False)
-                if old is not None:
-                    old.close()
-            native = None
-            try:
-                native = _NativeRegion(region, self.fps, pixel_scale=self.pixel_scale)
-                frame, stamp = native.grab()
-                for attempt in range(3):
-                    try:
-                        reference = np.asarray(self._mss().grab(region))
-                    except Exception as exc:
-                        self.log(f'>>> CAPTURE: MSS comparison unavailable ({exc}); using native format checks')
-                        break
-                    if _compatible_pixels(frame, reference):
-                        break
-                    if attempt == 2:
-                        raise ValueError('RGB/Retina comparison differed from MSS')
-                    try:
-                        frame, stamp = native.grab()
-                    except NoNewFrame:
-                        continue
-                    except Exception:
-                        raise
-            except Exception as exc:
-                if native is not None:
-                    native.close()
-                self.regions[key] = None
-                self.log(f'>>> CAPTURE: using MSS fallback ({exc})')
-                frame = np.asarray(self._mss().grab(region))
-                self.timestamp, self.backend = time.perf_counter(), 'MSS'
-                return frame
-            self.regions[key] = native
-            self.timestamp, self.backend = stamp, 'ScreenCaptureKit'
-            self.log('>>> CAPTURE: ScreenCaptureKit region ready (BGRA)')
-            refresh_rate = getattr(native, 'refresh_rate', None)
-            if isinstance(refresh_rate, (int, float)) and self.fps > refresh_rate:
-                self.log(f'>>> CAPTURE: capturing at {round(refresh_rate)} fps '
-                         f'(display refresh) instead of {self.fps}')
-            return frame
-        native = self.regions[key]
-        try:
-            self.regions.move_to_end(key)
-        except AttributeError:
-            pass
-        if native is not None:
-            try:
-                native.set_fps(self.fps)
-                frame, self.timestamp = native.grab(wait=wait)
-                self.backend = 'ScreenCaptureKit'
-                return frame
-            except NoNewFrame:
-                raise
-            except Exception as exc:
-                native.close()
-                self.regions[key] = None
-                self.log(f'>>> CAPTURE: stream failed; using MSS ({exc})')
-        frame = np.asarray(self._mss().grab(region))
-        self.timestamp, self.backend = time.perf_counter(), 'MSS'
-        return frame
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        for native in self.regions.values():
-            if native is not None:
-                native.close()
-        self.regions.clear()
-        if self.fallback is not None:
-            self.fallback.close()
-            self.fallback = None
 
 # Validate Tesseract Path
 def get_tesseract_path(configured_path=None):
@@ -1239,7 +743,7 @@ AREA_CONFIG = {
     "shake": {
         "color": "#df0000",
         "label": "Shake Box",
-        "default": {"x": 0.1041, "y": 0.0592, "width": 0.7917, "height": 0.7402},
+        "default": {"x": 0.1041, "y": 0.0935, "width": 0.7917, "height": 0.7058},
     },
     "fish": {
         "color": "#00beff",
@@ -3572,6 +3076,8 @@ class Api:
         self.misc_settings["area_selector_key"] = self.vars.get("area_selector_key", "F6")
         self.misc_settings["stop_key"] = self.vars.get("stop_key", "F7")
         self.misc_settings["screenshot_key"] = self.vars.get("screenshot_key", "F8")
+        # Efficiency Mode
+        self.misc_settings["efficiency_mode"] = self.vars["efficiency_mode"]
         # Terms of Service
         self.misc_settings["tos_accepted"] = bool(getattr(self, "tos_accepted", self.misc_settings.get("tos_accepted", False)))
         # Keep last_config synchronized
@@ -3787,16 +3293,81 @@ class Api:
             self.area_selector.update(areas, self.vars)
     # Debug Screenshots
     def take_debug_screenshot(self):
-        # Use cached frame if exists
-        if self.capture_frame is not None:
-            img = self.capture_frame
-        else:
-            img = self.capture_single_frame()
-        if img is not None:
-            noiseform_left, noiseform_top, noiseform_right, noiseform_bottom, noiseform_width, noiseform_height = self.get_areas("noiseform")
-            noiseform_img = img[noiseform_top:noiseform_bottom, noiseform_left:noiseform_right]
-            cv2.imwrite("debug_noiseform.png", noiseform_img)
-        cv2.imwrite("debug.png", img)
+        """
+        Capture every area in AREA_ORDER plus a full-screen shot, and save
+        debug images as debug_<name>.png / debug_full.png.
+        """
+        full_img = self.capture_single_frame()
+        if full_img is None:
+            self.set_status("Full screen is empty")
+            return
+
+        try:
+            cv2.imwrite(os.path.join(EDITABLE_PATH, "debug_full.png"), full_img)
+        except Exception as e:
+            self.set_status(f"Error saving full screenshot: {e}")
+            return
+
+        visible_areas = []
+        automation_mode = self.vars["automation_mode"]
+        special_rod = self.vars["special_rod"]
+        if automation_mode == "fishing":
+            if special_rod == "bellona":
+                visible_areas.append("fish_1_bellona")
+                visible_areas.append("fish_2_bellona")
+            elif special_rod == "tranquility":
+                visible_areas.append("fish_tranquility")
+            else:
+                visible_areas.append("fish")
+            if self.vars["shake_mode"] != "navigation":
+                if special_rod != "tranquility":
+                    visible_areas.append("shake")
+            if self.vars["detection_method"] == "friend_area" or self.vars["restart_method"] == "friend_area":
+                visible_areas.append("friend")
+            if self.vars["auto_totem"] == True:
+                visible_areas.append("totem")
+            if self.vars["hunt_detect"] == True:
+                visible_areas.append("chat")
+            if self.vars["sovereign_recharge"] == True:
+                visible_areas.append("sovereign")
+            if special_rod == "noiseform":
+                visible_areas.append("noiseform")
+            elif special_rod == "lullaby":
+                visible_areas.append("lullaby")
+            elif special_rod == "stellarwave":
+                visible_areas.append("stellarwave")
+        elif automation_mode == "appraisal":
+            visible_areas.append("appraisal_hotbar")
+        elif automation_mode == "treasure_appraisal":
+            visible_areas.append("treasure_appraisal")
+        elif automation_mode == "enchant":
+            visible_areas.append("enchantment")
+        elif automation_mode == "angler":
+            visible_areas.append("angler_quest")
+
+        saved = ["full"]
+        try:
+            for name in AREA_ORDER:
+                if name not in visible_areas:
+                    continue
+                left, top, right, bottom, _, _ = self.get_areas(name)
+                # Clamp To Image Bounds
+                h, w = full_img.shape[:2]
+                top = max(0, min(top, h - 1))
+                bottom = max(top + 1, min(bottom, h))
+                left = max(0, min(left, w - 1))
+                right = max(left + 1, min(right, w))
+                crop = full_img[top:bottom, left:right]
+                if crop.size == 0:
+                    continue
+
+                cv2.imwrite(os.path.join(EDITABLE_PATH, f"debug_{name}.png"), crop)
+                saved.append(name)
+        except Exception as e:
+            self.set_status(f"Error saving region screenshots: {e}")
+            return
+
+        self.set_status(f"Took a screenshot of {', '.join(saved)}")
     def _enumerate_windows(self):
         """Cross-platform window list (similar to SolarAutomateV3.refresh_windows).
         Returns a list of dicts with keys: title, exe, left, top, width, height.
@@ -3939,6 +3510,17 @@ class Api:
     def detect_roblox(self):
         """Called from the Detect Roblox button. Prints and reports window bounds."""
         left, top, width, height = self.get_window_info("Roblox")
+        if left == 0 and top == 0 and width == SCREEN_WIDTH and height == SCREEN_HEIGHT:
+            # Fallback: primary monitor's usable work area
+            work_area = get_primary_work_area()
+            self.set_status(f"Detected Full Screen coordinates at {work_area}")
+            return {
+                "left": work_area["left"],
+                "top": work_area["top"],
+                "width": work_area["width"],
+                "height": work_area["height"],
+            }
+        self.set_status(f"Detected Roblox window coordinates at {left}, {top}, {width}, {height}")
         return {"left": left, "top": top, "width": width, "height": height}
 
     # Point Select
@@ -4038,10 +3620,7 @@ class Api:
                     self.camera.start(target_fps=60)
                 else:
                     if sys.platform == "darwin":
-                        if _SCK_AVAILABLE:
-                            target = self.capture_loop_screencapturekit
-                        else:
-                            target = self.capture_loop_quartz
+                        target = self.capture_loop_quartz
                     else:
                         target = self.capture_loop_mss
                     self.capture_thread = threading.Thread(target=target, daemon=True)
@@ -4500,49 +4079,6 @@ class Api:
             self.capture_id += 1
             time.sleep(self.scan_delay)
 
-    def capture_loop_screencapturekit(self):
-        """Continuous capture via _RegionCapture (ScreenCaptureKit + MSS fallback).
-        Publishes self.capture_frame / self.capture_id for the macro to read.
-        """
-        if sys.platform != "darwin":
-            raise RuntimeError("ScreenCaptureKit is not supported on Windows")
-        if not _SCK_AVAILABLE:
-            return self.capture_loop_quartz()
-        if not self.macro_running:
-            return
-
-        scale = get_scale_factor() or 1.0
-        region = {"left": 0, "top": 0,
-                "width": int(SCREEN_WIDTH), "height": int(SCREEN_HEIGHT)}
-
-        capture = _RegionCapture(fps=60, log=lambda m: None, pixel_scale=scale)
-        self._region_capture = capture
-        try:
-            try:
-                frame, _ = capture.grab(region, wait=True)
-                self.capture_frame = self._normalize_capture_size(frame)
-                self.capture_id += 1
-            except Exception as exc:
-                self.set_status(f"ScreenCaptureKit unavailable ({exc}); using Quartz")
-                return self.capture_loop_quartz()
-
-            while self.macro_running:
-                try:
-                    frame, _ = capture.grab(region, wait=True)
-                    self.capture_frame = self._normalize_capture_size(frame)
-                    self.capture_id += 1
-                except NoNewFrame:
-                    continue
-                except Exception as exc:
-                    self.set_status(f"ScreenCaptureKit failed ({exc}); using Quartz")
-                    return self.capture_loop_quartz()
-        finally:
-            try:
-                capture.__exit__(None, None, None)
-            except Exception:
-                pass
-            self._region_capture = None
-
     def process_image_for_ocr(self, img):
         # Convert To Grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -4715,7 +4251,7 @@ class Api:
 
         return None, None
 
-    def pixel_search_matrix(self, frame, color_id, tolerance_id, scan_mode=0, optimize_mode=0):
+    def pixel_search_all(self, frame, color_id, tolerance_id, scan_mode=0, optimize_mode=0):
         searched = set()
         loop_count = 1
         if optimize_mode not in (0, 1, 2):
@@ -5075,6 +4611,83 @@ class Api:
         result[white_mask] = 0
 
         return result
+
+    def detect_shapes(self, img):
+        h, w = img.shape[:2]
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Threshold to isolate the bright white shapes
+        _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        shapes = []
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < 60:
+                continue
+
+            peri = cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, 0.04 * peri, True)
+            circularity = 4 * np.pi * area / (peri ** 2) if peri > 0 else 0
+
+            x, y, bw, bh = cv2.boundingRect(cnt)
+            aspect = bw / float(bh) if bh > 0 else 0
+
+            # Roughly square bounding box
+            if not (0.7 < aspect < 1.4):
+                continue
+
+            # Icon size range that works for the tested resolutions
+            # (rejects the larger fish skeleton above the bar)
+            if not (12 < bh < 45 and 12 < bw < 45):
+                continue
+
+            # Reject very low-circularity blobs (fish skeleton)
+            if circularity < 0.4:
+                continue
+
+            M = cv2.moments(cnt)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+            else:
+                cx = x + bw // 2
+                cy = y + bh // 2
+
+            shapes.append({
+                'center': (cx, cy),
+                'area': area,
+                'vertices': len(approx),
+                'circularity': circularity,
+                'aspect': aspect,
+                'bbox': (bw, bh)
+            })
+
+        if len(shapes) < 3:
+            return None, None, None
+
+        # If more than 3, keep the three with the most "icon-like" circularity
+        if len(shapes) > 3:
+            shapes = sorted(shapes, key=lambda s: s['circularity'], reverse=True)[:3]
+
+        # Classification
+        # Circle = highest circularity
+        shapes_by_circ = sorted(shapes, key=lambda s: s['circularity'], reverse=True)
+        circle = shapes_by_circ[0]
+
+        remaining = [s for s in shapes if s['center'] != circle['center']]
+
+        # Prefer a true 3-vertex contour for the triangle; otherwise lowest circularity
+        tri_candidates = [s for s in remaining if s['vertices'] == 3]
+        if tri_candidates:
+            triangle = tri_candidates[0]
+        else:
+            remaining_by_circ = sorted(remaining, key=lambda s: s['circularity'])
+            triangle = remaining_by_circ[0]
+
+        square = [s for s in remaining if s['center'] != triangle['center']][0]
+        return triangle['center'], circle['center'], square['center']
 
     def _calculate_speed_and_predict(self, white_positions, timestamps):
         """
@@ -5869,7 +5482,7 @@ class Api:
                 sun_resized = self.auto_crop_template(sun)
                 moon_resized = self.auto_crop_template(moon)
             except:
-                self.set_status("Error: Can't find sun.png and moon.png. Auto Totem is disabled.")
+                self.status_overlay.set_main_status("Error: Can't find sun.png and moon.png. Auto Totem is disabled.")
                 self.send_logging("Error: Can't find sun.png and moon.png. Auto Totem is disabled.", 0)
                 auto_totem = False
             # 7. Internal Tracking State
@@ -5959,7 +5572,6 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             cycle_advanced = False
             try:
                 self.status_overlay.set_main_status("Resetting Statistics")
-                self.set_status("Resetting statistics")
                 self.capture_id = 0
                 if auto_refresh == True:
                     time.sleep(delay_before_casting)
@@ -5967,7 +5579,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     self.interruptible_sleep(select_rod_duration)
                     self._send_key(fishing_rod_slot)
                     self.interruptible_sleep(delay_after_casting / 2)
-                self.set_status("Using Utilities")
+                self.status_overlay.set_main_status("Using Utilities")
                 # Auto Buy Bait
                 if auto_buy_bait == True:
                     if bait_cycles == self.current_cycle:
@@ -5995,7 +5607,6 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 # Auto Totem
                 if auto_totem == True and self.current_cycle == totem_cycles2:
                     self.status_overlay.set_main_status("Auto Totem")
-                    self.set_status("Auto Totem")
                     time.sleep(0.1)
                     if not target_time == "disabled":
                         if dxcam is not None:
@@ -6046,7 +5657,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 if sovereign_recharge == True:
                     self.status_overlay.set_main_status("Sovereign Recharge")
                     sovereign_img = self.capture_frame[sovereign_top:sovereign_bottom, sovereign_left:sovereign_right]
-                    sovereign_right2, _ = self.pixel_search_matrix(sovereign_img, "sovereign_recharge_color", "sovereign_recharge_tolerance")
+                    sovereign_right2, _ = self.pixel_search_all(sovereign_img, "sovereign_recharge_color", "sovereign_recharge_tolerance")
                     if sovereign_right2 is not None:
                         distance = round(abs(sovereign_right2 - sovereign_left) / sovereign_width, 2)
                         while distance < maximum_percentage:
@@ -6066,7 +5677,6 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 self.current_cycle = self.current_cycle + 1
                 cycle_advanced = True
                 # Cast
-                self.set_status(f"Casting ({casting_mode})")
                 self.status_overlay.set_main_status(f"Casting ({casting_mode})")
                 time.sleep(delay_before_casting)
                 if casting_mode == "perfect":
@@ -6075,10 +5685,10 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     self._execute_cast_normal()
                 time.sleep(delay_after_casting)
                 # Shake
-                self.set_status("Shaking")
                 self.status_overlay.set_main_status(f"Shaking ({shake_mode})")
                 self.scan_delay = float(self.vars["shake_scan_delay"])
-                for attempts in range(shake_failsafe):
+                attempts = 0
+                while attempts <= shake_failsafe:
                     self.status_overlay.set_line(1, "Attempts", attempts)
                     if dxcam is not None:
                         self.capture_frame = self.camera.get_latest_frame()
@@ -6088,7 +5698,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
 
                     if detection_method == "friend_area":
                         friend_img = self.capture_frame[friend_top_s:friend_bottom_s, friend_left_s:friend_right_s]
-                        friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                        friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                         if friend_x is None or friend_y is None:
                             break
 
@@ -6098,7 +5708,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                         else:
                             fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
                         if fishing_mode == "color":
-                            fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
+                            fish_x, fish_y = self.pixel_search_all(fish_img, "fish_color", "fish_tolerance")
                             if fish_x is not None or fish_y is not None:
                                 break
 
@@ -6115,13 +5725,22 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                         time.sleep(0.01)
                         keyboard_controller.release(Key.enter)
                     else:
-                        self._execute_shake_click(shake_mode)
+                        try:
+                            shake_click_x, shake_click_y = self._execute_shake_click(shake_mode)
+                            if shake_click_x == last_shake_click_x and shake_click_y == last_shake_click_y:
+                                attempts = attempts - 1
+                            last_shake_click_x, last_shake_click_y = shake_click_x, shake_click_y
+                        except UnboundLocalError:
+                            last_shake_click_x = 0
+                            last_shake_click_y = 0
+                            shake_click_x = 0
+                            shake_click_y = 0
+                    attempts = attempts + 1
                     time.sleep(self.scan_delay)
                 # Minigame
                 # Set self.fish_caught and self.perfect_catch to defaults before entering
                 time.sleep(animation_delay)
                 if self.macro_running == True:
-                    self.set_status("Playing Bar Minigame")
                     self.status_overlay.set_main_status(f"Playing Bar Minigame ({special_rod})")
                     if special_rod == "dreambreaker":
                         self._enter_minigame_dreambreaker()
@@ -6176,7 +5795,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     self.reported_errors = []
                 self.reported_errors.append(short)
                 try:
-                    self.set_status(f"Error (cycle {cycle}): {type(e).__name__} — continuing")
+                    self.status_overlay.set_main_status(f"Error (cycle {cycle}): {type(e).__name__} — continuing")
                 except Exception:
                     pass
                 if IS_COMPILED == False:
@@ -6192,8 +5811,8 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 # Restart the loop early — do not stop the macro
                 continue
                 
-            self.stop_macro("")
-            return
+        self.stop_macro("")
+        return
 
     def _auto_reconnect(self, center_x, center_y):
         auto_reconnect = self.vars["auto_reconnect"].lower()
@@ -6290,16 +5909,10 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 return current_hunt
 
         return current_hunt
-
+    
     def _execute_cast_perfect(self):
         # Areas
-        shake_left, shake_top, shake_right, shake_bottom, _, shake_height = self.get_areas("shake")
-        # Colors
-        white_cast_color = self.vars["white_cast_color"]
-        pinion_notes_color = self.vars["green_cast_color"]
-        # Tolerance
-        white_cast_tolerance = int(self.vars["white_cast_tolerance"])
-        green_cast_tolerance = int(self.vars["green_cast_tolerance"])
+        shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("shake")
         # Perfect Cast Settings
         perfect_cast_method = self.vars["perfect_cast_method"].lower()
         fall_scan_timeout = float(self.vars["fall_scan_timeout"])
@@ -6307,7 +5920,6 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
         # Last Values (Failsafe)
         last_capture_id = 0
         is_initial_run = True
-        is_green_tracking = False
         green_detected = False
         start_time = time.time()
         last_time = time.time()
@@ -6320,7 +5932,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
         white_timestamps = []
         max_speed_samples = 20
         release_delay = float(self.vars["release_delay_simple"])
-        perfect_threshold = float(self.vars["perfect_threshold"])  # Hardcoded value - setting removed in later versions
+        perfect_threshold = float(self.vars["perfect_threshold"])
         release_timing = max(-50.0, min(50.0, release_delay))
         # Velocity Method Variables
         if perfect_cast_method == "velocity":
@@ -6328,12 +5940,12 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             white_timestamps = []
             MAX_VELOCITY_SAMPLES = 10
             last_time_to_impact = None
-            # Get Screen Resolution For Scaling
             scaling_factor = 1920 / SCREEN_WIDTH
         if perfect_cast_method == "prediction":
             highest_cast_percentage = 100
             highest_cast_percentage_updated = False
         # Initialize Tracking Variables
+        # These are ALWAYS in shake-image coordinate space
         green_abs_top = 0
         green_abs_left = 0
         green_abs_right = 0
@@ -6341,13 +5953,26 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
         reached_bottom_5_percent = True
         last_fill_percentage = None
         last_frame_time = None
+        white_full_scan = False
+        # Validity flags — set True only once a real detection has occurred.
+        # Prevents stale default values (0 / shake_height) from being used
+        # before green and white have actually been found.
+        green_valid = False
+        white_valid = False
+        # Cached green bounds (shake-image coords), None = not yet detected
+        cached_green = None  # (left, top, right, bottom)
+        white_abs_bottom = shake_height
+        white_abs_top = 0
+        green_abs_top = 0
+        fish_overlay = self.vars["fish_overlay"]
+        if fish_overlay == True:
+            self.fish_overlay.resize(shake_right, shake_top, 35, shake_height)
         # Loop
         while self.macro_running:
             # Check If Dxcam Is Available
             if dxcam is not None:
                 self.capture_frame = self.camera.get_latest_frame()
                 self.capture_id = last_capture_id + 1
-            # Get Image From Self.Capture_Frame
             if self.capture_id == last_capture_id:
                 time.sleep(self.scan_delay)
                 continue
@@ -6365,115 +5990,114 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 released = True
                 break
 
-            # Check If Macro Stopped During Perfect Cast
             if not self.macro_running:
                 self.release_mouse()
                 released = True
                 break
 
-            # Status Overlay
-            self.status_overlay.set_line(1, "Green: ", f"Undefined")
-            self.status_overlay.set_line(2, "White: ", f"Undefined")
-            # Scanning From Shake_Left, Shake_Top To Shake_Right, Shake_Bottom
+            # Slice shake region
             shake_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
-            # Green Detection
-            if is_green_tracking:
-                # Track In Subregion Around Last Known Green Position
-                # Cast to int so the subregion slice is valid
-                green_area_top = max(0, int(green_abs_top) - green_padding)
-                green_area_bottom = min(shake_img.shape[0], int(green_abs_top) + green_padding)
-                green_area_left = max(0, int(green_abs_left) - green_padding)
-                green_area_right = min(shake_img.shape[1], int(green_abs_right) + green_padding)
-                green_area = shake_img[green_area_top:green_area_bottom, green_area_left:green_area_right]
-                g_left, g_top = self.pixel_search_matrix(green_area, "green_cast_color", "green_cast_tolerance")
-                g_right, g_bottom = self.pixel_search_matrix(green_area, "green_cast_color", "green_cast_tolerance", 1)
-                if None not in (g_left, g_top, g_right, g_bottom):
-                    # Keep coordinates as integers for array slicing
-                    green_abs_left = int(g_left) + green_area_left
-                    green_abs_top = int(g_top) + green_area_top
-                    green_abs_right = int(g_right) + green_area_left
-                    green_abs_bottom = int(g_bottom) + green_area_top
-                    green_detected = True
+            # GREEN DETECTION
+            # Initial (or lost) -> full scan of shake_img
+            # Otherwise -> scan cached green area + padding
+            green_found = False
+            if cached_green is None:
+                # Full scan in shake_img coordinate space
+                g_left, g_top = self.pixel_search_all( shake_img, "green_cast_color", "green_cast_tolerance" )
+                g_right, g_bottom = self.pixel_search_all( shake_img, "green_cast_color", "green_cast_tolerance", 1 )
+                if g_top is not None and g_bottom is not None and g_left is not None and g_right is not None:
+                    cached_green = (g_left, g_top, g_right, g_bottom)
+                    green_found = True
+            else:
+                # Cached scan: crop around last known green + padding
+                cl, ct, cr, cb = cached_green
+                pad_l = max(0, cl - green_padding)
+                pad_t = max(0, ct - green_padding)
+                pad_r = min(shake_width, cr + green_padding)
+                pad_b = min(shake_height, cb + green_padding)
+                green_img = shake_img[pad_t:pad_b, pad_l:pad_r]
+                lg_left, lg_top = self.pixel_search_all( green_img, "green_cast_color", "green_cast_tolerance" )
+                lg_right, lg_bottom = self.pixel_search_all( green_img, "green_cast_color", "green_cast_tolerance", 1 )
+                if (lg_top is not None and lg_bottom is not None and lg_left is not None and lg_right is not None):
+                    # Convert back to shake_img coords
+                    g_left = lg_left + pad_l
+                    g_top = lg_top + pad_t
+                    g_right = lg_right + pad_l
+                    g_bottom = lg_bottom + pad_t
+                    cached_green = (g_left, g_top, g_right, g_bottom)
+                    green_found = True
                 else:
-                    green_detected = False
-                    is_green_tracking = False
-                    if perfect_cast_method == "simple":
-                        speed_samples.clear()
-                    else:
-                        white_positions.clear()
-                        white_timestamps.clear()
-                    self.status_overlay.set_line(1, "Green: ", f"None (Full Scan)")
-                    continue  # Skip this frame, try full scan next frame
-
-            if not is_green_tracking:
-                # Full Scan For Green
-                g_left, g_top = self.pixel_search_matrix(shake_img, "green_cast_color", "green_cast_tolerance")
-                g_right, g_bottom = self.pixel_search_matrix(shake_img, "green_cast_color", "green_cast_tolerance", 1)
-                if None not in (g_left, g_top, g_right, g_bottom):
-                    green_abs_left = g_left
-                    green_abs_top = g_top
-                    green_abs_right = g_right
-                    green_abs_bottom = g_bottom
-                    green_detected = True
-                    is_green_tracking = True
-                else:
-                    self.status_overlay.set_line(1, "Green: ", f"None (Skipped)")
-                    continue  # No green found, try again
-
-            # Show Status For Green
-            self.status_overlay.set_line(1, "Green: ", f"{green_abs_left}, {green_abs_top}")
-            # White Detection
-            # Search vertically below the center of the green bar.
-            # Ensure integer indices for NumPy slicing
-            try:
-                green_center_x = int((int(green_abs_left) + int(green_abs_right)) // 2)
-            except (TypeError, ValueError):
-                green_center_x = 0
-            # Keep the coordinate inside shake_img.
-            green_center_x = max(0, min(green_center_x, shake_img.shape[1] - 1))
-            # Comet-style vertical scan:
-            # start at the green bar and scan all the way to the
-            # bottom of the captured region.
-            try:
-                scan_start_y = int(max(0, green_abs_top))
-            except (TypeError, ValueError):
-                scan_start_y = 0
-            scan_end_y = shake_img.shape[0]
-            white_column = shake_img[scan_start_y:scan_end_y, green_center_x:green_center_x + 1, :]
-            # Per-channel tolerance:
-            # a pixel matches when every B/G/R channel is within
-            # white_cast_tolerance of the target color.
-            white_b, white_g, white_r = self._hex_to_bgr(white_cast_color)
-            white_target = np.array([white_b, white_g, white_r], dtype=np.int16)
-            white_column_i = white_column.astype(np.int16)
-            white_diff = np.abs(white_column_i - white_target)
-            white_mask = (np.max(white_diff, axis=2) <= white_cast_tolerance)
-            # Get every matching Y position on the center column.
-            white_rows = np.flatnonzero(white_mask[:, 0])
-            if white_rows.size == 0:
-                self.status_overlay.set_line(2, "White: ", f"None (Skipped)")
+                    # Lost green - invalidate cache, rescan fully next frame
+                    cached_green = None
+            # Update absolute green bounds (shake coords) whenever we have them
+            if green_found:
+                green_abs_left, green_abs_top, green_abs_right, green_abs_bottom = cached_green
+                green_valid = True
+            # WHITE DETECTION
+            # If green is known: scan white in [green_left:green_right, shake_top:shake_bottom]
+            #   (i.e. the column below/around the green bar within the shake area)
+            # If green is not known: full scan of shake_img
+            white_found = False
+            if green_found:
+                # White scan area in shake coords: x = green left..right, y = green top..shake bottom
+                # White can never be above green, so start the crop at green_abs_top.
+                wl = max(0, green_abs_left)
+                wr = min(shake_width, green_abs_right)
+                wt = max(0, green_abs_top)      # <-- was 0
+                wb = shake_height
+                white_img = shake_img[wt:wb, wl:wr]
+                w_left_rel, w_top_rel = self.pixel_search_all( white_img, "white_cast_color", "white_cast_tolerance" )
+                w_right_rel, w_bottom_rel = self.pixel_search_all( white_img, "white_cast_color", "white_cast_tolerance", 1 )
+                if (w_top_rel is not None and w_bottom_rel is not None and w_left_rel is not None and w_right_rel is not None):
+                    white_abs_left = w_left_rel + wl
+                    white_abs_top = w_top_rel + wt
+                    white_abs_right = w_right_rel + wl
+                    white_abs_bottom = w_bottom_rel + wt
+                    white_found = True
+            else:
+                # Full scan of shake_img
+                w_left_rel, w_top_rel = self.pixel_search_all( shake_img, "white_cast_color", "white_cast_tolerance" )
+                w_right_rel, w_bottom_rel = self.pixel_search_all( shake_img, "white_cast_color", "white_cast_tolerance", 1 )
+                if (w_top_rel is not None and w_bottom_rel is not None and w_left_rel is not None and w_right_rel is not None):
+                    white_abs_left = w_left_rel
+                    white_abs_top = w_top_rel
+                    white_abs_right = w_right_rel
+                    white_abs_bottom = w_bottom_rel
+                    white_found = True
+            if white_found:
+                white_valid = True
+            # DISTANCE (both in shake coords now)
+            # Only compute once BOTH green and white have been genuinely detected
+            # at least once. Otherwise the stale defaults (0 / shake_height)
+            # produce total_distance == 0 and a bogus 100% fill on the first frames.
+            if not (green_valid and white_valid):
+                time.sleep(self.scan_delay)
+                last_capture_id = self.capture_id
+                last_time = current_time
                 continue
 
-            # First matching pixel = top of the white target.
-            white_abs_top = scan_start_y + int(white_rows[0])
-            # Last matching pixel = bottom of the white target.
-            # Keeping this allows Solar's existing Simple and Prediction
-            # methods to continue using total_distance.
-            white_abs_bottom = scan_start_y + int(white_rows[-1])
-            # Existing Solar distance calculations.
-            try: green_abs_top = float(green_abs_top)
-            except: green_abs_top = 0
             total_distance = white_abs_bottom - green_abs_top
             current_distance = white_abs_top - green_abs_top
+            # Guard against degenerate/zero total distance (e.g. green top == white bottom)
             if total_distance <= 0:
-                self.status_overlay.set_line(2, "White: ", f"{total_distance} (Invalid)")
+                time.sleep(self.scan_delay)
+                last_capture_id = self.capture_id
+                last_time = current_time
                 continue
 
-            self.status_overlay.set_line(2, "White: ", f"{green_center_x}, {white_abs_top}")
-            # Release Logic Based On Selected Method
+            self.status_overlay.set_line(1, "Distance", f"{round(current_distance)}")
+            if current_distance < 0:
+                current_distance = shake_height
+            # Fish Overlay
+            self.fish_overlay.clear()
+            if fish_overlay == True:
+                self.fish_overlay.draw(5, green_abs_top, 30, green_abs_bottom, "#FF0000")
+                self.fish_overlay.draw(5, white_abs_top, 30, white_abs_bottom, "#00FF00")
+            # RELEASE LOGIC (only runs when we have a valid distance)
             if perfect_cast_method == "simple":
                 # Simple (Percentage-Based) Method
                 actual_fill_percentage = (1 - (current_distance / total_distance)) * 100
+                self.status_overlay.set_line(2, "Actual Fill Percentage", f"{round(actual_fill_percentage)}")
                 fill_speed = 0.0
                 position_offset_percent = 0.0
                 if last_fill_percentage is not None and last_frame_time is not None:
@@ -6501,7 +6125,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     else:
                         position_offset_percent = max(0.0, min(50.0, base_offset))
                 predicted_fill_percentage = actual_fill_percentage + position_offset_percent
-                self.status_overlay.set_line(3, "Percentage: ", predicted_fill_percentage)
+                self.status_overlay.set_line(3, "Predicted Fill Percentage: ", f"{round(predicted_fill_percentage)}")
                 offset_pixels = int((position_offset_percent / 100.0) * total_distance)
                 predicted_white_y_top = white_abs_top - offset_pixels
                 bottom_threshold = 5.0 + position_offset_percent
@@ -6581,6 +6205,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                                 else:
                                     reaction_delay = 0.049
                                     timing_key = "perfect_cast_timing_1600_plus"
+                                self.status_overlay.set_line(2, "Velocity: ", f"{timing_key.strip("perfect_cast_timing_").replace("_plus", "+")}")
                                 timing_adjustment_ms = self._get_var_number(timing_key, 0, int)
                                 reaction_delay += timing_adjustment_ms * 0.001
                                 if time_to_impact <= reaction_delay:
@@ -6656,9 +6281,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     release_threshold = highest_cast_percentage
                 else:
                     release_threshold = highest_cast_percentage + (release_timing / 50.0) * 4.5
-                try: release_threshold = float(release_threshold)
-                except: release_threshold = 0
-                self.status_overlay.set_line(3, "Highest Cast Percentage: ", round(highest_cast_percentage, 2))
+                self.status_overlay.set_line(2, "Highest Cast Percentage: ", round(highest_cast_percentage, 2))
                 if reached_bottom_5_percent and predicted_fill_percentage >= release_threshold:
                     released = True
                     break
@@ -6698,7 +6321,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             self.capture_frame = self.camera.get_latest_frame()
         shake_img = self.capture_frame[shake_top:shake_bottom, shake_left:shake_right]
         if shake_mode == "pixel":
-            shake_x, shake_y = self.pixel_search_matrix(shake_img, "shake_color", "shake_tolerance")
+            shake_x, shake_y = self.pixel_search_all(shake_img, "shake_color", "shake_tolerance")
         else:
             shake_x, shake_y = self._find_circles(shake_img)
         try:
@@ -6708,7 +6331,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             shake_x_screen = None
             shake_y_screen = None
         self._click_at(shake_x_screen, shake_y_screen)
-        return
+        return shake_x_screen, shake_y_screen
     def _enter_minigame_tranquility(self):
         # Areas
         shake_left, shake_top, shake_right, shake_bottom, shake_width, shake_height = self.get_areas("fish_tranquility")
@@ -6764,7 +6387,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 continue
             else:
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-            friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+            friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
             current_time = time.perf_counter()
             self.fish_overlay.clear()
             # Restart check
@@ -6955,19 +6578,19 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
             self.fish_overlay.clear()
-            fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
+            fish_x, fish_y = self.pixel_search_all(fish_img, "fish_color", "fish_tolerance")
             if fish_x is not None:
                 last_fish_x = fish_x
-            left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
-            right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+            left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 1)
+            right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 2)
             if left_x == None:
-                left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+                left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 2)
             if right_x == None:
-                right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
+                right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 1)
             if left_x is None or right_x is None:
                 detection_source = 1
                 # Bars Not Found - Scan For Arrows
-                arrow_x, arrow_y = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
+                arrow_x, arrow_y = self.pixel_search_all(fish_img, "arrow_color", "arrow_tolerance")
                 # Reconstruct Missing Bar Edge From Previous Geometry Instead Of Mouse State
                 if arrow_x is not None:
                     # Treat 0 As Unknown To Match The Previous None Semantics
@@ -7021,7 +6644,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 self.ever_out = True
             # Friend And Fish Restart
             if restart_method == "friend_area":
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     ended_inside = False
                     if left_x is not None and right_x is not None and fish_x is not None:
@@ -7168,8 +6791,8 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 fish_img2 = self.capture_frame[fish_top:fish_bottom, fish_left2:fish_right2]
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
             # Fish Detection
-            fish_x1, fish_y1 = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
-            fish_x2, fish_y2 = self.pixel_search_matrix(fish_img2, "fish_color", "fish_tolerance")
+            fish_x1, fish_y1 = self.pixel_search_all(fish_img, "fish_color", "fish_tolerance")
+            fish_x2, fish_y2 = self.pixel_search_all(fish_img2, "fish_color", "fish_tolerance")
             fish_detected = True
             fish_detected2 = True
             if fish_x1 is None:
@@ -7178,19 +6801,19 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 fish_detected2 = False
             # Left and Right bar detection
             # Bar 1
-            left_x1, left_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
-            right_x1, right_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+            left_x1, left_y1 = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 1)
+            right_x1, right_y1 = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 2)
             if left_x1 == None:
-                left_x1, left_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+                left_x1, left_y1 = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 2)
             if right_x1 == None:
-                right_x1, right_y1 = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
+                right_x1, right_y1 = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 1)
             # Bar 2
-            left_x2, left_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 0, 1)
-            right_x2, right_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 1, 2)
+            left_x2, left_y2 = self.pixel_search_all(fish_img2, "bar_color", "bar_tolerance", 0, 1)
+            right_x2, right_y2 = self.pixel_search_all(fish_img2, "bar_color", "bar_tolerance", 1, 2)
             if left_x2 == None:
-                left_x2, left_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 0, 2)
+                left_x2, left_y2 = self.pixel_search_all(fish_img2, "bar_color", "bar_tolerance", 0, 2)
             if right_x2 == None:
-                right_x2, right_y2 = self.pixel_search_matrix(fish_img2, "bar_color", "bar_tolerance", 1, 1)
+                right_x2, right_y2 = self.pixel_search_all(fish_img2, "bar_color", "bar_tolerance", 1, 1)
             bar_detected = True
             bar_detected2 = True
             # Bar 1 — fill missing edge from last known size, then compute center from its own edges
@@ -7203,7 +6826,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 bar_center1 = left_x1 + int(bar_size1 / 2)
             else:
                 # Try arrow for bar 1
-                arrow_x1, arrow_y1 = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
+                arrow_x1, arrow_y1 = self.pixel_search_all(fish_img, "arrow_color", "arrow_tolerance")
                 if arrow_x1 is not None and last_bar_size1:
                     if arrow_x1 < last_bar_center1:
                         left_x1 = arrow_x1
@@ -7227,7 +6850,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 bar_center2 = left_x2 + int(bar_size2 / 2)
             else:
                 # Try arrow for bar 2
-                arrow_x2, arrow_y2 = self.pixel_search_matrix(fish_img2, "arrow_color", "arrow_tolerance")
+                arrow_x2, arrow_y2 = self.pixel_search_all(fish_img2, "arrow_color", "arrow_tolerance")
                 if arrow_x2 is not None and last_bar_size2:
                     if arrow_x2 < last_bar_center2:
                         left_x2 = arrow_x2
@@ -7252,7 +6875,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 self.ever_out = True
             # Friend And Fish Restart
             if restart_method == "friend_area":
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     ended_inside = currently_inside1 and currently_inside2
                     if not ended_inside:
@@ -7588,7 +7211,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             # Restart logic like _enter_minigame
             if restart_method == "friend_area":
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     # Set catch status
                     if not metronome_inside:
@@ -7730,12 +7353,12 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 fish_x1 = fish_x2 = None
                 fish_detected = False
             # Bar Detection (Color, Line or Both)
-            left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
-            right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+            left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 1)
+            right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 2)
             if left_x == None:
-                left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+                left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 2)
             if right_x == None:
-                right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
+                right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 1)
             # print(f"Raw coordinates: {left_x}, {right_x}, {fish_x}")
             # Check If We Should Scan For Arrows
             if left_x is not None and right_x is not None:
@@ -7760,7 +7383,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 # Try Arrow
                 bar_detected = False
                 # Bars Not Found - Scan For Arrows
-                arrow_x, arrow_y = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
+                arrow_x, arrow_y = self.pixel_search_all(fish_img, "arrow_color", "arrow_tolerance")
                 try: last_bar_size = float(last_bar_size)
                 except: last_bar_size = 0
                 try: last_bar_center = float(last_bar_center)
@@ -7828,7 +7451,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             # Restart logic like _enter_minigame
             if restart_method == "friend_area":
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     self.fish_caught = 1
                     self.perfect_catch = 1
@@ -7996,6 +7619,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
         color_check_bar_velocity = 0.0
         color_check_target_velocity = 0.0
         time.sleep(0.1)
+        last_valid_shape_name = "None"
         # Loop
         while self.macro_running:
             current_time = time.perf_counter()
@@ -8017,6 +7641,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
                 friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
                 noiseform_img = self.capture_frame[noiseform_top:noiseform_bottom, noiseform_left:noiseform_right]
+                frame_interpolation = False
             # Reset Per-Frame Detection So A Failed Line Scan Cannot
             # Reuse Stale Coordinates From The Previous Iteration.
             left_x = None
@@ -8024,19 +7649,19 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             fish_x = None
             fish_x2 = None
             # Fish Detection
-            fish_x, fish_y = self.pixel_search_matrix(fish_img, "fish_color", "fish_tolerance")
+            fish_x, fish_y = self.pixel_search_all(fish_img, "fish_color", "fish_tolerance")
             if fish_x is not None:
                 fish_detected = True
             else:
                 fish_detected = False
             # Bar Detection (Color, Line or Both)
             if fishing_mode == "color":
-                left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 1)
-                right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 2)
+                left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 1)
+                right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 2)
                 if left_x == None:
-                    left_x, left_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 0, 2)
+                    left_x, left_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 0, 2)
                 if right_x == None:
-                    right_x, right_y = self.pixel_search_matrix(fish_img, "bar_color", "bar_tolerance", 1, 1)
+                    right_x, right_y = self.pixel_search_all(fish_img, "bar_color", "bar_tolerance", 1, 1)
                 # print(f"Raw coordinates: {left_x}, {right_x}, {fish_x}")
                 # Check If We Should Scan For Arrows
                 if left_x is not None and right_x is not None:
@@ -8061,7 +7686,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     # Try Arrow
                     bar_detected = False
                     # Bars Not Found - Scan For Arrows
-                    arrow_x, arrow_y = self.pixel_search_matrix(fish_img, "arrow_color", "arrow_tolerance")
+                    arrow_x, arrow_y = self.pixel_search_all(fish_img, "arrow_color", "arrow_tolerance")
                     try: last_bar_size = float(last_bar_size)
                     except: last_bar_size = 0
                     try: last_bar_center = float(last_bar_center)
@@ -8309,7 +7934,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     fish_detected = True
             # Friend And Fish Restart
             if restart_method == "friend_area":
-                friend_x, friend_y = self.pixel_search_matrix(friend_img, "friends_color", "friends_tolerance")
+                friend_x, friend_y = self.pixel_search_all(friend_img, "friends_color", "friends_tolerance")
                 if friend_x is not None and friend_y is not None:
                     # Classify catch based on tracking
                     ended_inside = False
@@ -8384,7 +8009,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 self.status_overlay.set_line(2, "", "")
             # Note Detection
             if special_rod == "pinion":
-                note_x, note_y = self.pixel_search_matrix(shake_img, "pinion_notes_color", "pinion_notes_tolerance")
+                note_x, note_y = self.pixel_search_all(shake_img, "pinion_notes_color", "pinion_notes_tolerance")
                 if note_x is not None and note_y is not None:
                     note_y_ratio = round(float(note_y / note_height), 2)
                     pinion_error = abs((bar_center - note_x) / fish_width)
@@ -8459,11 +8084,18 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     elif vertices == 6:
                         shape_name = "Hexagon"
                     else:
-                        shape_name = "Circle" if circularity > 0.70 else "Unknown"
+                        shape_name = "Circle" if circularity > 0.70 else "None"
 
                 # Always update status with the detected shape (or "None")
-                self.status_overlay.set_line(4, f"Shape: {shape_name:<10} | Position: (x={x}, y={y})", f"Size: {w}x{h} | Area: {int(area)}")
+                self.status_overlay.set_line(4, f"Shape: {last_valid_shape_name} | Position: (x={x}, y={y})", f"Size: {w}x{h} | Area: {int(area)}")
 
+                triangle_center, circle_center, square_center = self.detect_shapes(fish_img)
+                if last_valid_shape_name == "Triangle" and triangle_center is not None:
+                    fish_x = triangle_center[0]
+                if last_valid_shape_name == "Square" and square_center is not None:
+                    fish_x = square_center[0]
+                if last_valid_shape_name == "Circle" and circle_center is not None:
+                    fish_x = circle_center[0]
             else:
                 # print("Note Tracking Disabled")
                 note_y_ratio = 0.0
@@ -8561,7 +8193,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                         d_term = ((error - last_error) / time_delta) * kd
                         control_signal = p_term + d_term
                         # Tracking Override: If notes are detected use simple tracking
-                        if special_rod == "pinion" and not left_x <= fish_x <= right_x:
+                        if special_rod != "none" and not left_x <= fish_x <= right_x:
                             control_signal = error
                         last_error = error
                 elif controller_mode == "steady":
@@ -8666,8 +8298,6 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 else:
                     control_signal = error
             # Mouse State
-            # print(f"error: {error}")
-            # print(f"control_signal: {control_signal}")
             if control_signal > 0:
                 hold_mouse()
             else:
@@ -8679,6 +8309,11 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 last_bar_size = bar_size
             if fish_detected == True:
                 last_fish_x = fish_x
+            try:
+                if shape_name != "None":
+                    last_valid_shape_name = shape_name
+            except:
+                pass
             last_time = current_time
             # Cleanup
             is_initial_run = False
@@ -8717,18 +8352,6 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                     pass
 
                 self.camera = None
-        except Exception:
-            pass
-
-        # Add this right after:
-        try:
-            capture = getattr(self, "_region_capture", None)
-            if capture is not None:
-                try:
-                    capture.__exit__(None, None, None)
-                except Exception:
-                    pass
-                self._region_capture = None
         except Exception:
             pass
 
@@ -8772,7 +8395,7 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             pass
 
 # Main Window
-def get_current_screen(win_x, win_y):
+def get_current_screen(win_x, win_y): 
     for screen in webview.screens:
         if (screen.x <= win_x < screen.x + screen.width and
             screen.y <= win_y < screen.y + screen.height):
@@ -8863,6 +8486,11 @@ setup_state = check_setup_guide()
 if setup_state == False:
     sys.exit(0)
 
+try:
+    data["efficiency_mode"]
+except KeyError:
+    data["efficiency_mode"] = False
+
 api = Api()
 window = webview.create_window(
     f"Solar Fishing V{APP_VERSION}",
@@ -8870,8 +8498,8 @@ window = webview.create_window(
     js_api=api,
     width=880,
     height=660,
-    frameless=True,
-    easy_drag=False,
+    frameless=True if data["efficiency_mode"] == False else False,
+    easy_drag=False  if data["efficiency_mode"] == False else True,
     focus=True,
     text_select=True,
 )

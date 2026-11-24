@@ -24,6 +24,6 @@ hdiutil create -volname "VolumeName" -srcfolder cd /Users/YourName/directory/Sol
 For me, the first line of code in the terminal looks like this:
 cd "/Users/hoangphuc/Documents/Apps/Macros/Solar Fishing V5"
 Third line:
-codesign --force --deep --sign - /Users/hoangphuc/Documents/Apps/Macros/Solar\ Fishing\ V5/dist/SolarFishing.app 
+codesign --force --deep --sign - /Users/hoangphuc/Documents/Apps/Macros/Solar\ Fishing\ V5/dist/SolarFishingV5.app 
 Fourth line:
-hdiutil create -volname "macOS.dmg" -srcfolder "/Users/hoangphuc/Documents/Apps/Macros/Solar Fishing V5/dist" -ov -format UDZO macOS.dmg
+hdiutil create -volname "macOS.dmg" -srcfolder "/Users/hoangphuc/Documents/Apps/Macros/Solar Fishing V5/dist" -ov -format UDZO SolarFishing.dmg

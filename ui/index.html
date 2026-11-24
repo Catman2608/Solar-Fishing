@@ -118,7 +118,7 @@
         </defs>
     </svg>
     <!-- Title Bar -->
-    <div class="title-bar pywebview-drag-region">
+    <div class="title-bar pywebview-drag-region" id="title_bar">
         <div class="title-left">
             <div class="window-controls">
                 <button class="window-control window-close" aria-label="Close" title="Close" onclick="closeWindow()"></button>
@@ -313,6 +313,13 @@
                             <p>Status Overlay</p>
                             <label class="switch">
                                 <input id="status_overlay" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="switch2">
+                            <p>Efficiency Mode</p>
+                            <label class="switch">
+                                <input id="efficiency_mode" type="checkbox">
                                 <span class="slider"></span>
                             </label>
                         </div>
@@ -639,23 +646,23 @@
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
-                        <input type="text" id="bar_color_count" style="display: none;" value="1">
+                        <input type="text" id="left_color_count" style="display: none;" value="1">
                         <div id="bar-colors-container">
                             <div class="color-option" data-index="1">
                                 <p>Bar</p>
-                                <input id="bar_color" class="color-stripe" type="text" placeholder="#F1F1F1" spellcheck="false">
+                                <input id="left_color" class="color-stripe" type="text" placeholder="#F1F1F1" spellcheck="false">
                                 <p>Tolerance</p>
                                 <input id="bar_tolerance" class="tolerance-input" type="text" placeholder="8">
-                                <button class="color-icon-btn" type="button" onclick="pickColor('bar_color')" title="Pick color" aria-label="Pick color">
+                                <button class="color-icon-btn" type="button" onclick="pickColor('left_color')" title="Pick color" aria-label="Pick color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-picker"></use></svg>
                                 </button>
-                                <button class="color-icon-btn" type="button" onclick="resetColor('bar_color')" title="Reset color" aria-label="Reset color">
+                                <button class="color-icon-btn" type="button" onclick="resetColor('left_color')" title="Reset color" aria-label="Reset color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-reset"></use></svg>
                                 </button>
-                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('bar_color')" title="Add color" aria-label="Add color">
+                                <button class="color-icon-btn add-color-btn" type="button" onclick="addColor('left_color')" title="Add color" aria-label="Add color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-add"></use></svg>
                                 </button>
-                                <button class="color-icon-btn" type="button" onclick="removeColor('bar_color')" title="Remove color" aria-label="Remove color">
+                                <button class="color-icon-btn" type="button" onclick="removeColor('left_color')" title="Remove color" aria-label="Remove color">
                                     <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
                                 </button>
                             </div>

@@ -86,9 +86,6 @@ async function detectRoblox() {
     }
     try {
         const info = await api.detect_roblox();
-        if (info && typeof info.left !== "undefined") {
-            setStatus(`Roblox: left=${info.left}, top=${info.top}, width=${info.width}, height=${info.height}`);
-        }
     } catch (e) {
         setStatus("Error detecting Roblox window");
         console.error(e);
@@ -480,6 +477,16 @@ function applySettings(settings, replace) {
         applyingSettings = false;
     }
 
+    // Enable or disable the custom menu bar based on Efficiency Mode.
+    // ON (checked) = default native title bar → hide custom bar
+    // OFF (unchecked) = frameless window → show custom bar
+    // Changing Efficiency Mode requires a restart (window frameless flag is set at creation).
+    const title_bar = document.getElementById("title_bar");
+    const efficiencyMode = document.getElementById("efficiency_mode");
+    if (title_bar && efficiencyMode) {
+        title_bar.style.display = efficiencyMode.checked ? "none" : "flex";
+    }
+
     syncHotkeyButtons();
     updateColorPreviews();
     updateAccentColor();
@@ -821,6 +828,27 @@ document.addEventListener("DOMContentLoaded", () => {
     if (refreshButton) {
         refreshButton.addEventListener("click", async () => {
             await refreshConfigs(selectedConfigName());
+        });
+    }
+
+    // Efficiency Mode requires a restart to change the window title bar style.
+    // The visual of the custom bar is applied only on load (matching the current window mode).
+    const efficiencyInput = document.getElementById("efficiency_mode");
+    if (efficiencyInput) {
+        efficiencyInput.addEventListener("change", async () => {
+            if (typeof applyingSettings !== "undefined" && applyingSettings) {
+                return;
+            }
+            try {
+                await saveSettings();
+            } catch (e) {
+                console.error("Failed to save Efficiency Mode", e);
+            }
+            showUpdateBanner({
+                title: "Restart Required",
+                notice: "Efficiency Mode changes whether the custom or default title bar is used. Please restart Solar Fishing for the change to take effect.",
+                buttons: [{ label: "OK", class: "btn-primary", onClick: () => {} }]
+            });
         });
     }
 });

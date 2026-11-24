@@ -3790,7 +3790,7 @@ class Api:
 
         return None, None
 
-    def pixel_search_matrix(self, frame, color_id, tolerance_id, mode=0):
+    def pixel_search_all(self, frame, color_id, tolerance_id, mode=0):
         searched = set()
         loop_count = 1
         while True:

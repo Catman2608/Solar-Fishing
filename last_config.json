@@ -1,72 +1,53 @@
 {
-    "last_config": "Default",
+    "last_config": "Noiseform",
     "bar_areas": {
         "shake": {
-            "x": 0.10826666666666666,
-            "y": 0.15601619178759302,
-            "width": 0.7792,
-            "height": 0.5447749037884404
+            "x": 0.1041,
+            "y": 0.0935,
+            "width": 0.7917,
+            "height": 0.7058
         },
         "fish": {
-            "x": 0.2844,
-            "y": 0.7739523390883734,
-            "width": 0.46147083333333333,
-            "height": 0.06742117007379161
+            "x": 0.2896910052910053,
+            "y": 0.7765185654008439,
+            "width": 0.41911798941798944,
+            "height": 0.09878143459915613
         },
-        "fish_1_bellona": {
-            "x": 0.08117916666666665,
-            "y": 0.847874074074074,
-            "width": 0.3953,
-            "height": 0.03299259259259259
-        },
-        "fish_2_bellona": {
-            "x": 0.517125,
-            "y": 0.847874074074074,
-            "width": 0.3953,
-            "height": 0.03206666666666667
-        },
+        "fish_1_bellona": null,
+        "fish_2_bellona": null,
         "fish_tranquility": null,
         "friend": {
-            "x": 0.005641666666666604,
-            "y": 0.8605074074074073,
-            "width": 0.035500000000000004,
+            "x": 0.004600000000000001,
+            "y": 0.9031,
+            "width": 0.0355,
             "height": 0.08500000000000002
         },
         "totem": null,
         "sovereign": null,
         "noiseform": {
-            "x": 0.37845,
-            "y": 0.32415555555555553,
-            "width": 0.2446625,
-            "height": 0.39748518518518516
-        },
-        "lullaby": {
             "x": 0.4222,
-            "y": 0.7327,
-            "width": 0.1556,
-            "height": 0.1415
+            "y": 0.3686,
+            "width": 0.2056,
+            "height": 0.28730000000000006
         },
-        "stellarwave": {
-            "x": 0.3333583333333333,
-            "y": 0.7126111111111112,
-            "width": 0.32865833333333333,
-            "height": 0.04234814814814815
-        },
+        "lullaby": null,
+        "stellarwave": null,
         "chat": null,
         "treasure_appraisal": null,
         "appraisal_hotbar": null,
         "enchantment": null,
         "angler_quest": null
     },
-    "start_key": "f5",
-    "area_selector_key": "f6",
-    "stop_key": "f7",
+    "start_key": "F5",
+    "area_selector_key": "F6",
+    "stop_key": "F7",
+    "screenshot_key": "f8",
     "tos_accepted": false,
     "roblox_bounds_cache": {
         "left": 0.0,
-        "top": 0.0,
-        "width": 1920.0,
-        "height": 1080.0
+        "top": 34.0,
+        "width": 1512.0,
+        "height": 948.0
     },
-    "screenshot_key": "f8"
+    "efficiency_mode": false
 }
