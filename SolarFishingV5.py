@@ -823,6 +823,136 @@ AREA_CONFIG = {
 }
 # Display / Iteration Order (Also Used For Numberkey Toggles 1-9 In The Selector)
 AREA_ORDER = list(AREA_CONFIG.keys())
+class YOLOOnnx:
+    """Lightweight YOLO inference using OpenCV DNN and ONNX models.
+    Compatible with the subset of Ultralytics API used by this application.
+    Expects YOLOv8-style ONNX models exported with imgsz=640.
+    """
+
+    def __init__(self, model_path, input_size=640, class_names=None, iou_threshold=0.45):
+        self.net = cv2.dnn.readNetFromONNX(model_path)
+        self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+        self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+        self.input_size = input_size
+        self.class_names = class_names or ["icon", "bar"]
+        self.iou_threshold = iou_threshold
+        self.names = {i: name for i, name in enumerate(self.class_names)}
+
+    def _letterbox(self, image):
+        """Resize and pad image to input_size x input_size keeping aspect ratio."""
+        h, w = image.shape[:2]
+        scale = min(self.input_size / w, self.input_size / h)
+        new_w = int(round(w * scale))
+        new_h = int(round(h * scale))
+        resized = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        canvas = np.full((self.input_size, self.input_size, 3), 114, dtype=np.uint8)
+        pad_x = (self.input_size - new_w) // 2
+        pad_y = (self.input_size - new_h) // 2
+        canvas[pad_y:pad_y + new_h, pad_x:pad_x + new_w] = resized
+        return canvas, scale, pad_x, pad_y
+
+    def _yolo_rows(self, output):
+        """Normalize YOLO output to (N, 4+nc) rows."""
+        preds = output[0] if isinstance(output, (list, tuple)) else output
+        if preds.ndim == 3:
+            preds = preds[0]
+        # Transpose if channels-first (4+nc, N)
+        if preds.shape[0] < preds.shape[1]:
+            preds = preds.T
+        return preds
+
+    def predict(self, img_bgr, conf=0.5, verbose=False):
+        """Run inference and return results compatible with the existing parsing code."""
+        # Settings/GUI values arrive as strings; normalize once so comparisons and NMS work.
+        try:
+            conf = float(conf)
+        except (TypeError, ValueError):
+            conf = 0.5
+        orig_h, orig_w = img_bgr.shape[:2]
+        input_img, scale, pad_x, pad_y = self._letterbox(img_bgr)
+
+        blob = cv2.dnn.blobFromImage(
+            input_img, 1 / 255.0, (self.input_size, self.input_size),
+            swapRB=True, crop=False
+        )
+        self.net.setInput(blob)
+        outputs = self.net.forward()
+        rows = self._yolo_rows(outputs)
+
+        boxes = []
+        scores = []
+        class_ids = []
+
+        for row in rows:
+            class_scores = row[4:]
+            if len(class_scores) == 0:
+                continue
+            class_id = int(np.argmax(class_scores))
+            score = float(class_scores[class_id])
+            if score < conf:
+                continue
+
+            cx, cy, bw, bh = row[:4]
+            # Convert from letterboxed coordinates back to original image
+            x1 = (cx - bw / 2 - pad_x) / scale
+            y1 = (cy - bh / 2 - pad_y) / scale
+            x2 = (cx + bw / 2 - pad_x) / scale
+            y2 = (cy + bh / 2 - pad_y) / scale
+
+            # Clip to image bounds
+            x1 = max(0, min(x1, orig_w - 1))
+            y1 = max(0, min(y1, orig_h - 1))
+            x2 = max(0, min(x2, orig_w - 1))
+            y2 = max(0, min(y2, orig_h - 1))
+
+            boxes.append([x1, y1, x2 - x1, y2 - y1])  # xywh for NMS
+            scores.append(score)
+            class_ids.append(class_id)
+
+        # Apply NMS
+        indices = cv2.dnn.NMSBoxes(boxes, scores, conf, self.iou_threshold)
+        if len(indices) == 0:
+            detections = []
+        else:
+            indices = np.array(indices).reshape(-1)
+            detections = []
+            for i in indices:
+                x, y, w, h = boxes[i]
+                xyxy = np.array([x, y, x + w, y + h], dtype=np.float32)
+                detections.append(_DetectionBox(xyxy, class_ids[i]))
+
+        return [_Results(detections, self.names)]
+
+
+class _DetectionBox:
+    """Minimal box object compatible with existing code that does box.xyxy[0].cpu().numpy() and box.cls[0]."""
+    def __init__(self, xyxy, cls_id):
+        self._xyxy = xyxy
+        self.cls = [cls_id]
+
+    @property
+    def xyxy(self):
+        # Return a list containing a dummy tensor-like object
+        return [_DummyTensor(self._xyxy)]
+
+
+class _DummyTensor:
+    """Dummy to support .cpu().numpy() chain."""
+    def __init__(self, arr):
+        self.arr = arr
+
+    def cpu(self):
+        return self
+
+    def numpy(self):
+        return self.arr
+
+
+class _Results:
+    """Minimal results object with .boxes and .names."""
+    def __init__(self, boxes, names):
+        self.boxes = boxes
+        self.names = names
 class AreaSelector:
     # Do not expose to JS API — holds pywebview Window (native.AccessibilityObject recursion / WebView2 COM).
     _serializable = False
@@ -2287,6 +2417,7 @@ class Api:
         # Macro State
         self.macro_running = False
         self.macro_thread = None
+        self.active_config = "Default"
         # Screen Capture
         self.capture_thread = None
         self.capture_frame = None
@@ -2308,6 +2439,9 @@ class Api:
         self.current_rod_name = "Default"
         self.session_start = 0.0
         self.catch_rate = 0.0
+        # ONNX model (lazy loaded)
+        self.yolo_model = None
+        self.shake_model = None
         # Message box synchronization (custom banner)
         self.misc_settings = {}
         self._message_box_event = None
@@ -2324,8 +2458,6 @@ class Api:
         self.status_bottom = (230 * scale * self.scale_y_1080)
         self.status_overlay.hide()
         self._ensure_default_config()
-        # check_setup_guide is called from window.events.loaded (see main window setup)
-        # so that the pywebview window exists before evaluate_js is used.
     def _html_attr(self, attrs, name):
         match = re.search(r"""\b""" + re.escape(name) + r"""\s*=\s*(?:['"]([^'"]*)['"]|([^\s>]+))""", attrs, re.IGNORECASE)
         if not match:
@@ -2886,6 +3018,7 @@ class Api:
             os.makedirs(folder, exist_ok=True)
             settings = self._fill_blank_settings(settings)
             config_path = self._config_file(config_name)
+            self.active_config = config_name
             with open(config_path, "w", encoding="utf-8") as file:
                 json.dump(settings, file, indent=4)
             self.vars = self._settings_for_vars(settings)
@@ -2939,6 +3072,7 @@ class Api:
             name = self.resolve_config_name(config_name)
         except Exception:
             name = ""
+        self.active_config = name
         if name:
             config_path = self._config_file(name)
             try:
@@ -4689,6 +4823,88 @@ class Api:
         square = [s for s in remaining if s['center'] != triangle['center']][0]
         return triangle['center'], circle['center'], square['center']
 
+    def _preload_yolo_model(self):
+        """Preload ONNX model at startup in main thread"""
+        try:
+            if self.yolo_model is None:
+                model_name = os.path.join(CONFIGS_PATH, self.active_config, "model.onnx")
+                if model_name != "None" and model_name:
+                    if getattr(sys, 'frozen', False):
+                        app_dir = os.path.dirname(sys.executable)
+                    else:
+                        app_dir = os.path.dirname(os.path.abspath(__file__))
+                    
+                    model_path = os.path.join(app_dir, model_name)
+                    
+                    if os.path.exists(model_path):
+                        print(f"Preloading ONNX model: {model_name}...")
+                        self.yolo_model = YOLOOnnx(model_path)
+                        print(f"✓ ONNX model preloaded successfully")
+        except Exception as e:
+            print(f"Warning: Could not preload ONNX model: {e}")
+    
+    def _load_yolo_model(self):
+        """Lazy load ONNX model when needed"""
+        if self.yolo_model is None:
+            model_name = os.path.join(CONFIGS_PATH, self.active_config, "model.onnx")
+            
+            if model_name == "None" or not model_name:
+                print("ERROR: No model selected!")
+                return False
+            
+            if getattr(sys, 'frozen', False):
+                app_dir = os.path.dirname(sys.executable)
+            else:
+                app_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            model_path = os.path.join(app_dir, model_name)
+            
+            if not os.path.exists(model_path):
+                print(f"ERROR: Model file not found: {model_path}")
+                return False
+            
+            try:
+                print(f"Loading ONNX model: {model_name}...")
+                self.yolo_model = YOLOOnnx(model_path)
+                print(f"✓ Model loaded successfully")
+            except Exception as e:
+                print(f"ERROR loading model: {e}")
+                return False
+        
+        return True
+    
+    def _load_shake_model(self):
+        """Lazy load shake ONNX model when needed"""
+        if self.shake_model is None:
+            model_name = os.path.join(CONFIGS_PATH, "Shake.onnx")
+            
+            if model_name == "None" or not model_name:
+                print("ERROR: No shake model selected!")
+                return False
+            
+            if getattr(sys, 'frozen', False):
+                app_dir = os.path.dirname(sys.executable)
+            else:
+                app_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            model_path = os.path.join(app_dir, model_name)
+            
+            if not os.path.exists(model_path):
+                print(f"ERROR: Shake model file not found: {model_path}")
+                return False
+            
+            try:
+                print(f"Loading shake ONNX model: {model_name}...")
+                self.root.update()
+                # Shake model typically only has "icon" class
+                self.shake_model = YOLOOnnx(model_path, class_names=["icon"])
+                print(f"✓ Shake model loaded successfully")
+            except Exception as e:
+                print(f"ERROR loading shake model: {e}")
+                return False
+        
+        return True
+
     def _calculate_speed_and_predict(self, white_positions, timestamps):
         """
         Calculate white pixel movement speed using linear regression on recent
@@ -5742,7 +5958,9 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
                 time.sleep(animation_delay)
                 if self.macro_running == True:
                     self.status_overlay.set_main_status(f"Playing Bar Minigame ({special_rod})")
-                    if special_rod == "dreambreaker":
+                    if fishing_mode == "yolo":
+                        self._enter_minigame_yolo()
+                    elif special_rod == "dreambreaker":
                         self._enter_minigame_dreambreaker()
                     elif special_rod == "bellona":
                         self._enter_minigame_bellona()
@@ -7519,6 +7737,235 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
             is_initial_run = False
             last_capture_id = self.capture_id
             time.sleep(self.scan_delay)
+
+    def _enter_minigame_yolo(self):
+        # Helper Functions
+        mouse_down = False
+        def hold_mouse(mouse_state=False):
+            "Hold mouse. False for left click, True for right click."
+            nonlocal mouse_down
+            if not mouse_down:
+                self.hold_mouse(mouse_state)
+                mouse_down = True
+        def release_mouse(mouse_state=False):
+            "Release mouse. False for left click, True for right click."
+            nonlocal mouse_down
+            if mouse_down:
+                self.release_mouse(mouse_state)
+                mouse_down = False
+        # Areas
+        shake_left, shake_top, shake_right, shake_bottom, _, shake_height = self.get_areas("shake")
+        fish_left, fish_top, fish_right, fish_bottom, fish_width, fish_height = self.get_areas("fish")
+        friend_left, friend_top, friend_right, friend_bottom, _, _ = self.get_areas("friend")
+        noiseform_left, noiseform_top, noiseform_right, noiseform_bottom, noiseform_width, noiseform_height = self.get_areas("noiseform")
+        # Area Calculations
+        note_height = fish_bottom - shake_top
+        shake_x = int((shake_left + shake_right) / 2)
+        shake_y = int((shake_top + shake_bottom) / 2)
+        fish_center_x_relative = fish_width / 2
+        fish_center_y = int((fish_top + fish_bottom) / 2)
+        fish_overlay = self.vars["fish_overlay"]
+        if fish_overlay == True:
+            # Position The Overlay Just Above Or Below The Fish Bar So It Does
+            # Not Cover The Actual Minigame.  Show() Expects (Left, Top, Width,
+            # Height) In Physical Pixels — Not Right/Bottom.
+            if fish_center_y > HALF_HEIGHT:
+                fish_top_overlay = fish_top + fish_height + fish_height
+            else:
+                fish_top_overlay = fish_top - fish_height - fish_height
+            overlay_width = fish_right - fish_left
+            overlay_height = int(fish_height / 1.5)
+            self.fish_overlay.resize(fish_left, fish_top_overlay, overlay_width, overlay_height)
+        # Minigame Settings
+        scale = get_scale_factor()
+        equipment_bag_slot = str(self.vars["equipment_bag_slot"])
+        bag_spam = self.vars["bag_spam"]
+        lock_cursor = self.vars["lock_cursor"]
+        fishing_mode = self.vars["fishing_mode"].lower()
+        special_rod = self.vars["special_rod"].lower()
+        restart_method = self.vars["restart_method"]
+        bar_ratio_from_side = float(self.vars["bar_ratio_from_side"])
+        restart_delay = float(self.vars["restart_delay"])
+        self.scan_delay = float(self.vars["minigame_scan_delay"])
+        controller_mode = self.vars["controller_mode"].lower()
+        speed_alpha = float(self.vars.get("speed_alpha", 0.7))
+        kp = max(abs(float(self.vars["kp"])), 0.01)
+        kd = max(abs(float(self.vars["kd"])), 0.01)
+        stopping_distance = max(abs(float(self.vars["stopping_distance"])), 0.01)
+        velocity_smoothing = min(max(abs(float(self.vars["velocity_smoothing"])), 0.01), 1.0)
+        # State Flags & Timers
+        is_initial_run = True
+        last_capture_id = 0
+        gate1_timeout = float(self.vars.get("gate1_timeout", 5.0))
+        conf_threshold = float(self.vars.get("model_confidence", 0.75))
+        # Comet controller memory (must be initialized before the loop —
+        # Python treats these as local because they are assigned later)
+        hold_state = False
+        prev_time = None
+        prev_bar_center = None
+        bar_velocity = 0.0
+        initial_target_gap = None
+        last_target_left_x = None
+        last_target_right_x = None
+        last_left_bar_x = None
+        last_right_bar_x = None
+        last_error = None
+        last_target_x = None
+        time.sleep(0.1)
+        # Loop
+        while self.macro_running:
+            current_time = time.perf_counter()
+            # Check If Dxcam Is Available
+            if dxcam is not None:
+                self.capture_frame = self.camera.get_latest_frame()
+                self.capture_id = last_capture_id + 1
+            # Get Image From Self.Capture_Frame
+            if self.capture_id == last_capture_id:
+                time.sleep(self.scan_delay)
+                continue
+
+            elif self.capture_frame is None:
+                time.sleep(self.scan_delay)
+                continue
+
+            else:
+                fish_img = self.capture_frame[fish_top:fish_bottom, fish_left:fish_right]
+                friend_img = self.capture_frame[friend_top:friend_bottom, friend_left:friend_right]
+            # Fish Detection
+            loop_start = time.time()
+            results = self.yolo_model.predict(fish_img, conf=conf_threshold, verbose=False)
+            
+            icon_center_x = None
+            bar_center_x = None
+            bar_left_x = None
+            bar_right_x = None
+            still_exists = False
+            
+            if len(results) > 0 and len(results[0].boxes) > 0:
+                for box in results[0].boxes:
+                    cls_id = int(box.cls[0])
+                    class_name = results[0].names[cls_id]
+                    
+                    if class_name.lower() in ["icon", "bar"]:
+                        still_exists = True
+                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                        
+                        if class_name.lower() == "icon":
+                            icon_center_x = int((x1 + x2) / 2)
+                        elif class_name.lower() == "bar":
+                            bar_left_x = int(x1)
+                            bar_right_x = int(x2)
+                            bar_center_x = (bar_left_x + bar_right_x) // 2
+            
+            # Draw debug arrows
+            self.fish_overlay.clear()
+            if fish_overlay == True and still_exists:
+                if bar_left_x is not None and bar_right_x is not None:
+                    self.fish_overlay.draw(bar_left_x, overlay_height*0.15, bar_right_x, overlay_height*0.85, "green")
+                if icon_center_x is not None:
+                    self.fish_overlay.draw(icon_center_x, overlay_height*0.15, icon_center_x + 10, overlay_height*0.85, "red")
+            
+            # Check if minigame ended - both icon AND bar must be gone
+            if icon_center_x is None and bar_center_x is None:
+                self.interruptible_sleep(restart_delay)
+                release_mouse()
+                break
+            
+            # Comet-style controller: stability + edge + PD
+            if icon_center_x is not None and bar_center_x is not None:
+                current_time = time.time()
+
+                # Smoothed bar velocity (pixels/sec) for PD control
+                if prev_time is not None and prev_bar_center is not None:
+                    dt = current_time - prev_time
+                    if dt > 0:
+                        raw_bar_velocity = (bar_center_x - prev_bar_center) / dt
+                        # velocity smoothing using speed_alpha
+                        bar_velocity = speed_alpha * raw_bar_velocity + (1 - speed_alpha) * bar_velocity
+
+                prev_time = current_time
+                prev_bar_center = bar_center_x
+
+                error = icon_center_x - bar_center_x
+                elapsed = current_time - loop_start
+                width = fish_width
+
+                # Compute left/right target (approximate from center; gap memory helps when available)
+                target_middle_x = icon_center_x
+                # Use detected bar edges directly
+                left_bar_x = bar_left_x if bar_left_x is not None else (bar_center_x - 1)
+                right_bar_x = bar_right_x if bar_right_x is not None else (bar_center_x + 1)
+                bar_middle_x = (left_bar_x + right_bar_x) / 2.0
+
+                # Initialize target gap on first valid frame
+                if initial_target_gap is None and bar_left_x is not None and bar_right_x is not None:
+                    initial_target_gap = abs(right_bar_x - left_bar_x)
+                    last_target_left_x = target_middle_x - initial_target_gap / 2.0
+                    last_target_right_x = target_middle_x + initial_target_gap / 2.0
+                    last_left_bar_x = left_bar_x
+                    last_right_bar_x = right_bar_x
+
+                # Edge detection using bar_ratio
+                current_bar_width = abs(right_bar_x - left_bar_x)
+                edge_threshold = current_bar_width * bar_ratio_from_side if current_bar_width > 0 else width * 0.5 * bar_ratio_from_side
+                target_at_left_edge = target_middle_x < edge_threshold
+                target_at_right_edge = target_middle_x > (width - edge_threshold)
+                target_at_edge = target_at_left_edge or target_at_right_edge
+
+                # Comet logic
+                if target_at_edge:
+                    if target_at_left_edge:
+                        should_hold = False
+                    elif target_at_right_edge:
+                        should_hold = True
+                else:
+                    # PD control with asymmetric damping
+                    # P term
+                    p_term = kp * error
+                    # D term (bar velocity already computed; use asymmetric damping)
+                    error_magnitude_decreasing = (last_error is not None) and (abs(error) < abs(last_error))
+                    bar_moving_toward_target = (bar_velocity > 0 and error > 0) or (bar_velocity < 0 and error < 0)
+                    if error_magnitude_decreasing and bar_moving_toward_target:
+                        damping_multiplier = 5.0
+                    else:
+                        damping_multiplier = 0.2
+                    d_term = -kd * damping_multiplier * bar_velocity
+
+                    control_signal = max(-1, min(1, p_term + d_term))
+                    if left_bar_x <= icon_center_x <= right_bar_x:
+                        should_hold = control_signal > 0
+                    else:
+                        should_hold = error > 0
+
+                    # Update PD memory
+                    last_error = error
+                    last_target_x = target_middle_x
+                    last_left_bar_x = left_bar_x
+                    last_right_bar_x = right_bar_x
+
+                # Execute mouse control only on state change
+                desired_hold = should_hold
+                if desired_hold != hold_state:
+                    if desired_hold:
+                        hold_mouse()
+                        action = "HOLD"
+                    else:
+                        release_mouse()
+                        action = "REL "
+                    hold_state = desired_hold
+                else:
+                    action = "HOLD" if hold_state else "REL "
+
+                # Print status
+                self.status_overlay.set_status(F"Solar Fishing V{APP_VERSION}", f"Playing Bar Minigame {elapsed}", (f"KP KD: ", f"{kp*error} {-kd*bar_velocity}"), 
+                                               ("BarVel: ", bar_velocity), ("", ""), ("", ""))
+                # print(
+                #     f"[GATE3 COMET {elapsed:.3f}s] {action} | Bar: {bar_center_x:4d}px | Icon: {icon_center_x:4d}px | "
+                #     f"Err: {error:+5.1f}px | BarVel: {bar_velocity:+6.1f} | P: {kp*error:+6.2f} | D: {-kd*bar_velocity:+6.2f}"
+                # )
+            # If one is missing, just continue without mouse actions
+            last_capture_id = self.capture_id
+
     def _enter_minigame(self):
         # Helper Functions
         mouse_down = False
@@ -7614,7 +8061,6 @@ Please copy the error and report the bug:\\n{key_error_placeholder}{error_messag
         last_bar_size = 0
         last_error = 0
         # Velocities & Mechanics
-        right_bar_cycle = 0
         bag_spam_cycle = 0
         color_check_bar_velocity = 0.0
         color_check_target_velocity = 0.0
@@ -8418,6 +8864,7 @@ def _on_loaded():
         api.load_settings()
     except Exception:
         pass
+    api._preload_yolo_model()
 def on_closed():
     # Tear down child overlays so webview.start() can return. Overlay hide()
     # methods must not block the GUI thread (eyedropper schedules destroy).

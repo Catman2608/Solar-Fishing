@@ -595,7 +595,7 @@
                     <select name="fishing_mode" id="fishing_mode" onchange="updateFishingVisibility()">
                         <option value="color">Color</option>
                         <option value="line">Line</option>
-                        <option value="geometry">Geometry</option>
+                        <option value="yolo">YOLO</option>
                     </select>
                 </div>
                 <div class="dropdown">
@@ -764,6 +764,25 @@
                         <button class="panel-toggle" type="button" aria-label="Toggle section"></button>
                     </div>
                     <div class="panel-body">
+                        <div class="slider-row line-only-setting">
+                            <label for="fish_line_min_density">Minimum Line Density</label>
+                            <input class="range-input" id="fish_line_min_density_slider" type="range" min="0.01" max="1" step="0.1" value="0.8" data-target="fish_line_min_density">
+                            <input class="slider-value" id="fish_line_min_density" type="text" inputmode="decimal" value="0.8" placeholder="0.8" data-slider="fish_line_min_density_slider">
+                        </div>
+                        <!-- model_confidence -->
+                        <div class="slider-row line-only-setting">
+                            <label for="speed_alpha">Speed Alpha</label>
+                            <input class="range-input" id="speed_alpha_slider" type="range" min="0.01" max="1" step="0.1" value="0.8" data-target="speed_alpha">
+                            <input class="slider-value" id="speed_alpha" type="text" inputmode="decimal" value="0.8" placeholder="0.8" data-slider="speed_alpha_slider">
+                        </div>
+                        <div class="text">
+                            <label>Gate 1 Timeout</label>
+                            <input id=gate1_timeout type="text" placeholder="0.5">
+                        </div>
+                        <div class="text">
+                            <label>Model Confidence</label>
+                            <input id=model_confidence type="text" placeholder="0.5">
+                        </div>
                         <div class="slider-row special-rod-setting" data-profile="pinion">
                             <label for="pinion_note_ratio">Note Tracking Ratio (Pinion)</label>
                             <input class="range-input" id="pinion_note_ratio_slider" type="range" min="0" max="1" step="0.1" value="0.3" data-target="pinion_note_ratio">
@@ -781,16 +800,6 @@
                             <label for="lullaby_mask_lost_ratio">Mask Lost Ratio (Lullaby)</label>
                             <input class="range-input" id="lullaby_mask_lost_ratio_slider" type="range" min="0" max="1" step="0.1" value="0.2" data-target="lullaby_mask_lost_ratio">
                             <input class="slider-value" id="lullaby_mask_lost_ratio" type="text" inputmode="decimal" value="0.2" placeholder="0.2" data-slider="lullaby_mask_lost_ratio_slider">
-                        </div>
-                        <div class="slider-row special-rod-setting" data-profile="noiseform">
-                            <label for="noiseform_white_color">White Threshold (Noiseform)</label>
-                            <input class="range-input" id="noiseform_white_color_slider" type="range" min="0" max="255" step="1" value="200" data-target="noiseform_white_color">
-                            <input class="slider-value" id="noiseform_white_color" type="text" inputmode="numeric" value="200" data-slider="noiseform_white_color_slider">
-                        </div>
-                        <div class="slider-row special-rod-setting" data-profile="noiseform">
-                            <label for="noiseform_black_color">Black Threshold (Noiseform)</label>
-                            <input class="range-input" id="noiseform_black_color_slider" type="range" min="0" max="255" step="1" value="30" data-target="noiseform_black_color">
-                            <input class="slider-value" id="noiseform_black_color" type="text" inputmode="numeric" value="30" data-slider="noiseform_black_color_slider">
                         </div>
                     </div>
                 </section>
@@ -815,11 +824,6 @@
                             <label for="bar_ratio_from_side">Bar Ratio From Side</label>
                             <input class="range-input" id="bar_ratio_from_side_slider" type="range" min="0" max="1" step="0.1" value="0.5" data-target="bar_ratio_from_side">
                             <input class="slider-value" id="bar_ratio_from_side" type="text" inputmode="decimal" value="0.5" placeholder="0.5" data-slider="bar_ratio_from_side_slider">
-                        </div>
-                        <div class="slider-row line-only-setting">
-                            <label for="fish_line_min_density">Minimum Line Density</label>
-                            <input class="range-input" id="fish_line_min_density_slider" type="range" min="0.01" max="1" step="0.1" value="0.8" data-target="fish_line_min_density">
-                            <input class="slider-value" id="fish_line_min_density" type="text" inputmode="decimal" value="0.8" placeholder="0.8" data-slider="fish_line_min_density_slider">
                         </div>
                         <div class="text">
                             <label>KP (Proportional)</label>
@@ -1410,8 +1414,8 @@
                     <div class="panel-body">
                         <div class="faq-item">
                             <p class="faq-problem"><strong>THE MACRO NEVER CASTS</strong></p>
-                            <p class="faq-solution">Make sure your rod is in your hand. Set Rod hotbar slot key in General > Recovery so the macro can equip it itself.
-Also check nothing is open on screen, such as your inventory, a shop or a dialog box. The cast click lands on that instead.</p>
+                            <p class="faq-solution">Make sure your rod is in your hand. Set the Fishing Rod Slot in Fish tab, and enable Auto Refresh in Overview tab. 
+                                Also make sure nothing is on screen, the macro will click these buttons instead.</p>
                         </div>
                         <div class="faq-item">
                             <p class="faq-problem"><strong>MY CASTS ARE TOO SHORT OR TOO FAR</strong></p>
@@ -1423,8 +1427,12 @@ Also check nothing is open on screen, such as your inventory, a shop or a dialog
                         </div>
                         <div class="faq-item">
                             <p class="faq-problem"><strong>PERFECT CAST NEVER LETS GO</strong></p>
-                            <p class="faq-solution">Go to the Cast tab and pick the green and white colors of the cast power bar again, or raise Green tolerance and White tolerance a little.
-If the bar is never found it gives up after Fall Scan Timeout and lets go anyway, so it will not hang forever.</p>
+                            <p class="faq-solution">Go to the Cast tab and re-pick the green and white color, or increase the Tolerance by a little.
+                                If the bar is not found after fall scan timeout, it will let go.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>PERFECT CAST BAR ISN'T DETECTED PROPERLY</strong></p>
+                            <p class="faq-solution">Decrease the Green tolerance by a little.</p>
                         </div>
                         <div class="faq-item">
                             <p class="faq-problem"><strong>PERFECT CAST LETS GO TOO EARLY OR TOO LATE</strong></p>
@@ -1450,9 +1458,7 @@ If the bar is never found it gives up after Fall Scan Timeout and lets go anyway
                         </div>
                         <div class="faq-item">
                             <p class="faq-problem"><strong>SHAKING IS TOO SLOW AND THE FISH GETS AWAY</strong></p>
-                            <p class="faq-solution">Lower Shake Delay in Shake.
-
-Going too low can make the game miss inputs, so lower it a little at a time.</p>
+                            <p class="faq-solution">Lower Shake Delay in Shake. Going too low can make the game miss inputs, so lower it a little at a time.</p>
                         </div>
                         <div class="faq-item">
                             <p class="faq-problem"><strong>IT HIT THE FAILSAFE BEFORE IT CAN STOP SHAKING</strong></p>
@@ -1475,6 +1481,14 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
                         <div class="faq-item">
                             <p class="faq-problem"><strong>ITS FISHING PERFECTLY BUT IT'S NOT CASTING</strong></p>
                             <p class="faq-solution">Go to the Fish tab, and increase restart delay by steps of 0.5.</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>NORMAL CONTROLLER MOVES BACK AND FORTH</strong></p>
+                            <p class="faq-solution">Increase Kd (derivative) by steps of 0.1</p>
+                        </div>
+                        <div class="faq-item">
+                            <p class="faq-problem"><strong>PREDICTIVE CONTROLLER MOVES BACK AND FORTH</strong></p>
+                            <p class="faq-solution">Increase Velocity Smoothing by steps of 0.1</p>
                         </div>
                     </div>
                 </section>
@@ -1509,14 +1523,6 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
                                 Mask Lost Ratio is the ratio for the mask to start hitting. (Increase or decrease by 0.1 each time and refer to the Mask Lost Ratio in the Status Overlay)
                             </p>
                         </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>Noiseform tuning guide (Modern)</strong></p>
-                            <p class="faq-solution">N/A</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>Noiseform tuning guide (Legacy)</strong></p>
-                            <p class="faq-solution">White Threshold is the brightness level (0-255) used to detect the white Noiseform flash/zone. Black Threshold is the brightness level (0-255) used to detect the black Noiseform flash/zone. Higher values make white detection stricter; lower values make black detection stricter. Adjust by 10-20 while watching the status overlay.</p>
-                        </div>
                     </div>
                 </section>
 
@@ -1528,12 +1534,8 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
                     </div>
                     <div class="panel-body">
                         <div class="faq-item">
-                            <p class="faq-problem"><strong>[Problem Here]</strong></p>
-                            <p class="faq-solution">[Explanation or solution will be added here.]</p>
-                        </div>
-                        <div class="faq-item">
-                            <p class="faq-problem"><strong>[Problem Here]</strong></p>
-                            <p class="faq-solution">[Explanation or solution will be added here.]</p>
+                            <p class="faq-problem"><strong>AUTO RECONNECT TUNING GUIDE</strong></p>
+                            <p class="faq-solution">When you reconnect, if the screen where it auto reconnect after 3 seconds pop up, choose Modern, otherwise Legacy.</p>
                         </div>
                     </div>
                 </section>
@@ -1559,14 +1561,14 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
                                 <img src="AsphaltCake.png" alt="Asphalt Cake" class="credit-avatar">
                                 <div class="credit-text">
                                     <div class="credit-name">Asphalt Cake</div>
-                                    <div class="credit-role">Line detection mode, Perfect Cast, Steady and Predictive Controller, Arrow Estimation, adapted from IRUS IDIOTPROOF/IRUS COMET</div>
+                                    <div class="credit-role">Line detection mode, Perfect Cast Release Logic, Steady and Predictive Controller, adapted from IRUS IDIOTPROOF/IRUS COMET</div>
                                 </div>
                             </div>
                             <div class="credit-item">
                                 <img src="Yato.png" alt="Asphalt Cake" class="credit-avatar">
                                 <div class="credit-text">
                                     <div class="credit-name">Yato</div>
-                                    <div class="credit-role">Tranquility Rod, Noiseform Minigame and Geometry detection mode, adapted from DeepFish</div>
+                                    <div class="credit-role">Tranquility Rod controller, adapted from DeepFish</div>
                                 </div>
                             </div>
                         </div>
@@ -1588,7 +1590,7 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
                             <a href="https://catman2608.github.io/PyWare-Backend/" target="_blank" rel="noopener">Official Website</a>
                             <a href="https://discord.gg/aMZY8yrF8r" target="_blank" rel="noopener">Join Solar Macros Discord Server</a>
                             <a href="https://github.com/Catman2608/Solar-Fishing" target="_blank" rel="noopener">Source Code</a>
-                            <a href="https://docs.google.com/document/d/1ZTDFi4jwSnJE1jq3bT1yNnnX3V-ohEOvXNOm6P1dPNU" target="_blank" rel="noopener">Minigame Guide</a>
+                            <a href="https://docs.google.com/document/d/1GEopjirnEPJmLXPyB2EhnW_a6Q12wAhgABEGUfAT3q0" target="_blank" rel="noopener">Minigame Guide</a>
                             <a href="https://docs.google.com/document/d/1WwWWMR-eN-R-GO42IioToHpWTgiXkLoiNE_4NeE-GsU" target="_blank" rel="noopener">Upcoming Features</a>
                             <a href="https://www.youtube.com/@HexaTitanGaming" target="_blank" rel="noopener">Catman's YouTube Channel</a>
                             <a href="https://www.youtube.com/@AsphaltCake" target="_blank" rel="noopener">Asphalt Cake's YouTube Channel</a>
@@ -1606,11 +1608,11 @@ Going too low can make the game miss inputs, so lower it a little at a time.</p>
         <div class="banner-inner">
             <div class="banner-main">
                 <div class="banner-text">
-                    <h3 id="banner-title" class="banner-title">Update Available</h3>
-                    <p id="banner-notice" class="banner-notice">A new version is available.</p>
+                    <h3 id="banner-title" class="banner-title">title</h3>
+                    <p id="banner-notice" class="banner-notice">notice</p>
                 </div>
                 <div id="banner-dialogue" class="banner-dialogue hidden">
-                    <input id="banner-input" class="banner-input" type="text" placeholder="Enter a value..." />
+                    <input id="banner-input" class="banner-input" type="text" placeholder="placeholder" />
                 </div>
             </div>
             <div id="banner-actions" class="banner-actions">

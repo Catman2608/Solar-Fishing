@@ -1,17 +1,17 @@
 {
-    "last_config": "Noiseform",
+    "last_config": "Tryhard Rod",
     "bar_areas": {
         "shake": {
             "x": 0.1041,
             "y": 0.0935,
-            "width": 0.7917,
-            "height": 0.7058
+            "width": 0.7911791666666665,
+            "height": 0.6638552907530981
         },
         "fish": {
-            "x": 0.2896910052910053,
-            "y": 0.7765185654008439,
-            "width": 0.41911798941798944,
-            "height": 0.09878143459915613
+            "x": 0.2964618386243386,
+            "y": 0.7698455434752004,
+            "width": 0.40661798941798943,
+            "height": 0.10545445652479961
         },
         "fish_1_bellona": null,
         "fish_2_bellona": null,
@@ -45,9 +45,9 @@
     "tos_accepted": false,
     "roblox_bounds_cache": {
         "left": 0.0,
-        "top": 34.0,
-        "width": 1512.0,
-        "height": 948.0
+        "top": 31.0,
+        "width": 1920.0,
+        "height": 1049.0
     },
     "efficiency_mode": false
 }

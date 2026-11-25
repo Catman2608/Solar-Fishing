@@ -1,5 +1,6 @@
 *.exe
 *.dll
 *.bin
+*.onnx
 other_functions.py
 ignore.py
