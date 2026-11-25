@@ -4823,6 +4823,37 @@ class Api:
         square = [s for s in remaining if s['center'] != triangle['center']][0]
         return triangle['center'], circle['center'], square['center']
 
+    def auto_download_yolo_model(self):
+        # Fill these in with your repo details
+        REPO = "Solar-Fishing"
+        TAG = "yolo"  # or "latest"
+
+        # Direct download URLs for the 3 files
+        files = [
+            "Maelstrom.onnx",
+            "Tryhard_Rod.onnx",
+            "Shake.onnx",
+        ]
+
+        base_url = f"https://github.com/{DEVELOPER}/{REPO}/releases/download/{TAG}"
+
+        for filename in files:
+            try:
+                if "Shake" not in filename:
+                    current_yolo_path = os.path.join(CONFIGS_PATH, f"{filename.replace(".onnx", "")}", "model.onnx")
+                else:
+                    current_yolo_path = os.path.join(CONFIGS_PATH, "Shake.onnx")
+                url = f"{base_url}/{filename}"
+                self.set_status(f"Downloading {filename}...")
+                r = requests.get(url, stream=True, allow_redirects=True)
+                r.raise_for_status()
+                with open(current_yolo_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                self.set_status(f"Saved {filename}")
+            except Exception as e:
+                self.message_box_javascript(f"Error while downloading models: {e}")
+
     def _preload_yolo_model(self):
         """Preload ONNX model at startup in main thread"""
         try:

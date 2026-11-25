@@ -853,6 +853,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+async function downloadYOLOModels() {
+    await pywebview.api.auto_download_yolo_model();
+}
+
 async function testLogging() {
     await pywebview.api.test_logging();
 }
